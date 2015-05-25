@@ -1,0 +1,2 @@
+defmodule MongodbEcto do
+end
