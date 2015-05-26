@@ -5,7 +5,7 @@ defmodule MongodbEcto.Mixfile do
     [app: :mongodb_ecto,
      version: "0.0.1",
      elixir: "~> 1.0",
-     deps: deps(Mix.env)]
+     deps: deps]
   end
 
   def application do
@@ -14,19 +14,8 @@ defmodule MongodbEcto.Mixfile do
 
   defp deps do
     [
-        {:mongodb, github: "comtihon/mongodb-erlang"}
-    ]
-  end
-
-  defp deps(:test) do
-    [
-        {:ecto, github: "elixir-lang/ecto"}
-    ] ++ deps
-  end
-
-  defp deps(_) do
-    [
+        {:mongodb, github: "comtihon/mongodb-erlang"},
         {:ecto, "~> 0.11"}
-    ] ++ deps
+    ]
   end
 end
