@@ -32,8 +32,12 @@ defmodule MongodbEcto do
     {:error, :not_supported}
   end
 
-  def insert(_repo, _source, _params, _returning, _opts) do
-    {:error, :not_supported}
+  def insert(repo, source, params, returning, opts) do
+    result =
+      :mongo.insert(repo.__worker__, source, to_bson(params))
+      |> from_bson
+
+    {:ok, Enum.map(returning, &Map.get(result, &1))}
   end
 
   def update(_repo, _source, _fields, _filter, _returning, _opts) do
@@ -91,12 +95,18 @@ defmodule MongodbEcto do
     document
     |> Tuple.to_list
     |> Enum.chunk(2)
-    |> Enum.into(%{}, fn [key, value] -> {key, value} end)
+    |> Enum.into(%{}, fn
+      [:_id, value] -> {:id, value}
+      [key, value]  -> {key, value}
+    end)
   end
 
   def to_bson(document) do
     document
-    |> Enum.flat_map(fn {key, value} -> [key, value] end)
+    |> Enum.flat_map(fn {key, value} -> [key, value |> extract_value] end)
     |> List.to_tuple
   end
+
+  def extract_value(%Ecto.Query.Tagged{value: value}), do: value
+  def extract_value(value), do: value
 end
