@@ -86,4 +86,17 @@ defmodule MongodbEcto do
   defp to_erl(nil), do: :undefined
   defp to_erl(string) when is_binary(string), do: to_char_list(string)
   defp to_erl(other), do: other
+
+  def from_bson(document) do
+    document
+    |> Tuple.to_list
+    |> Enum.chunk(2)
+    |> Enum.into(%{}, fn [key, value] -> {key, value} end)
+  end
+
+  def to_bson(document) do
+    document
+    |> Enum.flat_map(fn {key, value} -> [key, value] end)
+    |> List.to_tuple
+  end
 end
