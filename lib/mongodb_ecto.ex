@@ -16,16 +16,22 @@ defmodule MongodbEcto do
   end
 
   def start_link(repo, opts) do
-    opts
-    |> prepare_opts(repo)
-    |> :mc_worker.start_link
+    pid = Process.whereis(repo.__worker__)
+
+    if is_nil(pid) or not Process.alive?(pid) do
+      opts
+      |> prepare_opts(repo)
+      |> :mc_worker.start_link
+    else
+      {:error, {:already_started, pid}}
+    end
   end
 
   def stop(repo) do
     :mc_worker.disconnect(repo.__worker__)
   end
 
-  def all(_repo, __query, _params, _opts) do
+  def all(_repo, query, _params, _opts) do
     {:error, :not_supported}
   end
 
