@@ -4,6 +4,7 @@ defmodule MongodbEcto do
   @behaviour Ecto.Adapter.Transaction
 
   alias MongodbEcto.Bson
+  alias MongodbEcto.Query
 
   ## Adapter
 
@@ -31,8 +32,14 @@ defmodule MongodbEcto do
     :mc_worker.disconnect(repo.__worker__)
   end
 
-  def all(_repo, query, _params, _opts) do
-    {:error, :not_supported}
+  def all(repo, query, _params, _opts) do
+    {collection, selector, projector, skip} = Query.all(query)
+
+    cursor = :mongo.find(repo.__worker__, collection, selector, projector, skip)
+    result = :mc_cursor.rest(cursor)
+    :mc_cursor.close(cursor)
+
+    Enum.map(result, &Bson.from_bson/1)
   end
 
   def update_all(_repo, _query, _values, _params, _opts) do
