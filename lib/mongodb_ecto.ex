@@ -1,6 +1,11 @@
 defmodule MongodbEcto do
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Storage
+  @behaviour Ecto.Adapter.Transaction
+
+  alias MongodbEcto.Bson
+
+  ## Adapter
 
   defmacro __before_compile__(env) do
     quote do
@@ -32,12 +37,19 @@ defmodule MongodbEcto do
     {:error, :not_supported}
   end
 
-  def insert(repo, source, params, returning, opts) do
-    result =
-      :mongo.insert(repo.__worker__, source, to_bson(params))
-      |> from_bson
+  def insert(repo, source, params, [], _opts) do
+    do_insert(repo, source, params)
+    {:ok, []}
+  end
+  # FIXME do not assume the first returning is the primary key
+  def insert(repo, source, params, [pk | _] = returning, _opts) do
+    result = do_insert(repo, source, params, pk) |> Bson.from_bson(pk)
 
-    {:ok, Enum.map(returning, &Map.get(result, &1))}
+    {:ok, Enum.map(returning, &{&1, Map.get(result, &1)})}
+  end
+
+  defp do_insert(repo, source, params, pk \\ :id) do
+    :mongo.insert(repo.__worker__, source, Bson.to_bson(params, pk))
   end
 
   def update(_repo, _source, _fields, _filter, _returning, _opts) do
@@ -47,6 +59,8 @@ defmodule MongodbEcto do
   def delete(_repo, _source, _filter, _opts) do
     {:error, :not_supported}
   end
+
+  ## Storage
 
   @doc """
   Noop for MongoDB, as any databases and collections are created as needed.
@@ -58,6 +72,24 @@ defmodule MongodbEcto do
   def storage_down(opts) do
     command(opts, {:dropDatabase, 1})
   end
+
+  ## Transaction
+
+  # FIXME can we do something better?
+  def transaction(_repo, _opts, fun) do
+    try do
+      {:ok, fun.()}
+    catch
+      :throw, {:ecto_rollback, value} ->
+        {:error, value}
+    end
+  end
+
+  def rollback(_repo, value) do
+    throw {:ecto_rollback, value}
+  end
+
+  ## Other
 
   defp command(opts, command) do
     {:ok, conn} = opts |> prepare_opts |> :mc_worker.start_link
@@ -90,23 +122,4 @@ defmodule MongodbEcto do
   defp to_erl(nil), do: :undefined
   defp to_erl(string) when is_binary(string), do: to_char_list(string)
   defp to_erl(other), do: other
-
-  def from_bson(document) do
-    document
-    |> Tuple.to_list
-    |> Enum.chunk(2)
-    |> Enum.into(%{}, fn
-      [:_id, value] -> {:id, value}
-      [key, value]  -> {key, value}
-    end)
-  end
-
-  def to_bson(document) do
-    document
-    |> Enum.flat_map(fn {key, value} -> [key, value |> extract_value] end)
-    |> List.to_tuple
-  end
-
-  def extract_value(%Ecto.Query.Tagged{value: value}), do: value
-  def extract_value(value), do: value
 end
