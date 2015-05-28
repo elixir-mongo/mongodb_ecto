@@ -1,6 +1,6 @@
 %{"bson": {:git, "git://github.com/comtihon/bson-erlang", "c733887a8f1d0af5c5926a6a09ec3ccdccfb94c5", [ref: "master"]},
   "decimal": {:hex, :decimal, "1.1.0"},
-  "ecto": {:hex, :ecto, "0.11.3"},
+  "ecto": {:git, "git://github.com/elixir-lang/ecto.git", "35751f8bbd1375c0321b7055f93d0743ee6fa181", []},
   "mongodb": {:git, "git://github.com/comtihon/mongodb-erlang.git", "98d85a0197e2c74057ca0c87dec3455dc65b51e6", []},
   "pbkdf2": {:git, "https://github.com/basho/erlang-pbkdf2.git", "7076584f5377e98600a7e2cb81980b2992fb2f71", [ref: "master"]},
   "poolboy": {:hex, :poolboy, "1.5.1"}}

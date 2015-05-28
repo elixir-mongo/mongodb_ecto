@@ -15,7 +15,7 @@ defmodule MongodbEcto.Mixfile do
   defp deps do
     [
         {:mongodb, github: "comtihon/mongodb-erlang"},
-        {:ecto, "~> 0.11"}
+        {:ecto, github: "elixir-lang/ecto"}
     ]
   end
 end
