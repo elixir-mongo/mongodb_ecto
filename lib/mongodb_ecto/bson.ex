@@ -30,10 +30,12 @@ defmodule MongodbEcto.Bson do
     |> List.to_tuple
   end
 
+  @epoch_seconds :calendar.datetime_to_gregorian_seconds({{1970,1,1}, {0,0,0}})
+
   defp encode(nil), do: :null
-  defp encode({{year, month, day}, {hour, min, sec, usec}}) do
-    seconds =
-      :calendar.datetime_to_gregorian_seconds({{year, month, day}, {hour, min, sec}})
+  defp encode({date, {hour, min, sec, usec}}) do
+    datetime = {date, {hour, min, sec}}
+    seconds = :calendar.datetime_to_gregorian_seconds(datetime) - @epoch_seconds
     {div(seconds, 1000000), rem(seconds, 1000000), usec}
   end
   defp encode(%Ecto.Query.Tagged{tag: nil, value: value}), do: value

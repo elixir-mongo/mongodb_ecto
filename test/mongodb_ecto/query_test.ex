@@ -1,5 +1,5 @@
 defmodule MongodbEcto.QueryTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias MongodbEcto.Query
   import Ecto.Query
@@ -14,17 +14,118 @@ defmodule MongodbEcto.QueryTest do
   end
 
   defp normalize(query) do
-    {query, _params} = Ecto.Query.Planner.prepare(query, [])
-    Ecto.Query.Planner.normalize(query, [], [])
+    {query, params} = Ecto.Query.Planner.prepare(query, [])
+    {Ecto.Query.Planner.normalize(query, [], []), params}
   end
 
   test "bare model" do
-    query = Model |> from |> normalize
-    assert Query.all(query) == {"model", %{}, %{}, 0}
+    {query, params} = Model |> from |> normalize
+    assert Query.all(query, params) == {"model", %{}, %{}, 0, 0}
+  end
+
+  test "from without model" do
+    {query, params} = "posts" |> select([r], r.x) |> normalize
+    assert Query.all(query, params) == {"posts", %{}, %{x: 1}, 0, 0}
   end
 
   test "where" do
-    query = Model |> where([r], r.x == 42) |> where([r], r.y != 43) |> normalize
-    assert Query.all(query) == {"model", %{x: %{"$eq": 42}, y: %{"$ne": 43}}, %{}, 0}
+    {query, params} = Model |> where([r], r.x == 42) |> where([r], r.y != 43)
+                      |> select([r], r.x) |> normalize
+    assert Query.all(query, params) == {"model", %{x: 42, y: %{"$ne": 43}}, %{x: 1}, 0, 0}
+
+    {query, params} = Model |> where([r], not (r.x == 42)) |> normalize
+    assert Query.all(query, params) == {"model", %{"$not": %{x: 42}}, %{}, 0, 0}
   end
+
+  test "select" do
+    {query, params} = Model |> select([r], {r.x, r.y}) |> normalize
+    assert Query.all(query, params) == {"model", %{}, %{x: 1, y: 1}, 0, 0}
+
+    {query, params} = Model |> select([r], [r.x, r.y]) |> normalize
+    assert Query.all(query, params) == {"model", %{}, %{x: 1, y: 1}, 0, 0}
+  end
+
+  test "order by" do
+    {query, params} = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize
+    assert Query.all(query, params) == {"model", %{"$orderby": %{x: 1}}, %{x: 1}, 0, 0}
+
+    {query, params} = Model |> order_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
+    assert Query.all(query, params) == {"model", %{"$orderby": %{x: 1, y: 1}}, %{x: 1}, 0, 0}
+
+    {query, params} = Model
+                      |> order_by([r], [asc: r.x, desc: r.y]) |> select([r], r.x) |> normalize
+    assert Query.all(query, params) == {"model", %{"$orderby": %{x: 1, y: -1}}, %{x: 1}, 0, 0}
+
+    {query, params} = Model |> order_by([r], []) |> select([r], r.x) |> normalize
+    assert Query.all(query, params) == {"model", %{}, %{x: 1}, 0, 0}
+  end
+
+  test "limit and offset" do
+    {query, params} = Model |> limit([r], 3) |> normalize
+    assert Query.all(query, params) == {"model", %{}, %{}, 0, 3}
+
+    {query, params} = Model |> offset([r], 5) |> normalize
+    assert Query.all(query, params) == {"model", %{}, %{}, 5, 0}
+
+    {query, params} = Model |> offset([r], 5) |> limit([r], 3) |> normalize
+    assert Query.all(query, params) == {"model", %{}, %{}, 5, 3}
+  end
+
+  test "lock" do
+    {query, params} = Model |> lock("FOR SHARE NOWAIT") |> normalize
+
+    assert_raise Ecto.QueryError, fn ->
+      Query.all(query, params)
+    end
+  end
+
+  test "distinct" do
+    {query, params} = Model |> distinct([r], r.x) |> select([r], {r.x, r.y}) |> normalize
+    assert_raise Ecto.QueryError, fn ->
+      Query.all(query, params)
+    end
+
+    {query, params} = Model |> distinct(true) |> select([r], {r.x, r.y}) |> normalize
+    assert_raise Ecto.QueryError, fn ->
+      Query.all(query, params)
+    end
+  end
+
+  test "is_nil" do
+    {query, params} = Model |> where([r], is_nil(r.x)) |> normalize
+    assert Query.all(query, params) == {"model", %{x: nil}, %{}, 0, 0}
+
+    {query, params} = Model |> where([r], not is_nil(r.x)) |> normalize
+    assert Query.all(query, params) == {"model", %{x: %{"$neq": nil}}, %{}, 0, 0}
+  end
+
+  test "literals" do
+    # TODO how to check nil?
+    # {query, params} = Model |> select([], nil) |> normalize
+    # assert Query.all(query, params) == ~s{SELECT NULL FROM "model" AS m0}
+
+    {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == true) |> normalize
+    assert Query.all(query, params) == {"plain", %{x: true}, %{x: 1}, 0, 0}
+
+    {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == false) |> normalize
+    assert Query.all(query, params) == {"plain", %{x: false}, %{x: 1}, 0, 0}
+
+    {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == "abc") |> normalize
+    assert Query.all(query, params) == {"plain", %{x: "abc"}, %{x: 1}, 0, 0}
+
+    {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == 123) |> normalize
+    assert Query.all(query, params) == {"plain", %{x: 123}, %{x: 1}, 0, 0}
+
+    {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == 123.0) |> normalize
+    assert Query.all(query, params) == {"plain", %{x: 123.0}, %{x: 1}, 0, 0}
+  end
+
+  test "nested expressions" do
+    z = 123
+    {query, params} = from(r in Model, [])
+                      |> where([r], r.x > 0 and (r.y > ^(-z)) or true) |> normalize
+    selector = %{"$or": [{:"$and", [x: %{"$gt": 0}, y: %{"$gt": -123}]}, true]}
+    assert Query.all(query, params) == {"model", selector, %{}, 0, 0}
+  end
+
 end

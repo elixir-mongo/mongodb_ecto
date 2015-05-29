@@ -1,5 +1,5 @@
 Logger.configure(level: :info)
-ExUnit.start
+ExUnit.start exclude: [:uses_usec]
 
 Code.require_file "../deps/ecto/integration_test/support/repo.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/support/models.exs", __DIR__
