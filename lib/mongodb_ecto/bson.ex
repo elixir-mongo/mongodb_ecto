@@ -36,6 +36,10 @@ defmodule MongodbEcto.Bson do
       :calendar.datetime_to_gregorian_seconds({{year, month, day}, {hour, min, sec}})
     {div(seconds, 1000000), rem(seconds, 1000000), usec}
   end
-  defp encode(%Ecto.Query.Tagged{value: value}), do: value
+  defp encode(%Ecto.Query.Tagged{tag: nil, value: value}), do: value
+  defp encode(%Ecto.Query.Tagged{} = value) do
+    raise ArgumentError, value
+  end
+  defp encode(map) when is_map(map), do: to_bson(map)
   defp encode(other), do: other
 end

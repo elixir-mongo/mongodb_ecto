@@ -20,6 +20,11 @@ defmodule MongodbEcto.QueryTest do
 
   test "bare model" do
     query = Model |> from |> normalize
-    assert Query.all(query) == {"model", {}, {}, 0}
+    assert Query.all(query) == {"model", %{}, %{}, 0}
+  end
+
+  test "where" do
+    query = Model |> where([r], r.x == 42) |> where([r], r.y != 43) |> normalize
+    assert Query.all(query) == {"model", %{x: %{"$eq": 42}, y: %{"$ne": 43}}, %{}, 0}
   end
 end
