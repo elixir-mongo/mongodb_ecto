@@ -54,6 +54,8 @@ defmodule MongodbEcto do
               |> Enum.map(&Map.get(document, &1))
               |> List.to_tuple
         model.__schema__(:load, source, 0, row)
+      {{:., _, [{:&, _, [0]}, field]}, _, []} ->
+        Map.get(document, field)
     end)
   end
 

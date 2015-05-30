@@ -1,3 +1,4 @@
+# System.at_exit fn _ -> Logger.flush end
 Logger.configure(level: :info)
 ExUnit.start exclude: [:uses_usec]
 
@@ -38,5 +39,3 @@ _   = Ecto.Storage.down(TestRepo)
 :ok = Ecto.Storage.up(TestRepo)
 
 {:ok, _pid} = TestRepo.start_link
-
-# :ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)

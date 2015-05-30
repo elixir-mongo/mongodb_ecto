@@ -47,17 +47,21 @@ defmodule MongodbEcto.QueryTest do
 
   test "order by" do
     {query, params} = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize
-    assert Query.all(query, params) == {"model", %{"$orderby": %{x: 1}}, %{x: 1}, 0, 0}
+    selector = %{"$query": %{}, "$orderby": %{x: 1}}
+    assert Query.all(query, params) == {"model", selector, %{x: 1}, 0, 0}
 
     {query, params} = Model |> order_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
-    assert Query.all(query, params) == {"model", %{"$orderby": %{x: 1, y: 1}}, %{x: 1}, 0, 0}
+    selector = %{"$query": %{}, "$orderby": %{x: 1, y: 1}}
+    assert Query.all(query, params) == {"model", selector, %{x: 1}, 0, 0}
 
     {query, params} = Model
                       |> order_by([r], [asc: r.x, desc: r.y]) |> select([r], r.x) |> normalize
-    assert Query.all(query, params) == {"model", %{"$orderby": %{x: 1, y: -1}}, %{x: 1}, 0, 0}
+    selector = %{"$query": %{}, "$orderby": %{x: 1, y: -1}}
+    assert Query.all(query, params) == {"model", selector, %{x: 1}, 0, 0}
 
     {query, params} = Model |> order_by([r], []) |> select([r], r.x) |> normalize
-    assert Query.all(query, params) == {"model", %{}, %{x: 1}, 0, 0}
+    selector = %{"$query": %{}, "$orderby": %{}}
+    assert Query.all(query, params) == {"model", selector, %{x: 1}, 0, 0}
   end
 
   test "limit and offset" do

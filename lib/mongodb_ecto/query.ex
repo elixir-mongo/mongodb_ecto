@@ -20,9 +20,7 @@ defmodule MongodbEcto.Query do
 
     if query.order_bys != [] do
       orderby = order_bys(query.order_bys, params)
-      selector = %{}
-        |> put_if_not_empty(:"$query", selector)
-        |> put_if_not_empty(:"$orderby", orderby)
+      selector = %{"$query": selector, "$orderby": orderby}
     end
 
     {table, selector, projection, skip, batch_size}
