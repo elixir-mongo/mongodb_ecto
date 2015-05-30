@@ -6,54 +6,76 @@ defmodule MongodbEcto do
 
   alias MongodbEcto.Bson
   alias MongodbEcto.Query
+  alias MongodbEcto.Connection
+  alias Ecto.Adapters.Worker
 
   ## Adapter
 
   defmacro __before_compile__(env) do
+    timeout =
+      env.module
+      |> Module.get_attribute(:config)
+      |> Keyword.get(:timeout, 5000)
+
     quote do
-      def __worker__ do
-        unquote(env.module).Worker
+      def __pool__ do
+        {__MODULE__.Pool, unquote(timeout)}
       end
     end
   end
 
   def start_link(repo, opts) do
-    pid = Process.whereis(repo.__worker__)
+    {pool_opts, worker_opts} = split_opts(repo, opts)
 
-    if is_nil(pid) or not Process.alive?(pid) do
-      opts
-      |> prepare_opts(repo)
-      |> :mc_worker.start_link
-    else
-      {:error, {:already_started, pid}}
-    end
+    :poolboy.start_link(pool_opts, {Connection, worker_opts})
   end
 
   def stop(repo) do
-    :mc_worker.disconnect(repo.__worker__)
+    repo.__pool__ |> elem(0) |> :poolboy.stop
+  end
+
+  def id_types(_repo) do
+    %{binary_id: :binary}
+  end
+
+  defp with_conn(repo, fun) do
+    {pool, timeout} = repo.__pool__
+
+    worker = :poolboy.checkout(pool, true, timeout)
+    try do
+      {_module, conn} = Worker.ask!(worker, timeout)
+      fun.(conn)
+    after
+      :ok = :poolboy.checkin(pool, worker)
+    end
   end
 
   def all(repo, query, params, _opts) do
     {collection, selector, projector, skip, batch_size} = Query.all(query, params)
 
-    cursor = :mongo.find(repo.__worker__, collection,
-                         Bson.to_bson(selector), Bson.to_bson(projector),
-                         skip, batch_size)
+    selector = Bson.to_bson(selector)
+    projector = Bson.to_bson(projector)
+
+    cursor =
+      with_conn(repo, fn conn ->
+        :mongo.find(conn, collection, selector, projector, skip, batch_size)
+      end)
+
     documents = :mc_cursor.rest(cursor)
     :mc_cursor.close(cursor)
 
     documents
     |> Enum.map(&Bson.from_bson/1)
-    |> Enum.map(&process_document(&1, query.select.fields, query.from))
+    |> Enum.map(&process_document(&1, query.select.fields, query.from, id_types(repo)))
   end
 
-  def process_document(document, fields, {source, model}) do
+  def process_document(document, fields, {source, model}, id_types) do
     Enum.map(fields, fn
       {:&, _, [0]} ->
         row = model.__schema__(:fields)
               |> Enum.map(&Map.get(document, &1))
               |> List.to_tuple
-        model.__schema__(:load, source, 0, row)
+        model.__schema__(:load, source, 0, row, id_types)
       {{:., _, [{:&, _, [0]}, field]}, _, []} ->
         Map.get(document, field)
     end)
@@ -72,14 +94,18 @@ defmodule MongodbEcto do
     {:ok, []}
   end
   # FIXME do not assume the first returning is the primary key
-  def insert(repo, source, params, [pk | _] = returning, _opts) do
+  def insert(repo, source, params, {pk, :binary_id, nil}, returning, _opts) do
     result = do_insert(repo, source, params, pk) |> Bson.from_bson(pk)
 
     {:ok, Enum.map(returning, &{&1, Map.get(result, &1)})}
   end
 
   defp do_insert(repo, source, params, pk \\ :id) do
-    :mongo.insert(repo.__worker__, source, Bson.to_bson(params, pk))
+    document = Bson.to_bson(params, pk)
+
+    with_conn(repo, fn conn ->
+      :mongo.insert(conn, source, document)
+    end)
   end
 
   def update(_repo, _source, _fields, _filter, _returning, _opts) do
@@ -122,34 +148,30 @@ defmodule MongodbEcto do
   ## Other
 
   defp command(opts, command) do
-    {:ok, conn} = opts |> prepare_opts |> :mc_worker.start_link
+    {:ok, conn} = Connection.connect(opts)
     reply = :mongo.command(conn, command)
-    :ok = :mc_worker.disconnect(conn)
+    :ok = Connection.disconnect(conn)
+
     case reply do
       {true, resp} -> {:ok, resp}
       {false, err} -> {:error, err}
     end
   end
 
-  defp prepare_opts(opts) do
-    opts
-    |> Keyword.take([:database, :r_mode, :w_mode, :timeout,
-                     :port, :hostname, :username, :password])
-    |> Enum.map(fn
-      {:hostname, hostname} -> {:host, to_erl(hostname)}
-      {:username, username} -> {:login, to_erl(username)}
-      {:database, database} -> {:database, to_string(database)}
-      {key, value} when is_binary(value) -> {key, to_erl(value)}
-      other -> other
-    end)
-  end
-  defp prepare_opts(opts, repo) do
-    opts
-    |> prepare_opts
-    |> Keyword.put(:register, repo.__worker__)
-  end
+  defp split_opts(repo, opts) do
+    {pool_name, _} = repo.__pool__
 
-  defp to_erl(nil), do: :undefined
-  defp to_erl(string) when is_binary(string), do: to_char_list(string)
-  defp to_erl(other), do: other
+    {pool_opts, worker_opts} = Keyword.split(opts, [:size, :max_overflow])
+
+    pool_opts = pool_opts
+      |> Keyword.put_new(:size, 10)
+      |> Keyword.put_new(:max_overflow, 0)
+      |> Keyword.put(:worker_module, Worker)
+      |> Keyword.put(:name, {:local, pool_name})
+
+    worker_opts = worker_opts
+      |> Keyword.put(:timeout, Keyword.get(worker_opts, :connect_timeout, 5000))
+
+    {pool_opts, worker_opts}
+  end
 end

@@ -6,7 +6,7 @@ defmodule MongodbEcto.Bson do
     |> Tuple.to_list
     |> Enum.chunk(2)
     |> Enum.into(%{}, fn
-      [:_id, {<<value :: integer-size(96)>>}] -> {pk, value}
+      [:_id, {value}] -> {pk, value}
       [key, value] -> {key, decode(value)}
     end)
   end
@@ -24,7 +24,8 @@ defmodule MongodbEcto.Bson do
   def to_bson(document, pk \\ :id) do
     document
     |> Enum.flat_map(fn
-      {key, value} when key == pk -> [:_id, {<<value :: integer-size(96)>>}]
+      {key, value} when key == pk and is_binary(value) -> [:_id, {value}]
+      {key, value} when key == pk -> [:_id, encode(value)]
       {key, value} -> [key, encode(value)]
     end)
     |> List.to_tuple
