@@ -14,7 +14,7 @@ defmodule MongodbEcto.QueryTest do
   end
 
   defp normalize(query) do
-    {query, params} = Ecto.Query.Planner.prepare(query, [])
+    {query, params} = Ecto.Query.Planner.prepare(query, [], %{})
     {Ecto.Query.Planner.normalize(query, [], []), params}
   end
 

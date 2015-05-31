@@ -1,8 +1,6 @@
 defmodule MongodbEcto do
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Storage
-  # FIXME remove tranaction - we shouldn't need it
-  @behaviour Ecto.Adapter.Transaction
 
   alias MongodbEcto.Bson
   alias MongodbEcto.Query
@@ -89,15 +87,31 @@ defmodule MongodbEcto do
     {:error, :not_supported}
   end
 
-  def insert(repo, source, params, [], _opts) do
+  def insert(_repo, source, _params, {key, :id, _}, _returning, _opts) do
+    raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
+                         "The #{inspect key} field in #{inspect source} is tagged as such."
+  end
+
+  def insert(_repo, source, _params, _autogen, [_] = returning, _opts) do
+    raise ArgumentError,
+      "MongoDB adapter does not support :read_after_writes in models. " <>
+      "The following fields in #{inspect source} are tagged as such: #{inspect returning}"
+  end
+
+  def insert(repo, source, params, nil, [], _opts) do
     do_insert(repo, source, params)
     {:ok, []}
   end
-  # FIXME do not assume the first returning is the primary key
-  def insert(repo, source, params, {pk, :binary_id, nil}, returning, _opts) do
-    result = do_insert(repo, source, params, pk) |> Bson.from_bson(pk)
 
-    {:ok, Enum.map(returning, &{&1, Map.get(result, &1)})}
+  def insert(repo, source, params, {pk, :binary_id, nil}, [], _opts) do
+    result = do_insert(repo, source, params) |> Bson.from_bson(pk)
+
+    {:ok, [{pk, Map.fetch!(result, pk)}]}
+  end
+
+  def insert(repo, source, params, {_pk, :binary_id, _value}, [], _opts) do
+    do_insert(repo, source, params)
+    {:ok, []}
   end
 
   defp do_insert(repo, source, params, pk \\ :id) do
@@ -127,22 +141,6 @@ defmodule MongodbEcto do
 
   def storage_down(opts) do
     command(opts, {:dropDatabase, 1})
-  end
-
-  ## Transaction
-
-  # FIXME can we do something better?
-  def transaction(_repo, _opts, fun) do
-    try do
-      {:ok, fun.()}
-    catch
-      :throw, {:ecto_rollback, value} ->
-        {:error, value}
-    end
-  end
-
-  def rollback(_repo, value) do
-    throw {:ecto_rollback, value}
   end
 
   ## Other

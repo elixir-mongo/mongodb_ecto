@@ -21,6 +21,8 @@ defmodule MongodbEcto.Bson do
   defp decode(document) when is_tuple(document), do: from_bson(document)
   defp decode(other), do: other
 
+  # FIXME we need some way to tell apart regular binary from objectid to
+  #       encode it properely when in complex requests
   def to_bson(document, pk \\ :id) do
     document
     |> Enum.flat_map(fn

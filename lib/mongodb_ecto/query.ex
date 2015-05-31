@@ -1,5 +1,6 @@
 defmodule MongodbEcto.Query do
   alias Ecto.Query.QueryExpr
+  alias Ecto.Query.Tagged
 
   def all(query, params) do
     check(query.joins, [], query, "MongoDB adapter does not support join clauses")
@@ -91,7 +92,7 @@ defmodule MongodbEcto.Query do
   defp expr(string, _) when is_binary(string), do: string
   defp expr({:^, _, [idx]}, params), do: elem(params, idx)
   defp expr({:in, _, [left, {:^, _, [ix, len]}]}, params) do
-    args = Enum.map(ix..ix+len-1, &elem(params, &1))
+    args = Enum.map(ix..ix+len-1, &elem(params, &1)) |> Enum.map(&expr(&1, params))
     {expr(left, params), %{"$in": args}}
   end
   defp expr({:is_nil, _, [expr]}, params) do
@@ -118,6 +119,7 @@ defmodule MongodbEcto.Query do
   defp expr({op, _, args}, params) when op in @bool_ops do
     {translate(op), Enum.map(args, &expr(&1, params))}
   end
+  defp expr(%Tagged{tag: nil, value: value}, _), do: value
   defp expr(true, _), do: true
   defp expr(false, _), do: false
   defp expr(nil, _), do: nil
