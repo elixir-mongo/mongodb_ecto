@@ -1,17 +1,18 @@
 defmodule MongodbEcto.Bson do
-  # FIXME the ObjectId -> integer hack
 
   def from_bson(document, pk \\ :id) do
     document
     |> Tuple.to_list
     |> Enum.chunk(2)
     |> Enum.into(%{}, fn
-      [:_id, {value}] -> {pk, value}
+      [:_id, value] -> {pk, decode(value)}
       [key, value] -> {key, decode(value)}
     end)
   end
 
   defp decode(:null), do: nil
+  defp decode({objectid}) when is_binary(objectid), do: objectid
+  defp decode({:bin, :uuid, uuid}), do: uuid
   defp decode({msec, sec, usec} = datetime)
     when is_integer(msec) and is_integer(sec) and is_integer(usec) do
     {date, {hour, minute, second}} =
@@ -41,10 +42,17 @@ defmodule MongodbEcto.Bson do
     seconds = :calendar.datetime_to_gregorian_seconds(datetime) - @epoch_seconds
     {div(seconds, 1000000), rem(seconds, 1000000), usec}
   end
+  defp encode(%Ecto.Query.Tagged{type: :uuid, value: value}) do
+    {:bin, :uuid, value}
+  end
+  defp encode(%Ecto.Query.Tagged{type: :object_id, value: value}) do
+    {value}
+  end
   defp encode(%Ecto.Query.Tagged{tag: nil, value: value}), do: value
   defp encode(%Ecto.Query.Tagged{} = value) do
     raise ArgumentError, value
   end
   defp encode(map) when is_map(map), do: to_bson(map)
+  defp encode(list) when is_list(list), do: Enum.map(list, &encode/1)
   defp encode(other), do: other
 end

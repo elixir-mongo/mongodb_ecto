@@ -4,6 +4,7 @@ defmodule MongodbEcto do
 
   alias MongodbEcto.Bson
   alias MongodbEcto.Query
+  alias MongodbEcto.ObjectID
   alias MongodbEcto.Connection
   alias Ecto.Adapters.Worker
 
@@ -33,7 +34,7 @@ defmodule MongodbEcto do
   end
 
   def id_types(_repo) do
-    %{binary_id: :binary}
+    %{binary_id: ObjectID}
   end
 
   defp with_conn(repo, fun) do
@@ -71,11 +72,13 @@ defmodule MongodbEcto do
     Enum.map(fields, fn
       {:&, _, [0]} ->
         row = model.__schema__(:fields)
-              |> Enum.map(&Map.get(document, &1))
+              |> Enum.map(&Map.get(document, &1, nil))
               |> List.to_tuple
         model.__schema__(:load, source, 0, row, id_types)
       {{:., _, [{:&, _, [0]}, field]}, _, []} ->
         Map.get(document, field)
+      value ->
+        value
     end)
   end
 
@@ -104,18 +107,25 @@ defmodule MongodbEcto do
   end
 
   def insert(repo, source, params, {pk, :binary_id, nil}, [], _opts) do
-    result = do_insert(repo, source, params) |> Bson.from_bson(pk)
+    result = do_insert(repo, source, params, pk) |> Bson.from_bson(pk)
 
     {:ok, [{pk, Map.fetch!(result, pk)}]}
   end
 
-  def insert(repo, source, params, {_pk, :binary_id, _value}, [], _opts) do
-    do_insert(repo, source, params)
+  def insert(repo, source, params, {pk, :binary_id, _value}, [], _opts) do
+    do_insert(repo, source, params, pk)
     {:ok, []}
   end
 
   defp do_insert(repo, source, params, pk \\ :id) do
-    document = Bson.to_bson(params, pk)
+    document =
+      params
+      |> Enum.filter(fn
+        {_key, %Ecto.Query.Tagged{value: nil}} -> false
+        {_key, nil} -> false
+        _ -> true
+      end)
+      |> Bson.to_bson(pk)
 
     with_conn(repo, fn conn ->
       :mongo.insert(conn, source, document)
@@ -132,9 +142,7 @@ defmodule MongodbEcto do
 
   ## Storage
 
-  @doc """
-  Noop for MongoDB, as any databases and collections are created as needed.
-  """
+  # Noop for MongoDB, as any databases and collections are created as needed.
   def storage_up(_opts) do
     :ok
   end

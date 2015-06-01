@@ -119,8 +119,6 @@ defmodule MongodbEcto.Query do
   defp expr({op, _, args}, params) when op in @bool_ops do
     {translate(op), Enum.map(args, &expr(&1, params))}
   end
-  defp expr(%Tagged{tag: nil, value: value}, _), do: value
-  defp expr(true, _), do: true
-  defp expr(false, _), do: false
-  defp expr(nil, _), do: nil
+  defp expr(%Tagged{} = value, _), do: value
+  defp expr(atom, _) when is_atom(atom), do: atom
 end
