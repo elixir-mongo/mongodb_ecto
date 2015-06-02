@@ -50,10 +50,14 @@ defmodule MongodbEcto do
   end
 
   def all(repo, query, params, _opts) do
+    {source, model} = query.from
+
+    pk = primary_key(model)
+
     {collection, selector, projector, skip, batch_size} = Query.all(query, params)
 
-    selector = Bson.to_bson(selector)
-    projector = Bson.to_bson(projector)
+    selector = Bson.to_bson(selector, pk)
+    projector = Bson.to_bson(projector, pk)
 
     cursor =
       with_conn(repo, fn conn ->
@@ -64,8 +68,19 @@ defmodule MongodbEcto do
     :mc_cursor.close(cursor)
 
     documents
-    |> Enum.map(&Bson.from_bson/1)
+    |> Enum.map(&Bson.from_bson(&1, pk))
     |> Enum.map(&process_document(&1, query.select.fields, query.from, id_types(repo)))
+  end
+
+  def primary_key(model) do
+    if model do
+      case model.__schema__(:primary_key) do
+        [pk] -> pk
+        _    -> :id
+      end
+    else
+      :id
+    end
   end
 
   def process_document(document, fields, {source, model}, id_types) do

@@ -27,9 +27,6 @@ defmodule MongodbEcto.Query do
     {table, selector, projection, skip, batch_size}
   end
 
-  defp put_if_not_empty(map, _key, value) when value == %{}, do: map
-  defp put_if_not_empty(map, key, value), do: Map.put(map, key, value)
-
   defp check(expr, expr, _, _), do: nil
   defp check(_, _, query, message) do
     raise Ecto.QueryError, query: query, message: message
