@@ -12,7 +12,7 @@ defmodule MongodbEcto.Query do
     check(query.havings, [], query, "MongoDB adapter does not support having clauses")
 
     params = List.to_tuple(params)
-    {table, model} = query.from
+    {collection, model} = query.from
 
     skip = offset_limit(query.offset)
     batch_size = offset_limit(query.limit)
@@ -24,7 +24,7 @@ defmodule MongodbEcto.Query do
       selector = %{"$query": selector, "$orderby": orderby}
     end
 
-    {table, selector, projection, skip, batch_size}
+    {collection, model, selector, projection, skip, batch_size}
   end
 
   defp check(expr, expr, _, _), do: nil

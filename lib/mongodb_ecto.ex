@@ -42,32 +42,23 @@ defmodule MongodbEcto do
 
     worker = :poolboy.checkout(pool, true, timeout)
     try do
-      {_module, conn} = Worker.ask!(worker, timeout)
-      fun.(conn)
+      {module, conn} = Worker.ask!(worker, timeout)
+      fun.(module, conn)
     after
       :ok = :poolboy.checkin(pool, worker)
     end
   end
 
   def all(repo, query, params, _opts) do
-    {source, model} = query.from
-
+    {collection, model, selector, projector, skip, batch_size} = Query.all(query, params)
     pk = primary_key(model)
-
-    {collection, selector, projector, skip, batch_size} = Query.all(query, params)
 
     selector = Bson.to_bson(selector, pk)
     projector = Bson.to_bson(projector, pk)
 
-    cursor =
-      with_conn(repo, fn conn ->
-        :mongo.find(conn, collection, selector, projector, skip, batch_size)
-      end)
-
-    documents = :mc_cursor.rest(cursor)
-    :mc_cursor.close(cursor)
-
-    documents
+    with_conn(repo, fn module, conn ->
+      module.all(conn, collection, selector, projector, skip, batch_size)
+    end)
     |> Enum.map(&Bson.from_bson(&1, pk))
     |> Enum.map(&process_document(&1, query.select.fields, query.from, id_types(repo)))
   end
@@ -142,8 +133,8 @@ defmodule MongodbEcto do
       end)
       |> Bson.to_bson(pk)
 
-    with_conn(repo, fn conn ->
-      :mongo.insert(conn, source, document)
+    with_conn(repo, fn module, conn ->
+      module.insert(conn, source, document)
     end)
   end
 
@@ -163,20 +154,19 @@ defmodule MongodbEcto do
   end
 
   def storage_down(opts) do
-    command(opts, {:dropDatabase, 1})
+    command(opts, %{dropDatabase: 1})
   end
 
   ## Other
 
   defp command(opts, command) do
+    command = Bson.to_bson(command)
+
     {:ok, conn} = Connection.connect(opts)
-    reply = :mongo.command(conn, command)
+    reply = Connection.command(conn, command)
     :ok = Connection.disconnect(conn)
 
-    case reply do
-      {true, resp} -> {:ok, resp}
-      {false, err} -> {:error, err}
-    end
+    reply
   end
 
   defp split_opts(repo, opts) do

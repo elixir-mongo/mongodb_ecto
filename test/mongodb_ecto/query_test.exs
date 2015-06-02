@@ -20,59 +20,60 @@ defmodule MongodbEcto.QueryTest do
 
   test "bare model" do
     {query, params} = Model |> from |> normalize
-    assert Query.all(query, params) == {"model", %{}, %{}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, %{}, %{}, 0, 0}
   end
 
   test "from without model" do
     {query, params} = "posts" |> select([r], r.x) |> normalize
-    assert Query.all(query, params) == {"posts", %{}, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"posts", nil, %{}, %{x: 1}, 0, 0}
   end
 
   test "where" do
     {query, params} = Model |> where([r], r.x == 42) |> where([r], r.y != 43)
                       |> select([r], r.x) |> normalize
-    assert Query.all(query, params) == {"model", %{x: 42, y: %{"$ne": 43}}, %{x: 1}, 0, 0}
+    selector = %{x: 42, y: %{"$ne": 43}}
+    assert Query.all(query, params) == {"model", Model, selector, %{x: 1}, 0, 0}
 
     {query, params} = Model |> where([r], not (r.x == 42)) |> normalize
-    assert Query.all(query, params) == {"model", %{"$not": %{x: 42}}, %{}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, %{"$not": %{x: 42}}, %{}, 0, 0}
   end
 
   test "select" do
     {query, params} = Model |> select([r], {r.x, r.y}) |> normalize
-    assert Query.all(query, params) == {"model", %{}, %{x: 1, y: 1}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, %{}, %{x: 1, y: 1}, 0, 0}
 
     {query, params} = Model |> select([r], [r.x, r.y]) |> normalize
-    assert Query.all(query, params) == {"model", %{}, %{x: 1, y: 1}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, %{}, %{x: 1, y: 1}, 0, 0}
   end
 
   test "order by" do
     {query, params} = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize
     selector = %{"$query": %{}, "$orderby": %{x: 1}}
-    assert Query.all(query, params) == {"model", selector, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, selector, %{x: 1}, 0, 0}
 
     {query, params} = Model |> order_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
     selector = %{"$query": %{}, "$orderby": %{x: 1, y: 1}}
-    assert Query.all(query, params) == {"model", selector, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, selector, %{x: 1}, 0, 0}
 
     {query, params} = Model
                       |> order_by([r], [asc: r.x, desc: r.y]) |> select([r], r.x) |> normalize
     selector = %{"$query": %{}, "$orderby": %{x: 1, y: -1}}
-    assert Query.all(query, params) == {"model", selector, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, selector, %{x: 1}, 0, 0}
 
     {query, params} = Model |> order_by([r], []) |> select([r], r.x) |> normalize
     selector = %{"$query": %{}, "$orderby": %{}}
-    assert Query.all(query, params) == {"model", selector, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, selector, %{x: 1}, 0, 0}
   end
 
   test "limit and offset" do
     {query, params} = Model |> limit([r], 3) |> normalize
-    assert Query.all(query, params) == {"model", %{}, %{}, 0, 3}
+    assert Query.all(query, params) == {"model", Model, %{}, %{}, 0, 3}
 
     {query, params} = Model |> offset([r], 5) |> normalize
-    assert Query.all(query, params) == {"model", %{}, %{}, 5, 0}
+    assert Query.all(query, params) == {"model", Model, %{}, %{}, 5, 0}
 
     {query, params} = Model |> offset([r], 5) |> limit([r], 3) |> normalize
-    assert Query.all(query, params) == {"model", %{}, %{}, 5, 3}
+    assert Query.all(query, params) == {"model", Model, %{}, %{}, 5, 3}
   end
 
   test "lock" do
@@ -97,10 +98,10 @@ defmodule MongodbEcto.QueryTest do
 
   test "is_nil" do
     {query, params} = Model |> where([r], is_nil(r.x)) |> normalize
-    assert Query.all(query, params) == {"model", %{x: nil}, %{}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, %{x: nil}, %{}, 0, 0}
 
     {query, params} = Model |> where([r], not is_nil(r.x)) |> normalize
-    assert Query.all(query, params) == {"model", %{x: %{"$neq": nil}}, %{}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, %{x: %{"$neq": nil}}, %{}, 0, 0}
   end
 
   test "literals" do
@@ -109,19 +110,19 @@ defmodule MongodbEcto.QueryTest do
     # assert Query.all(query, params) == ~s{SELECT NULL FROM "model" AS m0}
 
     {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == true) |> normalize
-    assert Query.all(query, params) == {"plain", %{x: true}, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"plain", nil, %{x: true}, %{x: 1}, 0, 0}
 
     {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == false) |> normalize
-    assert Query.all(query, params) == {"plain", %{x: false}, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"plain", nil, %{x: false}, %{x: 1}, 0, 0}
 
     {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == "abc") |> normalize
-    assert Query.all(query, params) == {"plain", %{x: "abc"}, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"plain", nil, %{x: "abc"}, %{x: 1}, 0, 0}
 
     {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == 123) |> normalize
-    assert Query.all(query, params) == {"plain", %{x: 123}, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"plain", nil, %{x: 123}, %{x: 1}, 0, 0}
 
     {query, params} = "plain" |> select([r], r.x) |> where([r], r.x == 123.0) |> normalize
-    assert Query.all(query, params) == {"plain", %{x: 123.0}, %{x: 1}, 0, 0}
+    assert Query.all(query, params) == {"plain", nil, %{x: 123.0}, %{x: 1}, 0, 0}
   end
 
   test "nested expressions" do
@@ -129,7 +130,6 @@ defmodule MongodbEcto.QueryTest do
     {query, params} = from(r in Model, [])
                       |> where([r], r.x > 0 and (r.y > ^(-z)) or true) |> normalize
     selector = %{"$or": [{:"$and", [x: %{"$gt": 0}, y: %{"$gt": -123}]}, true]}
-    assert Query.all(query, params) == {"model", selector, %{}, 0, 0}
+    assert Query.all(query, params) == {"model", Model, selector, %{}, 0, 0}
   end
-
 end
