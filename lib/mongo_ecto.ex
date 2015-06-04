@@ -202,19 +202,45 @@ defmodule Mongo.Ecto do
   end
 
   def storage_down(opts) do
-    command(opts, %{dropDatabase: 1})
+    with_new_conn(opts, fn conn ->
+      command(conn, %{dropDatabase: 1})
+    end)
   end
 
   ## Other
 
-  defp command(opts, command) do
-    command = Bson.to_bson(command, nil)
+  def truncate(repo) do
+    with_new_conn(repo.config, fn conn ->
+      {:ok, collections} = command(conn, %{listCollections: 1})
 
+      collections
+      |> Enum.map(&Map.get(&1, :name))
+      |> Enum.reject(&String.starts_with?(&1, "system"))
+      |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
+        case command(conn, %{drop: collection}) do
+          {:ok, _} -> {[collection], :ok}
+          error    -> {[], error}
+        end
+      end)
+      |> case do
+           {list, :ok} -> {:ok, list}
+           {_, error}   -> error
+      end
+    end)
+  end
+
+  defp with_new_conn(opts, fun) do
     {:ok, conn} = Connection.connect(opts)
-    reply = Connection.command(conn, command)
+    result = fun.(conn)
     :ok = Connection.disconnect(conn)
 
-    reply
+    result
+  end
+
+  def command(conn, command) do
+    command = Bson.to_bson(command, nil)
+
+    Connection.command(conn, command)
   end
 
   defp split_opts(repo, opts) do

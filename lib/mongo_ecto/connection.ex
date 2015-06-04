@@ -2,14 +2,15 @@ defmodule Mongo.Ecto.Connection do
 
   @behaviour Ecto.Adapters.Worker
 
+  alias Mongo.Ecto.Bson
+
   def connect(opts) do
     opts
     |> Enum.map(fn
       {:hostname, hostname} -> {:host, to_erl(hostname)}
       {:username, username} -> {:login, to_erl(username)}
       {:database, database} -> {:database, to_string(database)}
-      {key, value} when is_binary(value) -> {key, to_erl(value)}
-      other -> other
+      {key, value} -> {key, to_erl(value)}
     end)
     |> :mc_worker.start_link
   end
@@ -56,8 +57,20 @@ defmodule Mongo.Ecto.Connection do
 
   def command(conn, command) do
     case :mongo.command(conn, command) do
+      {true, {:cursor, data}} ->
+        {:ok, handle_raw_cursor_data(conn, data)}
       {true, resp} -> {:ok, resp}
       {false, err} -> {:error, err}
     end
+  end
+
+  defp handle_raw_cursor_data(conn, data) do
+    data = Bson.from_bson(data, nil)
+
+    cursor = :mc_cursor.create(conn, data.ns, data.id, 0, data.firstBatch)
+    documents = :mc_cursor.rest(cursor)
+    :mc_cursor.close(cursor)
+
+    Enum.map(documents, &Bson.from_bson(&1, nil))
   end
 end

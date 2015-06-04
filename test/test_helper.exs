@@ -14,7 +14,8 @@ alias Ecto.Integration.TestRepo
 Application.put_env(:ecto, TestRepo,
   adapter: Mongo.Ecto,
   url: "ecto://localhost:27017/ecto_test",
-  size: 1)
+  size: 1,
+  w_mode: :safe) # Force all write operations to be sync
 
 defmodule Ecto.Integration.TestRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
@@ -30,11 +31,7 @@ defmodule Ecto.Integration.Case do
   end
 
   setup do
-    # FIXME without this the db is not cleaned. Why is that?
-    #       Is there some race condition? Is mongo delaying something?
-    TestRepo.all(Ecto.Integration.Post)
-    Ecto.Storage.down(TestRepo)
-    Ecto.Storage.up(TestRepo)
+    Mongo.Ecto.truncate(TestRepo)
     :ok
   end
 end
