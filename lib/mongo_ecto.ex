@@ -207,28 +207,6 @@ defmodule Mongo.Ecto do
     end)
   end
 
-  ## Other
-
-  def truncate(repo) do
-    with_new_conn(repo.config, fn conn ->
-      {:ok, collections} = command(conn, %{listCollections: 1})
-
-      collections
-      |> Enum.map(&Map.get(&1, :name))
-      |> Enum.reject(&String.starts_with?(&1, "system"))
-      |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
-        case command(conn, %{drop: collection}) do
-          {:ok, _} -> {[collection], :ok}
-          error    -> {[], error}
-        end
-      end)
-      |> case do
-           {list, :ok} -> {:ok, list}
-           {_, error}   -> error
-      end
-    end)
-  end
-
   defp with_new_conn(opts, fun) do
     {:ok, conn} = Connection.connect(opts)
     result = fun.(conn)
@@ -237,7 +215,59 @@ defmodule Mongo.Ecto do
     result
   end
 
-  def command(conn, command) do
+  ## Mongo specific calls
+
+  def create_collection(where, collection, opts \\ [])
+  def create_collection(repo, collection, opts) when is_atom(repo) do
+    with_new_conn(repo.config, &create_collection(&1, collection, opts))
+  end
+  def create_collection(conn, collection, opts) when is_pid(conn) do
+    # Order is important - create has to be first
+    command = [create: collection] ++ opts
+
+    command(conn, command)
+  end
+
+  def list_collections(repo) when is_atom(repo) do
+    with_new_conn(repo.config, &list_collections/1)
+  end
+  def list_collections(conn) when is_pid(conn) do
+    {:ok, collections} = command(conn, %{listCollections: 1})
+
+    collections
+  end
+
+  def truncate(repo) when is_atom(repo) do
+    with_new_conn(repo.config, &truncate/1)
+  end
+  def truncate(conn) when is_pid(conn) do
+    conn
+    |> list_collections
+    |> Enum.map(&Map.get(&1, :name))
+    |> Enum.reject(&String.starts_with?(&1, "system"))
+    |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
+      case drop_collection(conn, collection) do
+        {:ok, _} -> {[collection], :ok}
+        error    -> {[], error}
+      end
+    end)
+    |> case do
+         {dropped, :ok} -> {:ok, dropped}
+         {dropped, {:error, reason}} -> {:error, {reason, dropped}}
+       end
+  end
+
+  def drop_collection(repo, collection) when is_atom(repo) do
+    with_new_conn(repo.config, &drop_collection(&1, collection))
+  end
+  def drop_collection(conn, collection) when is_pid(conn) do
+    command(conn, %{drop: collection})
+  end
+
+  def command(repo, command) when is_atom(repo) do
+    with_new_conn(repo.config, &command(&1, command))
+  end
+  def command(conn, command) when is_pid(conn) do
     command = Bson.to_bson(command, nil)
 
     Connection.command(conn, command)
