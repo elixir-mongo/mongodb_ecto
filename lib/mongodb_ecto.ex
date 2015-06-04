@@ -56,44 +56,40 @@ defmodule MongodbEcto do
     selector = Bson.to_bson(selector, pk)
     projector = Bson.to_bson(projector, pk)
 
+    fields = query.select.fields
+    from = query.from
+    id_types = id_types(repo)
+    params = List.to_tuple(params)
+
     with_conn(repo, fn module, conn ->
       module.all(conn, collection, selector, projector, skip, batch_size)
     end)
     |> Enum.map(&Bson.from_bson(&1, pk))
-    |> Enum.map(&process_document(&1, query.select.fields, query.from, id_types(repo)))
+    |> Enum.map(&process_document(&1, fields, from, id_types, params))
   end
 
-  def primary_key(model) do
-    if model do
-      case model.__schema__(:primary_key) do
-        [pk] -> pk
-        _    -> :id
-      end
-    else
-      :id
-    end
-  end
 
-  def process_document(document, fields, {source, model}, id_types) do
-    Enum.map(fields, fn
-      {:&, _, [0]} ->
-        row = model.__schema__(:fields)
-              |> Enum.map(&Map.get(document, &1, nil))
-              |> List.to_tuple
-        model.__schema__(:load, source, 0, row, id_types)
-      {{:., _, [{:&, _, [0]}, field]}, _, []} ->
-        Map.get(document, field)
-      value ->
-        value
+  def update_all(repo, query, values, params, _opts) do
+    {collection, model, selector, command} = Query.update_all(query, values, params)
+    pk = primary_key(model)
+
+    selector = Bson.to_bson(selector, pk)
+    command  = Bson.to_bson(command, pk)
+
+    with_conn(repo, fn module, conn ->
+      module.update_all(conn, collection, selector, command)
     end)
   end
 
-  def update_all(_repo, _query, _values, _params, _opts) do
-    {:error, :not_supported}
-  end
+  def delete_all(repo, query, params, _opts) do
+    {collection, model, selector} = Query.delete_all(query, params)
+    pk = primary_key(model)
 
-  def delete_all(_repo, _query, _params, _opts) do
-    {:error, :not_supported}
+    selector = Bson.to_bson(selector, pk)
+
+    with_conn(repo, fn module, conn ->
+      module.delete_all(conn, collection, selector)
+    end)
   end
 
   def insert(_repo, source, _params, {key, :id, _}, _returning, _opts) do
@@ -108,7 +104,7 @@ defmodule MongodbEcto do
   end
 
   def insert(repo, source, params, nil, [], _opts) do
-    do_insert(repo, source, params)
+    do_insert(repo, source, params, nil)
     {:ok, []}
   end
 
@@ -123,7 +119,46 @@ defmodule MongodbEcto do
     {:ok, []}
   end
 
-  defp do_insert(repo, source, params, pk \\ :id) do
+  def update(_repo, source, _fields, _filter, _autogen, [_] = returning, _opts) do
+    raise ArgumentError,
+      "MongoDB adapter does not support :read_after_writes in models. " <>
+      "The following fields in #{inspect source} are tagged as such: #{inspect returning}"
+  end
+
+  def update(repo, source, fields, filter, {pk, :binary_id, _value}, [], _opts) do
+    {collection, selector, command} = Query.update(source, fields, filter)
+
+    selector = Bson.to_bson(selector, pk)
+    command  = Bson.to_bson(command, pk)
+
+    with_conn(repo, fn module, conn ->
+      module.update(conn, collection, selector, command)
+    end)
+
+    {:ok, []}
+  end
+
+  def delete(repo, source, filter, {pk, :binary_id, _value}, _opts) do
+    {collection, selector} = Query.delete(source, filter)
+
+    selector = Bson.to_bson(selector, pk)
+
+    with_conn(repo, fn module, conn ->
+      module.delete(conn, collection, selector)
+    end)
+
+    {:ok, []}
+  end
+
+  def primary_key(nil), do: nil
+  def primary_key(model) do
+    case model.__schema__(:primary_key) do
+      [pk] -> pk
+      _    -> :id
+    end
+  end
+
+  defp do_insert(repo, source, params, pk) do
     document =
       params
       |> Enum.filter(fn
@@ -138,12 +173,25 @@ defmodule MongodbEcto do
     end)
   end
 
-  def update(_repo, _source, _fields, _filter, _returning, _opts) do
-    {:error, :not_supported}
-  end
-
-  def delete(_repo, _source, _filter, _opts) do
-    {:error, :not_supported}
+  def process_document(document, fields, {source, model}, id_types, params) do
+    Enum.map(fields, fn
+      {:&, _, [0]} ->
+        row = model.__schema__(:fields)
+              |> Enum.map(&Map.get(document, &1, nil))
+              |> List.to_tuple
+        model.__schema__(:load, source, 0, row, id_types)
+      {{:., _, [{:&, _, [0]}, field]}, _, []} ->
+        Map.get(document, field)
+      %Ecto.Query.Tagged{value: {:^, _, [idx]}} ->
+        # I really don't like it, but I don't know what else to do. I cant pass
+        # literal selects to the db...
+        case elem(params, idx) do
+          %Ecto.Query.Tagged{value: value} -> value
+          value -> value
+        end
+      value ->
+        value
+    end)
   end
 
   ## Storage
@@ -160,7 +208,7 @@ defmodule MongodbEcto do
   ## Other
 
   defp command(opts, command) do
-    command = Bson.to_bson(command)
+    command = Bson.to_bson(command, nil)
 
     {:ok, conn} = Connection.connect(opts)
     reply = Connection.command(conn, command)

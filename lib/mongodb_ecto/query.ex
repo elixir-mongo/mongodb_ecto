@@ -3,13 +3,7 @@ defmodule MongodbEcto.Query do
   alias Ecto.Query.Tagged
 
   def all(query, params) do
-    check(query.joins, [], query, "MongoDB adapter does not support join clauses")
-    check(query.distinct, nil, query, "MongoDB adapter does not support distinct clauses")
-    check(query.lock, nil, query, "MongoDB adapter does not support locking")
-
-    # TODO we could support some of those with aggregation pipelines
-    check(query.group_bys, [], query, "MongoDB adapter does not support group_by clauses")
-    check(query.havings, [], query, "MongoDB adapter does not support having clauses")
+    check_query(query)
 
     params = List.to_tuple(params)
     {collection, model} = query.from
@@ -27,6 +21,65 @@ defmodule MongodbEcto.Query do
     {collection, model, selector, projection, skip, batch_size}
   end
 
+  def delete_all(query, params) do
+    check_query(query)
+
+    params = List.to_tuple(params)
+    {collection, model} = query.from
+
+    selector = wheres(query.wheres, params)
+
+    {collection, model, selector}
+  end
+
+  def delete(source, filter) do
+    selector =
+      Enum.into(filter, %{}, fn {key, value} ->
+        {key, expr(value, {})}
+      end)
+    {source, selector}
+  end
+
+  def update_all(query, fields, params) do
+    check_query(query)
+
+    params  = List.to_tuple(params)
+    {collection, model} = query.from
+
+    selector = wheres(query.wheres, params)
+
+    command =
+      Enum.into(fields, %{}, fn {key, value} ->
+        {key, expr(value, params)}
+      end)
+
+    {collection, model, selector, %{"$set": command}}
+  end
+
+  def update(source, fields, filter) do
+    selector =
+      Enum.into(filter, %{}, fn {key, value} ->
+        {key, expr(value, {})}
+      end)
+
+    command =
+      Enum.into(fields, %{}, fn {key, value} ->
+        {key, expr(value, {})}
+      end)
+
+    {source, selector, %{"$set": command}}
+  end
+
+  defp check_query(query) do
+    check(query.joins, [], query, "MongoDB adapter does not support join clauses")
+    check(query.distinct, nil, query, "MongoDB adapter does not support distinct clauses")
+    check(query.lock, nil, query, "MongoDB adapter does not support locking")
+
+    # TODO we could support some of those with aggregation pipelines
+    check(query.group_bys, [], query, "MongoDB adapter does not support group_by clauses")
+    check(query.havings, [], query, "MongoDB adapter does not support having clauses")
+  end
+
   defp check(expr, expr, _, _), do: nil
   defp check(_, _, query, message) do
     raise Ecto.QueryError, query: query, message: message
@@ -39,7 +92,7 @@ defmodule MongodbEcto.Query do
     %{}
   end
   defp select([], _model, fields) do
-    Enum.into(fields, %{}, fn field -> {field, 1} end)
+    Enum.into(fields, %{}, fn field -> {field, true} end)
   end
   defp select([{:&, _, [0]} | rest], model, fields) do
     select(rest, model, model.__schema__(:fields) ++ fields)
@@ -56,8 +109,7 @@ defmodule MongodbEcto.Query do
   # TODO with two clauses on the same field we should join them with an '$and'
   defp wheres(query, params) do
     query
-    |> Enum.map(fn %QueryExpr{expr: expr} -> expr(expr, params) end)
-    |> Enum.into(%{})
+    |> Enum.into(%{}, fn %QueryExpr{expr: expr} -> expr(expr, params) end)
   end
 
   defp order_bys(order_bys, params) do
@@ -87,6 +139,7 @@ defmodule MongodbEcto.Query do
   defp expr(int, _) when is_integer(int), do: int
   defp expr(float, _) when is_float(float), do: float
   defp expr(string, _) when is_binary(string), do: string
+  defp expr({{_, _, _}, {_, _, _, _}} = datetime, _), do: datetime
   defp expr({:^, _, [idx]}, params), do: elem(params, idx)
   defp expr({:in, _, [left, {:^, _, [ix, len]}]}, params) do
     args = Enum.map(ix..ix+len-1, &elem(params, &1)) |> Enum.map(&expr(&1, params))

@@ -23,10 +23,31 @@ defmodule MongodbEcto.Connection do
   defp to_erl(other), do: other
 
   def all(conn, collection, selector, projector, skip, batch_size) do
+    # This is some wired behaviour enforced by the driver, that empty
+    # projector should be an empty list, and not empty bson document
+    if projector == {} do
+      projector = []
+    end
     cursor = :mongo.find(conn, collection, selector, projector, skip, batch_size)
     documents = :mc_cursor.rest(cursor)
     :mc_cursor.close(cursor)
     documents
+  end
+
+  def delete_all(conn, collection, selector) do
+    :mongo.delete(conn, collection, selector)
+  end
+
+  def delete(conn, collection, selector) do
+    :mongo.delete_one(conn, collection, selector)
+  end
+
+  def update_all(conn, collection, selector, command) do
+    :mongo.update(conn, collection, selector, command, false, true)
+  end
+
+  def update(conn, collection, selector, command) do
+    :mongo.update(conn, collection, selector, command, false, false)
   end
 
   def insert(conn, source, document) do
