@@ -1,4 +1,4 @@
-defmodule MongodbEcto.Query do
+defmodule Mongo.Ecto.Query do
   alias Ecto.Query.QueryExpr
   alias Ecto.Query.Tagged
 

@@ -1,4 +1,4 @@
-defmodule MongodbEcto.Mixfile do
+defmodule Mongo.Ecto.Mixfile do
   use Mix.Project
 
   def project do
@@ -15,7 +15,7 @@ defmodule MongodbEcto.Mixfile do
   defp deps do
     [
         {:mongodb, github: "comtihon/mongodb-erlang"},
-        {:ecto, github: "elixir-lang/ecto"}
+        {:ecto, path: "deps/ecto"}
     ]
   end
 end

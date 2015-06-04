@@ -1,4 +1,4 @@
-defmodule MongodbEcto.ObjectID do
+defmodule Mongo.Ecto.ObjectID do
   @behaviour Ecto.Type
 
   def type, do: :object_id

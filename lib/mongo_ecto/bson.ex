@@ -1,4 +1,4 @@
-defmodule MongodbEcto.Bson do
+defmodule Mongo.Ecto.Bson do
 
   def from_bson(document, pk) do
     document

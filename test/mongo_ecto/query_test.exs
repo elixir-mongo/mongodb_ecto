@@ -1,7 +1,7 @@
-defmodule MongodbEcto.QueryTest do
+defmodule Mongo.Ecto.QueryTest do
   use ExUnit.Case, async: true
 
-  alias MongodbEcto.Query
+  alias Mongo.Ecto.Query
   import Ecto.Query
 
   defmodule Model do

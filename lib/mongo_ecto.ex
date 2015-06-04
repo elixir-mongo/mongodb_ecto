@@ -1,11 +1,11 @@
-defmodule MongodbEcto do
+defmodule Mongo.Ecto do
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Storage
 
-  alias MongodbEcto.Bson
-  alias MongodbEcto.Query
-  alias MongodbEcto.ObjectID
-  alias MongodbEcto.Connection
+  alias Mongo.Ecto.Bson
+  alias Mongo.Ecto.Query
+  alias Mongo.Ecto.ObjectID
+  alias Mongo.Ecto.Connection
   alias Ecto.Adapters.Worker
 
   ## Adapter

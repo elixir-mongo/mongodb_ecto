@@ -12,7 +12,7 @@ Code.require_file "../deps/ecto/integration_test/support/migration.exs", __DIR__
 alias Ecto.Integration.TestRepo
 
 Application.put_env(:ecto, TestRepo,
-  adapter: MongodbEcto,
+  adapter: Mongo.Ecto,
   url: "ecto://localhost:27017/ecto_test",
   size: 1)
 
@@ -39,6 +39,7 @@ defmodule Ecto.Integration.Case do
   end
 end
 
+:erlang.system_flag :backtrace_depth, 50
 # Load up the repository, start it, and run migrations
 _   = Ecto.Storage.down(TestRepo)
 :ok = Ecto.Storage.up(TestRepo)

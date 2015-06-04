@@ -1,7 +1,7 @@
-defmodule MongodbEcto.BsonTest do
+defmodule Mongo.Ecto.BsonTest do
   use ExUnit.Case, async: true
 
-  alias MongodbEcto.Bson
+  alias Mongo.Ecto.Bson
 
   test "from_bson" do
     bson = {:key, 123, :other_key, "value"}
