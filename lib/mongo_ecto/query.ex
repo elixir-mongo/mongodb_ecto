@@ -141,6 +141,9 @@ defmodule Mongo.Ecto.Query do
   defp expr(string, _) when is_binary(string), do: string
   defp expr({{_, _, _}, {_, _, _, _}} = datetime, _), do: datetime
   defp expr({:^, _, [idx]}, params), do: elem(params, idx)
+  defp expr({:fragment, _, _}, _) do
+    raise ArgumentError, "Mongodb adapter does not support SQL fragment syntax."
+  end
   defp expr({:in, _, [left, {:^, _, [ix, len]}]}, params) do
     args = Enum.map(ix..ix+len-1, &elem(params, &1)) |> Enum.map(&expr(&1, params))
     {expr(left, params), %{"$in": args}}

@@ -12,7 +12,7 @@ defmodule Mongo.EctoTest do
   test "create_collection/3 and list_collections/1" do
     ME.create_collection(TestRepo, "posts")
 
-    assert [%{name: "posts"} | _] = ME.list_collections(TestRepo)
+    assert ME.list_collections(TestRepo) |> Enum.member?(%{name: "posts", options: %{}})
 
     Mongo.Ecto.create_collection(TestRepo, "users", capped: true, size: 5 * 1024)
 

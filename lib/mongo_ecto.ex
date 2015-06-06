@@ -232,9 +232,36 @@ defmodule Mongo.Ecto do
     with_new_conn(repo.config, &list_collections/1)
   end
   def list_collections(conn) when is_pid(conn) do
-    {:ok, collections} = command(conn, %{listCollections: 1})
+    if Version.match?(server_version(conn), ">2.8.0") do
+      {:ok, collections} = command(conn, %{listCollections: 1})
 
+      collections
+    else
+      Connection.all(conn, "system.namespaces", {}, {}, 0, 0)
+      |> Enum.map(&Bson.from_bson(&1, nil))
+      |> sanitize_old_collections
+    end
+  end
+
+  defp sanitize_old_collections(collections) do
     collections
+    |> Enum.reject(&String.contains?(&1.name, "$"))
+    |> Enum.map(fn collection ->
+      update_in(collection.name, fn name ->
+        [_, name] = String.split(name, ".", parts: 2)
+        name
+      end)
+      |> Map.put_new(:options, %{})
+    end)
+  end
+
+  def server_version(repo) when is_atom(repo) do
+    with_new_conn(repo.config, &server_version/1)
+  end
+  def server_version(conn) when is_pid(conn) do
+    {:ok, build_info} = command(conn, %{buildInfo: 1})
+
+    :bson.lookup(:version, build_info) |> elem(0)
   end
 
   def truncate(repo) when is_atom(repo) do
