@@ -119,6 +119,12 @@ defmodule Mongo.Ecto do
     {:ok, []}
   end
 
+
+  def update(_repo, source, _fields, _filter, {key, :id, _}, _returning, _opts) do
+    raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
+                         "The #{inspect key} field in #{inspect source} is tagged as such."
+  end
+
   def update(_repo, source, _fields, _filter, _autogen, [_] = returning, _opts) do
     raise ArgumentError,
       "MongoDB adapter does not support :read_after_writes in models. " <>
@@ -136,6 +142,11 @@ defmodule Mongo.Ecto do
     end)
 
     {:ok, []}
+  end
+
+  def delete(_repo, source, _filter, {key, :id, _}, _opts) do
+    raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
+                         "The #{inspect key} field in #{inspect source} is tagged as such."
   end
 
   def delete(repo, source, filter, {pk, :binary_id, _value}, _opts) do
