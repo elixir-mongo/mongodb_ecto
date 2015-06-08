@@ -1,4 +1,18 @@
 defmodule Mongo.Ecto do
+  @moduledoc """
+  Adapter module for MongoDB
+
+  It uses `mongo` for communicating with the database and manages
+  a connection pool using `poolboy`.
+
+  ## Features
+
+    * Support for documents with ObjectID as their primary key
+    * Support for insert, find, update and delete mongo functions
+    * Support for basic commands with buil-in shortcuts
+    * Support for other commands with `command/2`
+  """
+
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Storage
 
@@ -10,6 +24,7 @@ defmodule Mongo.Ecto do
 
   ## Adapter
 
+  @doc false
   defmacro __before_compile__(env) do
     timeout =
       env.module
@@ -23,16 +38,19 @@ defmodule Mongo.Ecto do
     end
   end
 
+  @doc false
   def start_link(repo, opts) do
     {pool_opts, worker_opts} = split_opts(repo, opts)
 
     :poolboy.start_link(pool_opts, {Connection, worker_opts})
   end
 
+  @doc false
   def stop(repo) do
     repo.__pool__ |> elem(0) |> :poolboy.stop
   end
 
+  @doc false
   def id_types(_repo) do
     %{binary_id: ObjectID}
   end
@@ -49,6 +67,7 @@ defmodule Mongo.Ecto do
     end
   end
 
+  @doc false
   def all(repo, query, params, _opts) do
     {collection, model, selector, projector, skip, batch_size} = Query.all(query, params)
     pk = primary_key(model)
@@ -68,7 +87,7 @@ defmodule Mongo.Ecto do
     |> Enum.map(&process_document(&1, fields, from, id_types, params))
   end
 
-
+  @doc false
   def update_all(repo, query, values, params, _opts) do
     {collection, model, selector, command} = Query.update_all(query, values, params)
     pk = primary_key(model)
@@ -81,6 +100,7 @@ defmodule Mongo.Ecto do
     end)
   end
 
+  @doc false
   def delete_all(repo, query, params, _opts) do
     {collection, model, selector} = Query.delete_all(query, params)
     pk = primary_key(model)
@@ -92,6 +112,7 @@ defmodule Mongo.Ecto do
     end)
   end
 
+  @doc false
   def insert(_repo, source, _params, {key, :id, _}, _returning, _opts) do
     raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
                          "The #{inspect key} field in #{inspect source} is tagged as such."
@@ -119,7 +140,7 @@ defmodule Mongo.Ecto do
     {:ok, []}
   end
 
-
+  @doc false
   def update(_repo, source, _fields, _filter, {key, :id, _}, _returning, _opts) do
     raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
                          "The #{inspect key} field in #{inspect source} is tagged as such."
@@ -144,6 +165,7 @@ defmodule Mongo.Ecto do
     {:ok, []}
   end
 
+  @doc false
   def delete(_repo, source, _filter, {key, :id, _}, _opts) do
     raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
                          "The #{inspect key} field in #{inspect source} is tagged as such."
@@ -161,8 +183,8 @@ defmodule Mongo.Ecto do
     {:ok, []}
   end
 
-  def primary_key(nil), do: nil
-  def primary_key(model) do
+  defp primary_key(nil), do: nil
+  defp primary_key(model) do
     case model.__schema__(:primary_key) do
       [pk] -> pk
       _    -> :id
@@ -184,7 +206,7 @@ defmodule Mongo.Ecto do
     end)
   end
 
-  def process_document(document, fields, {source, model}, id_types, params) do
+  defp process_document(document, fields, {source, model}, id_types, params) do
     Enum.map(fields, fn
       {:&, _, [0]} ->
         row = model.__schema__(:fields)
@@ -208,10 +230,12 @@ defmodule Mongo.Ecto do
   ## Storage
 
   # Noop for MongoDB, as any databases and collections are created as needed.
+  @doc false
   def storage_up(_opts) do
     :ok
   end
 
+  @doc false
   def storage_down(opts) do
     with_new_conn(opts, fn conn ->
       command(conn, %{dropDatabase: 1})
@@ -228,6 +252,12 @@ defmodule Mongo.Ecto do
 
   ## Mongo specific calls
 
+  @doc """
+  Creates new collection in the database.
+
+  Uses the `create` command.
+  For options please visit: http://docs.mongodb.org/manual/reference/command/create/
+  """
   def create_collection(where, collection, opts \\ [])
   def create_collection(repo, collection, opts) when is_atom(repo) do
     with_new_conn(repo.config, &create_collection(&1, collection, opts))
@@ -239,11 +269,20 @@ defmodule Mongo.Ecto do
     command(conn, command)
   end
 
+  @doc """
+  Returns a list of all collections in the database and their options
+
+  When available uses `listCollections` command, otherwise queries the
+  `system.namespaces` collection and sanitizes output to match that of
+  the `listCollections` command.
+
+  For more information see: http://docs.mongodb.org/manual/reference/command/listCollections/
+  """
   def list_collections(repo) when is_atom(repo) do
     with_new_conn(repo.config, &list_collections/1)
   end
   def list_collections(conn) when is_pid(conn) do
-    if Version.match?(server_version(conn), ">2.8.0") do
+    if Version.match?(server_version(conn), ">3.0.0") do
       {:ok, collections} = command(conn, %{listCollections: 1})
 
       collections
@@ -266,6 +305,11 @@ defmodule Mongo.Ecto do
     end)
   end
 
+  @doc """
+  Return mongod version.
+
+  Uses `buildInfo` command to retrieve information.
+  """
   def server_version(repo) when is_atom(repo) do
     with_new_conn(repo.config, &server_version/1)
   end
@@ -275,6 +319,11 @@ defmodule Mongo.Ecto do
     :bson.lookup(:version, build_info) |> elem(0)
   end
 
+  @doc """
+  Drops all the collections in current database except system ones.
+
+  Especially usefull in testing.
+  """
   def truncate(repo) when is_atom(repo) do
     with_new_conn(repo.config, &truncate/1)
   end
@@ -295,6 +344,11 @@ defmodule Mongo.Ecto do
        end
   end
 
+  @doc """
+  Drops a collection.
+
+  Uses `drop` command.
+  """
   def drop_collection(repo, collection) when is_atom(repo) do
     with_new_conn(repo.config, &drop_collection(&1, collection))
   end
@@ -302,6 +356,17 @@ defmodule Mongo.Ecto do
     command(conn, %{drop: collection})
   end
 
+  @doc """
+  Runs a command in the database.
+
+  For list of available commands plese see: http://docs.mongodb.org/manual/reference/command/
+
+  Some of the commands are directly available as functions on that module.
+  These are:
+    * `create` with `create_collection/3`
+    * `drop` with `drop_collection/2`
+    * `listCollections` with `list_collections/1`
+  """
   def command(repo, command) when is_atom(repo) do
     with_new_conn(repo.config, &command(&1, command))
   end
