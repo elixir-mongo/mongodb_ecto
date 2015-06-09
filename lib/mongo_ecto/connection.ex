@@ -1,4 +1,5 @@
 defmodule Mongo.Ecto.Connection do
+  @moduledoc false
 
   @behaviour Ecto.Adapters.Worker
 

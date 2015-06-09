@@ -1,4 +1,8 @@
 defmodule Mongo.Ecto.ObjectID do
+  @moduledoc """
+  An Ecto type to represent MongoDB's ObjectIDs
+  """
+
   @behaviour Ecto.Type
 
   def type, do: :object_id

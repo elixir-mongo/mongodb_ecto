@@ -9,8 +9,7 @@ defmodule Mongo.Ecto do
 
     * Support for documents with ObjectID as their primary key
     * Support for insert, find, update and delete mongo functions
-    * Support for basic commands with buil-in shortcuts
-    * Support for other commands with `command/2`
+    * Support for management commands with `command/2`
   """
 
   @behaviour Ecto.Adapter
@@ -253,23 +252,6 @@ defmodule Mongo.Ecto do
   ## Mongo specific calls
 
   @doc """
-  Creates new collection in the database.
-
-  Uses the `create` command.
-  For options please visit: http://docs.mongodb.org/manual/reference/command/create/
-  """
-  def create_collection(where, collection, opts \\ [])
-  def create_collection(repo, collection, opts) when is_atom(repo) do
-    with_new_conn(repo.config, &create_collection(&1, collection, opts))
-  end
-  def create_collection(conn, collection, opts) when is_pid(conn) do
-    # Order is important - create has to be first
-    command = [create: collection] ++ opts
-
-    command(conn, command)
-  end
-
-  @doc """
   Returns a list of all collections in the database and their options
 
   When available uses `listCollections` command, otherwise queries the
@@ -344,15 +326,7 @@ defmodule Mongo.Ecto do
        end
   end
 
-  @doc """
-  Drops a collection.
-
-  Uses `drop` command.
-  """
-  def drop_collection(repo, collection) when is_atom(repo) do
-    with_new_conn(repo.config, &drop_collection(&1, collection))
-  end
-  def drop_collection(conn, collection) when is_pid(conn) do
+  defp drop_collection(conn, collection) when is_pid(conn) do
     command(conn, %{drop: collection})
   end
 
@@ -360,12 +334,6 @@ defmodule Mongo.Ecto do
   Runs a command in the database.
 
   For list of available commands plese see: http://docs.mongodb.org/manual/reference/command/
-
-  Some of the commands are directly available as functions on that module.
-  These are:
-    * `create` with `create_collection/3`
-    * `drop` with `drop_collection/2`
-    * `listCollections` with `list_collections/1`
   """
   def command(repo, command) when is_atom(repo) do
     with_new_conn(repo.config, &command(&1, command))
