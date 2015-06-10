@@ -14,8 +14,8 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp deps do
     [
-        {:mongodb, github: "comtihon/mongodb-erlang"},
-        {:ecto, path: "deps/ecto"}
+      {:mongodb, path: "../mongodb"},
+      {:ecto, path: "deps/ecto"}
     ]
   end
 end
