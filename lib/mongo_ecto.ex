@@ -145,8 +145,6 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.update(conn, collection, selector, command)
     end)
-    # TODO handle response
-    {:ok, []}
   end
 
   @doc false
@@ -161,8 +159,6 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.delete(conn, collection, selector)
     end)
-    # TODO handle response
-    {:ok, []}
   end
 
   defp do_insert(repo, source, params, pk) do

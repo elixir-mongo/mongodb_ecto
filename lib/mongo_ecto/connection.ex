@@ -24,21 +24,23 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def delete_all(conn, collection, selector) do
-    {:ok, %WriteResult{num_removed: removed}} =
-      Mongo.remove(conn, collection, selector, multi: true)
-    removed
+    Mongo.remove(conn, collection, selector, multi: true)
+    |> multiple_result
   end
 
   def delete(conn, collection, selector) do
     Mongo.remove(conn, collection, selector)
+    |> single_result
   end
 
   def update_all(conn, collection, selector, command) do
     Mongo.update(conn, collection, selector, command, multi: true)
+    |> multiple_result
   end
 
   def update(conn, collection, selector, command) do
     Mongo.update(conn, collection, selector, command)
+    |> single_result
   end
 
   def insert(conn, source, document) do
@@ -54,5 +56,19 @@ defmodule Mongo.Ecto.Connection do
       {:error, _} = error ->
         error
     end
+  end
+
+  def single_result({:ok, %WriteResult{num_matched: 1}}) do
+    {:ok, []}
+  end
+  def single_result({:ok, %WriteResult{num_matched: 0}}) do
+    {:error, :stale}
+  end
+
+  def multiple_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n) do
+    n
+  end
+  def multiple_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n) do
+    n
   end
 end

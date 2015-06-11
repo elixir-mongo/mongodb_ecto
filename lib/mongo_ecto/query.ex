@@ -15,7 +15,7 @@ defmodule Mongo.Ecto.Query do
     return = offset_limit(query.limit)
     projection = select(query.select.fields, model, pk, [])
     selector = wheres(query.wheres, params, pk)
-    fields = fields(query.select.fields, pk, params, [])
+    fields = fields(query.select.fields, pk, params)
 
     if query.order_bys != [] do
       orderby = order_bys(query.order_bys, params, pk)
@@ -51,7 +51,7 @@ defmodule Mongo.Ecto.Query do
     pk = primary_key(model)
 
     selector = wheres(query.wheres, params, pk)
-    command = encode_document(fields, pk)
+    command = encode_document(fields, pk, params)
 
     {collection, selector, %{"$set": command}}
   end
@@ -78,8 +78,8 @@ defmodule Mongo.Ecto.Query do
 
   defp encode_document(document, pk, params \\ {}) do
     Enum.into(document, %{}, fn
-      {key, value} when key == pk -> {:_id, value(value, params)}
-      {key, value} -> {key, value(value, params)}
+      {key, value} when key == pk -> {:_id, value(value, params, pk)}
+      {key, value} -> {key, value(value, params, pk)}
     end)
   end
 
@@ -130,18 +130,13 @@ defmodule Mongo.Ecto.Query do
     select(rest, model, pk, fields)
   end
 
-  defp fields([], _pk, _params, acc) do
-    Enum.reverse(acc)
-  end
-  defp fields([{:&, _, [0]} = tuple | rest], pk, params, acc) do
-    fields(rest, pk, params, [tuple | acc])
-  end
-  defp fields([{{:., t1, [{:&, t2, [0]}, pk]}, t3, []} | rest], params, pk, acc) do
-    fields(rest, pk, params, [{{:., t1, [{:&, t2, [0]}, :_id]}, t3, []} | acc])
-  end
-  defp fields([%Tagged{value: {:^, _, [idx]}} | rest], pk, params, acc) do
-    value = params |> elem(idx) |> value(params)
-    fields(rest, pk, params, [value | acc])
+  defp fields(fields, pk, params) do
+    Enum.map(fields, fn
+      %Tagged{value: {:^, _, [idx]}} ->
+        params |> elem(idx) |> value(params, pk) |> extract_value
+      value ->
+        value
+    end)
   end
 
   # TODO with two clauses on the same field we should join them with an '$and'
@@ -159,19 +154,14 @@ defmodule Mongo.Ecto.Query do
     |> Enum.into(%{})
   end
 
-  defp order_by_expr(expr, params, pk) do
-    case order_by_expr(expr, params) do
-      {^pk, value} -> {:_id, value}
-      other        -> other
-    end
-  end
-
-  defp order_by_expr({:asc,  expr}, params), do: {value(expr, params),  1}
-  defp order_by_expr({:desc, expr}, params), do: {value(expr, params), -1}
+  defp order_by_expr({:asc,  expr}, params, pk), do: {value(expr, params, pk),  1}
+  defp order_by_expr({:desc, expr}, params, pk), do: {value(expr, params, pk), -1}
 
   defp extract_value(int) when is_integer(int), do: int
   defp extract_value(atom) when is_atom(atom), do: atom
+  defp extract_value(float) when is_float(float), do: float
   defp extract_value(string) when is_binary(string), do: string
+  defp extract_value(list) when is_list(list), do: Enum.map(list, &extract_value/1)
   defp extract_value(%BSON.Binary{binary: value}), do: value
   defp extract_value(%BSON.ObjectId{value: value}), do: value
   defp extract_value(%BSON.DateTime{utc: utc}) do
@@ -181,16 +171,17 @@ defmodule Mongo.Ecto.Query do
     {date, {hour, min, sec, usec}}
   end
 
-  defp value(int, _) when is_integer(int), do: int
-  defp value(float, _) when is_float(float), do: float
-  defp value(string, _) when is_binary(string), do: string
-  defp value(atom, _) when is_atom(atom), do: atom
-  defp value(list, params) when is_list(list), do: Enum.map(list, &value(&1, params))
-  defp value({:^, _, [idx]}, params), do: elem(params, idx) |> value(params)
-  defp value({{:., _, [{:&, _, [0]}, field]}, _, []}, _) when is_atom(field), do: field
-  defp value(%BSON.ObjectId{} = objectid, _), do: objectid
-  defp value(%Tagged{value: value, type: type}, _), do: typed_value(value, type)
-  defp value({{_, _, _} = date, {hour, min, sec, usec}}, _) do
+  defp value(int, _, _) when is_integer(int), do: int
+  defp value(float, _, _) when is_float(float), do: float
+  defp value(string, _, _) when is_binary(string), do: string
+  defp value(atom, _, _) when is_atom(atom), do: atom
+  defp value(list, params, pk) when is_list(list), do: Enum.map(list, &value(&1, params, pk))
+  defp value({:^, _, [idx]}, params, pk), do: elem(params, idx) |> value(params, pk)
+  defp value({{:., _, [{:&, _, [0]}, pk]}, _, []}, _, pk), do: :_id
+  defp value({{:., _, [{:&, _, [0]}, field]}, _, []}, _, _) when is_atom(field), do: field
+  defp value(%BSON.ObjectId{} = objectid, _, _), do: objectid
+  defp value(%Tagged{value: value, type: type}, _, _), do: typed_value(value, type)
+  defp value({{_, _, _} = date, {hour, min, sec, usec}}, _, _) do
     seconds = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
     %BSON.DateTime{utc: seconds * 1000 + div(usec, 1000)}
   end
@@ -213,44 +204,46 @@ defmodule Mongo.Ecto.Query do
     defp translate(unquote(op)), do: unquote(mongo_op)
   end)
 
+  defp mapped_pair_or_value({op, _, _} = tuple, params, pk) when is_atom(op) and op != :^ do
+    {key, value} = pair(tuple, params, pk)
+    Map.put(%{}, key, value)
+  end
+  defp mapped_pair_or_value(value, params, pk) do
+    value(value, params, pk)
+  end
+
+  defp pair({:fragment, _, _}, _, _) do
+    raise ArgumentError, "Mongodb adapter does not support SQL fragment syntax."
+  end
   defp pair({op, _, args}, params, pk) when op in @bool_ops do
-    args = Enum.map(args, fn arg ->
-      {key, value} = pair(arg, params, pk)
-      Map.put(%{}, key, value)
-    end)
+    args = Enum.map(args, &mapped_pair_or_value(&1, params, pk))
     {translate(op), args}
+  end
+  defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk) do
+    args = Enum.map(ix..ix+len-1, &elem(params, &1)) |> Enum.map(&value(&1, params, pk))
+    {value(left, params, pk), %{"$in": args}}
+  end
+  defp pair({:is_nil, _, [expr]}, params, pk) do
+    {value(expr, params, pk), nil}
+  end
+  defp pair({:==, _, [left, right]}, params, pk) do
+    {value(left, params, pk), value(right, params, pk)}
+  end
+  defp pair({op, _, [left, right]}, params, pk) when op in @binary_ops do
+    {value(left, params, pk), Map.put(%{}, translate(op), value(right, params, pk))}
+  end
+  defp pair({:not, _, [{:in, _, [left, {:^, _, [ix, len]}]}]}, params, pk) do
+    args = Enum.map(ix..ix+len-1, &elem(params, &1)) |> Enum.map(&value(&1, params, pk))
+    {value(left, params, pk), %{"$nin": args}}
+  end
+  defp pair({:not, _, [{:in, _, [left, right]}]}, params, pk) do
+    {value(left, params, pk), %{"$nin": value(right, params, pk)}}
+  end
+  defp pair({:not, _, [{:is_nil, _, [expr]}]}, params, pk) do
+    {value(expr, params, pk), %{"$neq": nil}}
   end
   defp pair({:not, _, [expr]}, params, pk) do
     {key, value} = pair(expr, params, pk)
     {:"$not", Map.put(%{}, key, value)}
-  end
-  defp pair(expr, params, pk) do
-    case pair(expr, params) do
-      {^pk, value} -> {:_id, value}
-      other        -> other
-    end
-  end
-
-  defp pair({:fragment, _, _}, _) do
-    raise ArgumentError, "Mongodb adapter does not support SQL fragment syntax."
-  end
-  defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params) do
-    args = Enum.map(ix..ix+len-1, &elem(params, &1)) |> Enum.map(&value(&1, params))
-    {value(left, params), %{"$in": args}}
-  end
-  defp pair({:is_nil, _, [expr]}, params) do
-    {value(expr, params), nil}
-  end
-  defp pair({:==, _, [left, right]}, params) do
-    {value(left, params), value(right, params)}
-  end
-  defp pair({op, _, [left, right]}, params) when op in @binary_ops do
-    {value(left, params), Map.put(%{}, translate(op), value(right, params))}
-  end
-  defp pair({:not, _, [{:in, _, [left, right]}]}, params) do
-    {value(left, params), %{"$nin": value(right, params)}}
-  end
-  defp pair({:not, _, [{:is_nil, _, [expr]}]}, params) do
-    {value(expr, params), %{"$neq": nil}}
   end
 end
