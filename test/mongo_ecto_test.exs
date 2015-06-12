@@ -9,7 +9,11 @@ defmodule Mongo.EctoTest do
     :ok
   end
 
-  test "create_collection/3 and list_collections/1" do
+  test "command/3" do
+    assert ME.command(TestRepo, ping: 1) == {:ok, [%{"ok" => 1.0}]}
+  end
+
+  test "list_collections/1" do
     ME.command(TestRepo, create: "posts")
     collection = %{"name" => "posts", "options" => %{}}
 

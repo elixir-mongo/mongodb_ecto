@@ -70,13 +70,13 @@ defmodule Mongo.Ecto do
   @doc false
   def all(repo, query, params, opts) do
     normalized = NormalizedQuery.from_query(query, params)
-    {_, _, pk} = normalized.from
 
     with_conn(repo, fn module, conn ->
       module.all(conn, normalized, opts)
     end)
-    |> Enum.map(&Decoder.decode_document(&1, pk))
-    |> Enum.map(&process_document(&1, normalized, id_types(repo)))
+    |> extract_documents(fn documents ->
+      Enum.map(documents, &process_document(&1, normalized, id_types(repo)))
+    end)
   end
 
   @doc false
@@ -111,19 +111,18 @@ defmodule Mongo.Ecto do
 
   def insert(repo, source, params, nil, [], opts) do
     do_insert(repo, source, params, nil, opts)
-    {:ok, []}
   end
 
   def insert(repo, source, params, {pk, :binary_id, nil}, [], opts) do
     %BSON.ObjectId{value: value} = id = Mongo.IdServer.new
-    do_insert(repo, source, [{pk, id} | params], pk, opts)
-
-    {:ok, [{pk, value}]}
+    case do_insert(repo, source, [{pk, id} | params], pk, opts) do
+      {:ok, []}           -> {:ok, [{pk, value}]}
+      {:error, _} = error -> error
+    end
   end
 
   def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
     do_insert(repo, source, params, pk, opts)
-    {:ok, []}
   end
 
   @doc false
@@ -171,9 +170,18 @@ defmodule Mongo.Ecto do
     end)
   end
 
+  defp extract_documents({:ok, documents}, fun) do
+    fun.(documents)
+  end
+  defp extract_documents({:error, error}, _fun) do
+    raise error
+  end
+
   defp process_document(document,
-                        %NormalizedQuery{from: {coll, model, _}, fields: fields},
+                        %NormalizedQuery{from: {coll, model, pk}, fields: fields},
                         id_types) do
+    document = Decoder.decode_document(document, pk)
+
     Enum.map(fields, fn
       {:&, _, [0]} ->
         row = model.__schema__(:fields)
@@ -232,7 +240,7 @@ defmodule Mongo.Ecto do
     else
       query = %NormalizedQuery{from: {"system.namespaces", nil, nil}}
       Connection.all(conn, query, [])
-      |> sanitize_old_collections
+      |> extract_documents(&sanitize_old_collections/1)
     end
   end
 
@@ -300,11 +308,12 @@ defmodule Mongo.Ecto do
 
   For list of available commands plese see: http://docs.mongodb.org/manual/reference/command/
   """
-  def command(repo, command) when is_atom(repo) do
-    with_new_conn(repo.config, &command(&1, command))
+  def command(repo, command, opts \\ [])
+  def command(repo, command, opts) when is_atom(repo) do
+    with_new_conn(repo.config, &command(&1, command, opts))
   end
-  def command(conn, command) when is_pid(conn) do
-    Connection.command(conn, command)
+  def command(conn, command, opts) when is_pid(conn) do
+    Connection.command(conn, command, opts)
   end
 
   defp split_opts(repo, opts) do

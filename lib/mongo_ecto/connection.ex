@@ -20,8 +20,8 @@ defmodule Mongo.Ecto.Connection do
 
   def all(conn, query, opts) do
     {coll, query, projector, opts} = extract(:all, query, opts)
-    {:ok, result} = Mongo.find(conn, coll, query, projector, opts)
-    result.docs
+    Mongo.find(conn, coll, query, projector, opts)
+    |> read_result
   end
 
   def delete_all(conn, query, opts) do
@@ -48,15 +48,13 @@ defmodule Mongo.Ecto.Connection do
 
   def insert(conn, coll, doc, opts) do
     Mongo.insert(conn, coll, doc, opts)
+    |> single_result
   end
 
-  def command(conn, command) do
-    case Mongo.find(conn, "$cmd", command, %{}, num_return: -1) do
-      {:ok, %ReadResult{docs: docs}} ->
-        {:ok, docs}
-      {:error, _} = error ->
-        error
-    end
+  def command(conn, command, opts) do
+    opts = [num_return: -1] ++ opts
+    Mongo.find(conn, "$cmd", command, %{}, opts)
+    |> read_result
   end
 
   defp extract(:all, query, opts) do
@@ -79,6 +77,16 @@ defmodule Mongo.Ecto.Connection do
     {coll, query.query_order, command, opts}
   end
 
+  defp read_result({:ok, %ReadResult{docs: docs}}) do
+    {:ok, docs}
+  end
+  defp read_result({:error, _} = error) do
+    error
+  end
+
+  defp single_result({:ok, %WriteResult{num_inserted: 1}}) do
+    {:ok, []}
+  end
   defp single_result({:ok, %WriteResult{num_matched: 1}}) do
     {:ok, []}
   end

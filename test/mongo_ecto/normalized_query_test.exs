@@ -106,9 +106,8 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
   end
 
   test "literals" do
-    # TODO how to check nil?
-    # query = Model |> select([], nil) |> normalize
-    # assert Query.all(query, params) == ~s{SELECT NULL FROM "model" AS m0}
+    query = Model |> select([], nil) |> normalize
+    assert_query(query, fields: [nil])
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == true) |> normalize
     assert_query(query, query_order: %{x: true})
