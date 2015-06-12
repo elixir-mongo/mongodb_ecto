@@ -225,15 +225,15 @@ defmodule Mongo.Ecto do
     with_new_conn(repo.config, &list_collections/1)
   end
   def list_collections(conn) when is_pid(conn) do
-    # if Version.match?(server_version(conn), ">3.0.0") do
-    #   {:ok, collections} = command(conn, %{listCollections: 1})
+    if Version.match?(server_version(conn), ">3.0.0") do
+      {:ok, collections} = command(conn, %{listCollections: 1})
 
-    #   collections
-    # else
-    query = %NormalizedQuery{from: {"system.namespaces", nil, nil}}
-    Connection.all(conn, query, [])
-    |> sanitize_old_collections
-    # end
+      collections
+    else
+      query = %NormalizedQuery{from: {"system.namespaces", nil, nil}}
+      Connection.all(conn, query, [])
+      |> sanitize_old_collections
+    end
   end
 
   defp sanitize_old_collections(collections) do

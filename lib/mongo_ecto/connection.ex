@@ -52,8 +52,6 @@ defmodule Mongo.Ecto.Connection do
 
   def command(conn, command) do
     case Mongo.find(conn, "$cmd", command, %{}, num_return: -1) do
-      {:ok, %ReadResult{docs: [%{"ok" => 1.0}]}} ->
-        :ok
       {:ok, %ReadResult{docs: docs}} ->
         {:ok, docs}
       {:error, _} = error ->
@@ -81,17 +79,23 @@ defmodule Mongo.Ecto.Connection do
     {coll, query.query_order, command, opts}
   end
 
-  def single_result({:ok, %WriteResult{num_matched: 1}}) do
+  defp single_result({:ok, %WriteResult{num_matched: 1}}) do
     {:ok, []}
   end
-  def single_result({:ok, %WriteResult{num_matched: 0}}) do
+  defp single_result({:ok, %WriteResult{num_matched: 0}}) do
     {:error, :stale}
   end
+  defp single_result({:error, _} = error) do
+    error
+  end
 
-  def multiple_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n) do
+  defp multiple_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n) do
     n
   end
-  def multiple_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n) do
+  defp multiple_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n) do
     n
+  end
+  defp multiple_result({:error, _} = error) do
+    error
   end
 end

@@ -193,6 +193,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp pair({:not, _, [{:is_nil, _, [expr]}]}, _, pk) do
     {field(expr, pk), %{"$neq": nil}}
   end
+  defp pair({:not, _, [{:==, _, [left, right]}]}, params, pk) do
+    {field(left, pk), %{"$neq": encode_value(right, params)}}
+  end
   defp pair({:not, _, [expr]}, params, pk) do
     {key, value} = pair(expr, params, pk)
     {:"$not", Map.put(%{}, key, value)}
