@@ -244,7 +244,7 @@ defmodule Mongo.Ecto do
         [_, name] = String.split(name, ".", parts: 2)
         name
       end)
-      |> Map.put_new("options", %{})
+      |> Map.update("options", %{}, &Map.delete(&1, "create"))
     end)
   end
 
