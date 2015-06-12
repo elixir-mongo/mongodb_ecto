@@ -14,8 +14,8 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp deps do
     [
-      {:mongodb, path: "../mongodb"},
-      {:ecto, path: "deps/ecto"}
+      {:mongodb, github: "ericmj/mongodb"},
+      {:ecto, github: "elixir-lang/ecto"}
     ]
   end
 end

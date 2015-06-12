@@ -1,7 +1,6 @@
-%{"bson": {:git, "git://github.com/comtihon/bson-erlang", "c733887a8f1d0af5c5926a6a09ec3ccdccfb94c5", [ref: "master"]},
-  "connection": {:git, "git://github.com/fishcakez/connection.git", "7d0612e4baa24a015cc70d8bdcee90b417316a3a", []},
+%{"connection": {:git, "git://github.com/fishcakez/connection.git", "7d0612e4baa24a015cc70d8bdcee90b417316a3a", []},
   "decimal": {:hex, :decimal, "1.1.0"},
-  "ecto": {:git, "git://github.com/elixir-lang/ecto.git", "59e4c14d646510a77bb2c9150f0db053d2a1bfe7", []},
-  "mongodb": {:git, "git://github.com/ericmj/mongodb.git", "abbfc2a824d56961060c839d1b9938498042c377", []},
+  "ecto": {:git, "git://github.com/elixir-lang/ecto.git", "779427a1ce82de4fe5c614d17a0dd93aeb9e73e9", []},
+  "mongodb": {:git, "git://github.com/ericmj/mongodb.git", "3039ab4194548b8f76b2a399172ced17c5c3aba1", []},
   "pbkdf2": {:git, "git://github.com/basho/erlang-pbkdf2.git", "7076584f5377e98600a7e2cb81980b2992fb2f71", []},
   "poolboy": {:hex, :poolboy, "1.5.1"}}
