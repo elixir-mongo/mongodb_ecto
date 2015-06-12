@@ -15,7 +15,9 @@ defmodule Mongo.Ecto do
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Storage
 
-  alias Mongo.Ecto.Query
+  alias Mongo.Ecto.NormalizedQuery
+  alias Mongo.Ecto.Encoder
+  alias Mongo.Ecto.Decoder
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
   alias Ecto.Adapters.Worker
@@ -66,35 +68,32 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def all(repo, query, params, _opts) do
-    {collection, selector, projector, skip, return, fields, pk} = Query.all(query, params)
-
-    from = query.from
-    id_types = id_types(repo)
-    params = List.to_tuple(params)
-    opts = [num_return: return, num_skip: skip]
+  def all(repo, query, params, opts) do
+    normalized = NormalizedQuery.from_query(query, params)
+    {_, _, pk} = normalized.from
 
     with_conn(repo, fn module, conn ->
-      module.all(conn, collection, selector, projector, opts)
+      module.all(conn, normalized, opts)
     end)
-    |> Enum.map(&process_document(&1, fields, from, id_types, pk, params))
+    |> Enum.map(&Decoder.decode_document(&1, pk))
+    |> Enum.map(&process_document(&1, normalized, id_types(repo)))
   end
 
   @doc false
-  def update_all(repo, query, values, params, _opts) do
-    {collection, selector, command} = Query.update_all(query, values, params)
+  def update_all(repo, query, values, params, opts) do
+    normalized = NormalizedQuery.from_query(query, values, params)
 
     with_conn(repo, fn module, conn ->
-      module.update_all(conn, collection, selector, command)
+      module.update_all(conn, normalized, opts)
     end)
   end
 
   @doc false
-  def delete_all(repo, query, params, _opts) do
-    {collection, selector} = Query.delete_all(query, params)
+  def delete_all(repo, query, params, opts) do
+    normalized = NormalizedQuery.from_query(query, params)
 
     with_conn(repo, fn module, conn ->
-      module.delete_all(conn, collection, selector)
+      module.delete_all(conn, normalized, opts)
     end)
   end
 
@@ -110,20 +109,20 @@ defmodule Mongo.Ecto do
       "The following fields in #{inspect source} are tagged as such: #{inspect returning}"
   end
 
-  def insert(repo, source, params, nil, [], _opts) do
-    do_insert(repo, source, params, nil)
+  def insert(repo, source, params, nil, [], opts) do
+    do_insert(repo, source, params, nil, opts)
     {:ok, []}
   end
 
-  def insert(repo, source, params, {pk, :binary_id, nil}, [], _opts) do
+  def insert(repo, source, params, {pk, :binary_id, nil}, [], opts) do
     %BSON.ObjectId{value: value} = id = Mongo.IdServer.new
-    do_insert(repo, source, [{pk, id} | params], pk)
+    do_insert(repo, source, [{pk, id} | params], pk, opts)
 
     {:ok, [{pk, value}]}
   end
 
-  def insert(repo, source, params, {pk, :binary_id, _value}, [], _opts) do
-    do_insert(repo, source, params, pk)
+  def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
+    do_insert(repo, source, params, pk, opts)
     {:ok, []}
   end
 
@@ -139,11 +138,13 @@ defmodule Mongo.Ecto do
       "The following fields in #{inspect source} are tagged as such: #{inspect returning}"
   end
 
-  def update(repo, source, fields, filter, {pk, :binary_id, _value}, [], _opts) do
-    {collection, selector, command} = Query.update(source, fields, filter, pk)
+  def update(repo, source, fields, filter, {pk, :binary_id, _value}, [], opts) do
+    coll    = source
+    query   = Encoder.encode_document(filter, pk)
+    command = %{"$set": Encoder.encode_document(fields, pk)}
 
     with_conn(repo, fn module, conn ->
-      module.update(conn, collection, selector, command)
+      module.update(conn, coll, query, command, opts)
     end)
   end
 
@@ -153,35 +154,37 @@ defmodule Mongo.Ecto do
                          "The #{inspect key} field in #{inspect source} is tagged as such."
   end
 
-  def delete(repo, source, filter, {pk, :binary_id, _value}, _opts) do
-    {collection, selector} = Query.delete(source, filter, pk)
+  def delete(repo, source, filter, {pk, :binary_id, _value}, opts) do
+    coll  = source
+    query = Encoder.encode_document(filter, pk)
 
     with_conn(repo, fn module, conn ->
-      module.delete(conn, collection, selector)
+      module.delete(conn, coll, query, opts)
     end)
   end
 
-  defp do_insert(repo, source, params, pk) do
-    {collection, document} = Query.insert(source, params, pk)
+  defp do_insert(repo, coll, document, pk, opts) do
+    document = Encoder.encode_document(document, pk)
 
     with_conn(repo, fn module, conn ->
-      module.insert(conn, collection, document)
+      module.insert(conn, coll, document, opts)
     end)
   end
 
-  defp process_document(document, fields, {source, model}, id_types, pk, params) do
-    document = Query.decode_document(document, pk)
-
+  defp process_document(document,
+                        %NormalizedQuery{from: {coll, model, _},
+                                         fields: fields, params: params},
+                        id_types) do
     Enum.map(fields, fn
       {:&, _, [0]} ->
         row = model.__schema__(:fields)
-              |> Enum.map(&Map.get(document, Atom.to_string(&1), nil))
+              |> Enum.map(&Map.get(document, Atom.to_string(&1)))
               |> List.to_tuple
-        model.__schema__(:load, source, 0, row, id_types)
+        model.__schema__(:load, coll, 0, row, id_types)
       {{:., _, [{:&, _, [0]}, field]}, _, []} ->
         Map.get(document, Atom.to_string(field))
       value ->
-        value
+        Decoder.decode_value(value)
     end)
   end
 
@@ -228,7 +231,8 @@ defmodule Mongo.Ecto do
 
     #   collections
     # else
-    Connection.all(conn, "system.namespaces", %{}, %{})
+    query = %NormalizedQuery{from: {"system.namespaces", nil, nil}}
+    Connection.all(conn, query, [])
     |> sanitize_old_collections
     # end
   end

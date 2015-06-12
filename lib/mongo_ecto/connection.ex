@@ -18,44 +18,67 @@ defmodule Mongo.Ecto.Connection do
 
   ## Callbacks for adapter
 
-  def all(conn, collection, selector, projector, opts \\ []) do
-    {:ok, result} = Mongo.find(conn, collection, selector, projector, opts)
+  def all(conn, query, opts) do
+    {coll, query, projector, opts} = extract(:all, query, opts)
+    {:ok, result} = Mongo.find(conn, coll, query, projector, opts)
     result.docs
   end
 
-  def delete_all(conn, collection, selector) do
-    Mongo.remove(conn, collection, selector, multi: true)
+  def delete_all(conn, query, opts) do
+    {coll, query, opts} = extract(:delete_all, query, opts)
+    Mongo.remove(conn, coll, query, opts)
     |> multiple_result
   end
 
-  def delete(conn, collection, selector) do
-    Mongo.remove(conn, collection, selector)
+  def delete(conn, coll, query, opts) do
+    Mongo.remove(conn, coll, query, opts)
     |> single_result
   end
 
-  def update_all(conn, collection, selector, command) do
-    Mongo.update(conn, collection, selector, command, multi: true)
+  def update_all(conn, query, opts) do
+    {coll, query, command, opts} = extract(:update_all, query, opts)
+    Mongo.update(conn, coll, query, command, opts)
     |> multiple_result
   end
 
-  def update(conn, collection, selector, command) do
-    Mongo.update(conn, collection, selector, command)
+  def update(conn, coll, query, command, opts) do
+    Mongo.update(conn, coll, query, command, opts)
     |> single_result
   end
 
-  def insert(conn, source, document) do
-    Mongo.insert(conn, source, document)
+  def insert(conn, coll, doc, opts) do
+    Mongo.insert(conn, coll, doc, opts)
   end
 
   def command(conn, command) do
     case Mongo.find(conn, "$cmd", command, %{}, num_return: -1) do
       {:ok, %ReadResult{docs: [%{"ok" => 1.0}]}} ->
         :ok
-      {:ok, %ReadResult{docs: docs} = res} ->
+      {:ok, %ReadResult{docs: docs}} ->
         {:ok, docs}
       {:error, _} = error ->
         error
     end
+  end
+
+  defp extract(:all, query, opts) do
+    {coll, _, _} = query.from
+    opts = [num_return: query.num_return, num_skip: query.num_skip] ++ opts
+
+    {coll, query.query_order, query.projection, opts}
+  end
+  defp extract(:delete_all, query, opts) do
+    {coll, _, _} = query.from
+    opts = [multi: true] ++ opts
+
+    {coll, query.query_order, opts}
+  end
+  defp extract(:update_all, query, opts) do
+    {coll, _, _} = query.from
+    opts = [multi: true] ++ opts
+    command = %{"$set": query.command}
+
+    {coll, query.query_order, command, opts}
   end
 
   def single_result({:ok, %WriteResult{num_matched: 1}}) do
