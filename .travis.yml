@@ -1,0 +1,19 @@
+language: elixir
+
+services:
+  - mongodb
+
+sudo: false
+
+elixir:
+  - 1.0.4
+
+otp_release:
+  - 17.4
+
+script:
+  - mix test
+
+notifications:
+  recipients:
+    - michal@muskala.eu

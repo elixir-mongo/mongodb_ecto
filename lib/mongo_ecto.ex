@@ -172,8 +172,7 @@ defmodule Mongo.Ecto do
   end
 
   defp process_document(document,
-                        %NormalizedQuery{from: {coll, model, _},
-                                         fields: fields, params: params},
+                        %NormalizedQuery{from: {coll, model, _}, fields: fields},
                         id_types) do
     Enum.map(fields, fn
       {:&, _, [0]} ->
