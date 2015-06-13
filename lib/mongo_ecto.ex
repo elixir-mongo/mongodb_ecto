@@ -74,7 +74,7 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.all(conn, normalized, opts)
     end)
-    |> extract_documents(fn documents ->
+    |> handle_response(fn documents ->
       Enum.map(documents, &process_document(&1, normalized, id_types(repo)))
     end)
   end
@@ -86,6 +86,7 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.update_all(conn, normalized, opts)
     end)
+    |> handle_response(&(&1))
   end
 
   @doc false
@@ -95,6 +96,7 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.delete_all(conn, normalized, opts)
     end)
+    |> handle_response(&(&1))
   end
 
   @doc false
@@ -111,18 +113,18 @@ defmodule Mongo.Ecto do
 
   def insert(repo, source, params, nil, [], opts) do
     do_insert(repo, source, params, nil, opts)
+    |> handle_response(&{:ok, &1})
   end
 
   def insert(repo, source, params, {pk, :binary_id, nil}, [], opts) do
     %BSON.ObjectId{value: value} = id = Mongo.IdServer.new
-    case do_insert(repo, source, [{pk, id} | params], pk, opts) do
-      {:ok, []}           -> {:ok, [{pk, value}]}
-      {:error, _} = error -> error
-    end
+    do_insert(repo, source, [{pk, id} | params], pk, opts)
+    |> handle_response(fn _ -> {:ok, [{pk, value}]} end)
   end
 
   def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
     do_insert(repo, source, params, pk, opts)
+    |> handle_response(&{:ok, &1})
   end
 
   @doc false
@@ -145,6 +147,7 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.update(conn, coll, query, command, opts)
     end)
+    |> handle_response(&{:ok, &1})
   end
 
   @doc false
@@ -160,6 +163,7 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.delete(conn, coll, query, opts)
     end)
+    |> handle_response(&{:ok, &1})
   end
 
   defp do_insert(repo, coll, document, pk, opts) do
@@ -170,11 +174,14 @@ defmodule Mongo.Ecto do
     end)
   end
 
-  defp extract_documents({:ok, documents}, fun) do
-    fun.(documents)
+  defp handle_response({:ok, response}, fun) do
+    fun.(response)
   end
-  defp extract_documents({:error, error}, _fun) do
-    raise error
+  defp handle_response({:error, %{__exeption__: true} = exeption}, _fun) do
+    raise exeption
+  end
+  defp handle_response({:error, _} = error, _fun) do
+    error
   end
 
   defp process_document(document,
@@ -240,7 +247,7 @@ defmodule Mongo.Ecto do
     else
       query = %NormalizedQuery{from: {"system.namespaces", nil, nil}}
       Connection.all(conn, query, [])
-      |> extract_documents(&sanitize_old_collections/1)
+      |> handle_response(&sanitize_old_collections/1)
     end
   end
 

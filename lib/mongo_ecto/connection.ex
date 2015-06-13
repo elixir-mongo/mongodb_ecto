@@ -27,28 +27,28 @@ defmodule Mongo.Ecto.Connection do
   def delete_all(conn, query, opts) do
     {coll, query, opts} = extract(:delete_all, query, opts)
     Mongo.remove(conn, coll, query, opts)
-    |> multiple_result
+    |> multiple_write_result
   end
 
   def delete(conn, coll, query, opts) do
     Mongo.remove(conn, coll, query, opts)
-    |> single_result
+    |> single_write_result
   end
 
   def update_all(conn, query, opts) do
     {coll, query, command, opts} = extract(:update_all, query, opts)
     Mongo.update(conn, coll, query, command, opts)
-    |> multiple_result
+    |> multiple_write_result
   end
 
   def update(conn, coll, query, command, opts) do
     Mongo.update(conn, coll, query, command, opts)
-    |> single_result
+    |> single_write_result
   end
 
   def insert(conn, coll, doc, opts) do
     Mongo.insert(conn, coll, doc, opts)
-    |> single_result
+    |> single_write_result
   end
 
   def command(conn, command, opts) do
@@ -84,26 +84,26 @@ defmodule Mongo.Ecto.Connection do
     error
   end
 
-  defp single_result({:ok, %WriteResult{num_inserted: 1}}) do
+  defp single_write_result({:ok, %WriteResult{num_inserted: 1}}) do
     {:ok, []}
   end
-  defp single_result({:ok, %WriteResult{num_matched: 1}}) do
+  defp single_write_result({:ok, %WriteResult{num_matched: 1}}) do
     {:ok, []}
   end
-  defp single_result({:ok, %WriteResult{num_matched: 0}}) do
+  defp single_write_result({:ok, %WriteResult{num_matched: 0}}) do
     {:error, :stale}
   end
-  defp single_result({:error, _} = error) do
+  defp single_write_result({:error, _} = error) do
     error
   end
 
-  defp multiple_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n) do
-    n
+  defp multiple_write_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n) do
+    {:ok, n}
   end
-  defp multiple_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n) do
-    n
+  defp multiple_write_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n) do
+    {:ok, n}
   end
-  defp multiple_result({:error, _} = error) do
+  defp multiple_write_result({:error, _} = error) do
     error
   end
 end
