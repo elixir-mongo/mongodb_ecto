@@ -87,6 +87,12 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     end
   end
 
+  test "fragment" do
+    assert_raise Ecto.QueryError, fn ->
+      Model |> select([r], fragment("downcase(?)", r.x)) |> normalize
+    end
+  end
+
   test "distinct" do
     assert_raise Ecto.QueryError, fn ->
       Model |> distinct([r], r.x) |> select([r], {r.x, r.y}) |> normalize
@@ -132,4 +138,75 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, query_order:
                  %{"$or": [%{"$and": [%{x: %{"$gt": 0}}, %{y: %{"$gt": -123}}]}, true]})
   end
+
+  test "binary ops" do
+    query = Model |> where([r], r.x == 2) |> normalize
+    assert_query(query, query_order: %{x: 2})
+
+    query = Model |> where([r], r.x != 2) |> normalize
+    assert_query(query, query_order: %{x: %{"$ne": 2}})
+
+    query = Model |> where([r], r.x <= 2) |> normalize
+    assert_query(query, query_order: %{x: %{"$lte": 2}})
+
+    query = Model |> where([r], r.x >= 2) |> normalize
+    assert_query(query, query_order: %{x: %{"$gte": 2}})
+
+    query = Model |> where([r], r.x < 2) |> normalize
+    assert_query(query, query_order: %{x: %{"$lt": 2}})
+
+    query = Model |> where([r], r.x > 2) |> normalize
+    assert_query(query, query_order: %{x: %{"$gt": 2}})
+  end
+
+  test "bool ops" do
+    query = Model |> where([], true and false) |> normalize
+    assert_query(query, query_order: %{"$and": [true, false]})
+
+    query = Model |> where([], true or false) |> normalize
+    assert_query(query, query_order: %{"$or": [true, false]})
+
+    query = Model |> where([r], not (r.x > 0) and not (r.x < 5)) |> normalize
+    assert_query(query, query_order:
+                 %{"$and": [%{"$not": %{x: %{"$gt": 0}}}, %{"$not": %{x: %{"$lt": 5}}}]})
+  end
+
+  # test "in expression" do
+  #   query = Model |> where([e], e.x in []) |> normalize
+  #   assert_query(query, query_order: %{x: %{"$in": []}})
+
+  #   query = Model |> where([e], e.x in [1, e.x, 3]) |> normalize
+  #   assert SQL.all(query) == ~s{WHERE 1 IN (1,m0."x",3) FROM "model" AS m0}
+
+  #   query = Model |> where([e], 1 in ^[]) |> normalize
+  #   assert SQL.all(query) == ~s{WHERE false FROM "model" AS m0}
+
+  #   query = Model |> where([e], 1 in ^[1, 2, 3]) |> normalize
+  #   assert SQL.all(query) == ~s{WHERE 1 IN ($1,$2,$3) FROM "model" AS m0}
+
+  #   query = Model |> where([e], 1 in [1, ^2, 3]) |> normalize
+  #   assert SQL.all(query) == ~s{WHERE 1 IN (1,$1,3) FROM "model" AS m0}
+  # end
+
+  # test "having" do
+  #   query = Model |> having([p], p.x == p.x) |> select([], 0) |> normalize
+  #   assert SQL.all(query) == ~s{SELECT 0 FROM "model" AS m0 HAVING (m0."x" = m0."x")}
+
+  #   query = Model |> having([p], p.x == p.x) |> having([p], p.y == p.y) |> select([], 0) |> normalize
+  #   assert SQL.all(query) == ~s{SELECT 0 FROM "model" AS m0 HAVING (m0."x" = m0."x") AND (m0."y" = m0."y")}
+  # end
+
+  # test "group by" do
+  #   query = Model |> group_by([r], r.x) |> select([r], r.x) |> normalize
+  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "model" AS m0 GROUP BY m0."x"}
+
+  #   query = Model |> group_by([r], 2) |> select([r], r.x) |> normalize
+  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "model" AS m0 GROUP BY 2}
+
+  #   query = Model |> group_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
+  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "model" AS m0 GROUP BY m0."x", m0."y"}
+
+  #   query = Model |> group_by([r], []) |> select([r], r.x) |> normalize
+  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "model" AS m0}
+  # end
 end

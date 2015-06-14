@@ -19,7 +19,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     params      = List.to_tuple(params)
     from        = from(original)
     query_order = query_order(original, params, from)
-    projection  = projection(original.select, from)
+    projection  = projection(original, from)
     fields      = fields(original.select, params)
     num_skip    = num_skip(original)
     num_return  = num_return(original)
@@ -42,13 +42,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp query_order(query, order) when order == %{}, do: query
   defp query_order(query, order), do: %{"$query": query, "$orderby": order}
 
-  defp projection(nil, _from) do
+  defp projection(%Query{select: nil}, _from) do
     %{}
   end
-  defp projection(%Query.SelectExpr{fields: [{:&, _, [0]}]}, _from) do
+  defp projection(%Query{select: %Query.SelectExpr{fields: [{:&, _, [0]}]}}, _from) do
     %{}
   end
-  defp projection(%Query.SelectExpr{fields: fields}, {_coll, model, pk}) do
+  defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query,
+                  {_coll, model, pk}) do
     Enum.flat_map(fields, fn
       {:&, _, [0]} ->
         model.__schema__(:fields)
@@ -56,6 +57,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
         [:_id]
       {{:., _, [{:&, _, [0]}, field]}, _, []} ->
         [field]
+      {fun, _, _} when is_atom(fun) and fun != :^ ->
+        raise Ecto.QueryError, query: query,
+          message: "MongoDB adapter does not support queries with #{Atom.to_string(fun)}"
       _value ->
         # We skip all values and then add them when constructing return result
         []
@@ -155,9 +159,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
     encode_value(value, params)
   end
 
-  defp pair({:fragment, _, _}, _, _) do
-    raise ArgumentError, "Mongodb adapter does not support SQL fragment syntax."
-  end
   defp pair({op, _, args}, params, pk) when op in @bool_ops do
     args = Enum.map(args, &mapped_pair_or_value(&1, params, pk))
     {bool_op(op), args}
