@@ -134,6 +134,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp field({{:., _, [{:&, _, [0]}, pk]}, _, []}, pk), do: :_id
   defp field({{:., _, [{:&, _, [0]}, field]}, _, []}, _), do: field
+  defp field({_, _, _} = ast, _pk) do
+    raise ArgumentError, "Mongodb adapter does not support `#{Macro.to_string(ast)}` " <>
+      "in the place used, a field name was expected."
+  end
+  defp field(value, _pk) do
+    raise ArgumentError, "Mongodb adapter does not support `#{inspect value}` " <>
+      "in the place used, a field name was expected."
+  end
 
   binary_ops =
     [>: :"$gt", >=: :"$gte", <: :"$lt", <=: :"$lte", !=: :"$ne", in: :"$in"]
@@ -200,5 +208,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp pair({:not, _, [expr]}, params, pk) do
     {key, value} = pair(expr, params, pk)
     {:"$not", Map.put(%{}, key, value)}
+  end
+  defp pair({_, _, _} = ast, _params, _pk) do
+    raise ArgumentError, "Mongodb adapter does not support `#{Macro.to_string(ast)}` " <>
+      "in the place used, an expression was expected."
+  end
+  defp pair(value, _params, _pk) do
+    raise ArgumentError, "Mongodb adapter does not support `#{inspect value}` " <>
+      "in the place used, an expression was expected."
   end
 end

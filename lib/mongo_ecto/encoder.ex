@@ -32,6 +32,17 @@ defmodule Mongo.Ecto.Encoder do
     seconds = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
     %BSON.DateTime{utc: seconds * 1000 + div(usec, 1000)}
   end
+  def encode_value({_, _, _} = ast) do
+    raise ArgumentError, "Mongodb adapter does not support `#{Macro.to_string(ast)}` " <>
+      "in the place used, a value was expected."
+  end
+  def encode_value(%Decimal{}) do
+    raise ArgumentError, "Mongodb adapter does not support decimal values."
+  end
+  def encode_value(value) do
+    raise ArgumentError, "Mongodb adapter does not support `#{inspect value}` " <>
+      "in the place used, a value was expected."
+  end
 
   defp typed_value(nil, _), do: nil
   defp typed_value(value, {:array, type}), do: Enum.map(value, &typed_value(&1, type))

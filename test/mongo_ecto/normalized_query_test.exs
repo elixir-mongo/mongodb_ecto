@@ -171,42 +171,34 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
                  %{"$and": [%{"$not": %{x: %{"$gt": 0}}}, %{"$not": %{x: %{"$lt": 5}}}]})
   end
 
-  # test "in expression" do
-  #   query = Model |> where([e], e.x in []) |> normalize
-  #   assert_query(query, query_order: %{x: %{"$in": []}})
+  test "in expression" do
+    query = Model |> where([e], e.x in []) |> normalize
+    assert_query(query, query_order: %{x: %{"$in": []}})
 
-  #   query = Model |> where([e], e.x in [1, e.x, 3]) |> normalize
-  #   assert SQL.all(query) == ~s{WHERE 1 IN (1,m0."x",3) FROM "model" AS m0}
+    query = Model |> where([e], e.x in ^[1, 2, 3]) |> normalize
+    assert_query(query, query_order: %{x: %{"$in": [1, 2, 3]}})
 
-  #   query = Model |> where([e], 1 in ^[]) |> normalize
-  #   assert SQL.all(query) == ~s{WHERE false FROM "model" AS m0}
+    query = Model |> where([e], e.x in [1, ^2, 3]) |> normalize
+    assert_query(query, query_order: %{x: %{"$in": [1, 2, 3]}})
 
-  #   query = Model |> where([e], 1 in ^[1, 2, 3]) |> normalize
-  #   assert SQL.all(query) == ~s{WHERE 1 IN ($1,$2,$3) FROM "model" AS m0}
+    assert_raise ArgumentError, fn ->
+      Model |> where([e], 1 in ^[]) |> normalize
+    end
 
-  #   query = Model |> where([e], 1 in [1, ^2, 3]) |> normalize
-  #   assert SQL.all(query) == ~s{WHERE 1 IN (1,$1,3) FROM "model" AS m0}
-  # end
+    assert_raise ArgumentError, fn ->
+      Model |> where([e], e.x in [1, e.x, 3]) |> normalize
+    end
+  end
 
-  # test "having" do
-  #   query = Model |> having([p], p.x == p.x) |> select([], 0) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT 0 FROM "model" AS m0 HAVING (m0."x" = m0."x")}
+  test "having" do
+    assert_raise Ecto.QueryError, fn ->
+      Model |> having([p], p.x == p.x) |> normalize
+    end
+  end
 
-  #   query = Model |> having([p], p.x == p.x) |> having([p], p.y == p.y) |> select([], 0) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT 0 FROM "model" AS m0 HAVING (m0."x" = m0."x") AND (m0."y" = m0."y")}
-  # end
-
-  # test "group by" do
-  #   query = Model |> group_by([r], r.x) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "model" AS m0 GROUP BY m0."x"}
-
-  #   query = Model |> group_by([r], 2) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "model" AS m0 GROUP BY 2}
-
-  #   query = Model |> group_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "model" AS m0 GROUP BY m0."x", m0."y"}
-
-  #   query = Model |> group_by([r], []) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "model" AS m0}
-  # end
+  test "group by" do
+    assert_raise Ecto.QueryError, fn ->
+      Model |> group_by([r], r.x) |> select([r], r.x) |> normalize
+    end
+  end
 end
