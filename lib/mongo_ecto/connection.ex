@@ -80,6 +80,9 @@ defmodule Mongo.Ecto.Connection do
   defp read_result({:ok, %ReadResult{docs: docs}}) do
     {:ok, docs}
   end
+
+  # TODO: Maybe we could raise here and so we can remove
+  # handle_result from Mongo.Ecto
   defp read_result({:error, _} = error) do
     error
   end

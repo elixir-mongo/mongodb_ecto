@@ -13,6 +13,11 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %__MODULE__{normalized | command: command}
   end
 
+  # TODO: I would suggest to have 2 (or 3) query functions,
+  # for update and deletes, and then for querying. That's
+  # because some code will get more concise and easier to
+  # check corner cases.
+
   def from_query(%Query{} = original, params) do
     check_query(original)
 
@@ -64,7 +69,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
         # We skip all values and then add them when constructing return result
         []
     end)
-    |> Enum.into(%{}, &{&1, true})
+    |> Enum.into(%{}, &{&1, true}) # TODO: Same here, we may not need into in latest mongoex
   end
 
   defp fields(nil, _params) do

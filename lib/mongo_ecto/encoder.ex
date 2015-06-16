@@ -3,6 +3,11 @@ defmodule Mongo.Ecto.Encoder do
 
   alias Ecto.Query.Tagged
 
+  # TODO: Discuss with eric about documenting encoding
+  # as he wanted to support passing keyword lists. If
+  # so, the operations below could be Enum.map instead
+  # of into.
+
   def encode_document(doc, pk) do
     Enum.into(doc, %{}, fn
       {key, value} when key == pk -> {:_id, encode_value(value)}

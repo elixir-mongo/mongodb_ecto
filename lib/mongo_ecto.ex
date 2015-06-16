@@ -1,4 +1,14 @@
 defmodule Mongo.Ecto do
+  # TODO: Improve the docs. For example, it should include
+  # which features are supported (done), which ones are not,
+  # driver options and so on.
+
+  # TODO: Add migration support. I believe we could support
+  # migrations in Mongo for at least adding and removing
+  # indexes.
+
+  # TODO: Add @moduledoc false to private modules
+
   @moduledoc """
   Adapter module for MongoDB
 
@@ -124,7 +134,7 @@ defmodule Mongo.Ecto do
 
   def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
     do_insert(repo, source, params, pk, opts)
-    |> handle_response(&{:ok, &1})
+    |> handle_response(&{:ok, &1}) # TODO: We could return an empty list here
   end
 
   @doc false
@@ -133,6 +143,7 @@ defmodule Mongo.Ecto do
                          "The #{inspect key} field in #{inspect source} is tagged as such."
   end
 
+  # TODO: Returning should be [_|_]
   def update(_repo, source, _fields, _filter, _autogen, [_] = returning, _opts) do
     raise ArgumentError,
       "MongoDB adapter does not support :read_after_writes in models. " <>
@@ -180,6 +191,8 @@ defmodule Mongo.Ecto do
   defp handle_response({:error, %{__exeption__: true} = exeption}, _fun) do
     raise exeption
   end
+
+  # TODO: Is this clause needed with mongoex?
   defp handle_response({:error, _} = error, _fun) do
     error
   end
@@ -191,6 +204,7 @@ defmodule Mongo.Ecto do
 
     Enum.map(fields, fn
       {:&, _, [0]} ->
+        # TODO: Discuss with Ecto a faster way of doing this
         row = model.__schema__(:fields)
               |> Enum.map(&Map.get(document, Atom.to_string(&1)))
               |> List.to_tuple
@@ -220,12 +234,15 @@ defmodule Mongo.Ecto do
   defp with_new_conn(opts, fun) do
     {:ok, conn} = Connection.connect(opts)
     result = fun.(conn)
+    # TODO: Use try/after
     :ok = Connection.disconnect(conn)
 
     result
   end
 
   ## Mongo specific calls
+
+  # TODO: I believe those could be private?
 
   @doc """
   Returns a list of all collections in the database and their options
