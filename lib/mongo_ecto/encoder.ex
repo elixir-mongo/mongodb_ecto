@@ -4,49 +4,80 @@ defmodule Mongo.Ecto.Encoder do
   alias Ecto.Query.Tagged
 
   def encode_document(doc, pk) do
-    Enum.into(doc, %{}, fn
-      {key, value} when key == pk -> {:_id, encode_value(value)}
-      {key, value}                -> {key , encode_value(value)}
+    map(doc, fn {key, value} ->
+      encode_pair(key, value, pk, &encode_value/1)
     end)
   end
   def encode_document(doc, params, pk) do
-    Enum.into(doc, %{}, fn
-      {key, value} when key == pk -> {:_id, encode_value(value, params)}
-      {key, value}                -> {key , encode_value(value, params)}
+    map(doc, fn {key, value} ->
+      encode_pair(key, value, pk, &encode_value(&1, params))
     end)
   end
 
-  def encode_value(list, params) when is_list(list),
-    do: Enum.map(list, &encode_value(&1, params))
-  def encode_value({:^, _, [idx]}, params), do: elem(params, idx) |> encode_value(params)
-  def encode_value(value, _), do: encode_value(value)
+  defp key(pk, pk), do: :_id
+  defp key(key, _), do: key
 
-  def encode_value(int) when is_integer(int), do: int
-  def encode_value(float) when is_float(float), do: float
-  def encode_value(string) when is_binary(string), do: string
-  def encode_value(atom) when is_atom(atom), do: atom
-  def encode_value(list) when is_list(list), do: Enum.map(list, &encode_value/1)
-  def encode_value(%BSON.ObjectId{} = objectid), do: objectid
-  def encode_value(%Tagged{value: value, type: type}), do: typed_value(value, type)
+  defp encode_pair(key, value, pk, fun) do
+    case fun.(value) do
+      {:ok, encoded}    -> {:ok, {key(key, pk), encoded}}
+      {:error, _} = err -> err
+    end
+  end
+
+  def encode_value(list, params) when is_list(list),
+    do: map(list, &encode_value(&1, params))
+  def encode_value({:^, _, [idx]}, params),
+    do: elem(params, idx) |> encode_value(params)
+  def encode_value(value, _),
+    do: encode_value(value)
+
+  def encode_value(int) when is_integer(int),
+    do: {:ok, int}
+  def encode_value(float) when is_float(float),
+    do: {:ok, float}
+  def encode_value(string) when is_binary(string),
+    do: {:ok, string}
+  def encode_value(atom) when is_atom(atom),
+    do: {:ok, atom}
+  def encode_value(list) when is_list(list),
+    do: map(list, &encode_value/1)
+  def encode_value(%BSON.ObjectId{} = objectid),
+    do: {:ok, objectid}
+  def encode_value(%Tagged{value: value, type: type}),
+    do: {:ok, typed_value(value, type)}
   def encode_value({{_, _, _} = date, {hour, min, sec, usec}}) do
     seconds = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
-    %BSON.DateTime{utc: seconds * 1000 + div(usec, 1000)}
-  end
-  def encode_value({_, _, _} = ast) do
-    raise ArgumentError, "Mongodb adapter does not support `#{Macro.to_string(ast)}` " <>
-      "in the place used, a value was expected."
-  end
-  def encode_value(%Decimal{}) do
-    raise ArgumentError, "Mongodb adapter does not support decimal values."
+    {:ok, %BSON.DateTime{utc: seconds * 1000 + div(usec, 1000)}}
   end
   def encode_value(value) do
-    raise ArgumentError, "Mongodb adapter does not support `#{inspect value}` " <>
-      "in the place used, a value was expected."
+    {:error, value}
   end
 
-  defp typed_value(nil, _), do: nil
-  defp typed_value(value, {:array, type}), do: Enum.map(value, &typed_value(&1, type))
-  defp typed_value(value, :binary), do: %BSON.Binary{binary: value}
-  defp typed_value(value, :uuid), do: %BSON.Binary{binary: value, subtype: :uuid}
-  defp typed_value(value, :object_id), do: %BSON.ObjectId{value: value}
+  defp typed_value(nil, _),
+    do: nil
+  defp typed_value(value, {:array, type}),
+    do: Enum.map(value, &typed_value(&1, type))
+  defp typed_value(value, :binary),
+    do: %BSON.Binary{binary: value}
+  defp typed_value(value, :uuid),
+    do: %BSON.Binary{binary: value, subtype: :uuid}
+  defp typed_value(value, :object_id),
+    do: %BSON.ObjectId{value: value}
+
+  defp map(list, fun) do
+    return =
+      Enum.flat_map_reduce(list, :ok, fn elem, :ok ->
+        case fun.(elem) do
+          {:ok, value}      -> {[value], :ok}
+          {:error, _} = err -> {:halt, err}
+        end
+      end)
+
+    case return do
+      {values, :ok} ->
+        {:ok, values}
+      {_values, {:error, _} = err} ->
+        err
+    end
+  end
 end

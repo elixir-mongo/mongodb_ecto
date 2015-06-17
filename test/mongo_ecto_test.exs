@@ -1,36 +1,17 @@
 defmodule Mongo.EctoTest do
-  use ExUnit.Case
+  use Ecto.Integration.Case
 
   alias Ecto.Integration.TestRepo
-  alias Mongo.Ecto, as: ME
-
-  setup do
-    ME.truncate(TestRepo)
-    :ok
-  end
+  alias Ecto.Integration.Post
 
   test "command/3" do
-    assert ME.command(TestRepo, ping: 1) == {:ok, [%{"ok" => 1.0}]}
-  end
-
-  test "list_collections/1" do
-    ME.command(TestRepo, create: "posts")
-    collection = %{"name" => "posts", "options" => %{}}
-
-    assert ME.list_collections(TestRepo) |> Enum.member?(collection)
-
-    ME.command(TestRepo, create: "users", capped: true, size: 5 * 1024)
-
-    collection = %{"name" => "users", "options" => %{"capped" => true, "size" => 5 * 1024}}
-    assert ME.list_collections(TestRepo) |> Enum.member?(collection)
+    assert Mongo.Ecto.command(TestRepo, ping: 1) == {:ok, [%{"ok" => 1.0}]}
   end
 
   test "truncate/1" do
-    ME.command(TestRepo, create: "test")
-    # There is always system collection
-    assert 2 == ME.list_collections(TestRepo) |> Enum.count
+    TestRepo.insert(%Post{})
 
-    ME.truncate(TestRepo)
-    assert 1 == ME.list_collections(TestRepo) |> Enum.count
+    Mongo.Ecto.truncate(TestRepo)
+    assert [] == TestRepo.all(Post)
   end
 end

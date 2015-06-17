@@ -36,13 +36,13 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "from without model" do
     query = "posts" |> select([r], r.x) |> normalize
-    assert_query(query, from: {"posts", nil, nil}, projection: %{x: true})
+    assert_query(query, from: {"posts", nil, nil}, projection: [x: true])
   end
 
   test "where" do
     query = Model |> where([r], r.x == 42) |> where([r], r.y != 43)
                   |> select([r], r.x) |> normalize
-    assert_query(query, query_order: %{x: 42, y: %{"$ne": 43}}, projection: %{x: true})
+    assert_query(query, query_order: %{x: 42, y: %{"$ne": 43}}, projection: [x: true])
 
     query = Model |> where([r], not (r.x == 42)) |> normalize
     assert_query(query, query_order: %{x: %{"$neq": 42}})
@@ -50,10 +50,10 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "select" do
     query = Model |> select([r], {r.x, r.y}) |> normalize
-    assert_query(query, projection: %{x: true, y: true})
+    assert_query(query, projection: [x: true, y: true])
 
     query = Model |> select([r], [r.x, r.y]) |> normalize
-    assert_query(query, projection: %{x: true, y: true})
+    assert_query(query, projection: [x: true, y: true])
   end
 
   test "order by" do
@@ -181,11 +181,11 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     query = Model |> where([e], e.x in [1, ^2, 3]) |> normalize
     assert_query(query, query_order: %{x: %{"$in": [1, 2, 3]}})
 
-    assert_raise ArgumentError, fn ->
+    assert_raise Ecto.QueryError, fn ->
       Model |> where([e], 1 in ^[]) |> normalize
     end
 
-    assert_raise ArgumentError, fn ->
+    assert_raise Ecto.QueryError, fn ->
       Model |> where([e], e.x in [1, e.x, 3]) |> normalize
     end
   end

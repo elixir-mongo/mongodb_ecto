@@ -124,7 +124,7 @@ defmodule Mongo.Ecto do
 
   def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
     do_insert(repo, source, params, pk, opts)
-    |> handle_response(&{:ok, &1})
+    |> handle_response(fn _ -> {:ok, []} end)
   end
 
   @doc false
@@ -133,7 +133,7 @@ defmodule Mongo.Ecto do
                          "The #{inspect key} field in #{inspect source} is tagged as such."
   end
 
-  def update(_repo, source, _fields, _filter, _autogen, [_] = returning, _opts) do
+  def update(_repo, source, _fields, _filter, _autogen, [_|_] = returning, _opts) do
     raise ArgumentError,
       "MongoDB adapter does not support :read_after_writes in models. " <>
       "The following fields in #{inspect source} are tagged as such: #{inspect returning}"
@@ -141,8 +141,9 @@ defmodule Mongo.Ecto do
 
   def update(repo, source, fields, filter, {pk, :binary_id, _value}, [], opts) do
     coll    = source
-    query   = Encoder.encode_document(filter, pk)
-    command = %{"$set": Encoder.encode_document(fields, pk)}
+    {:ok, query}   = Encoder.encode_document(filter, pk)
+    {:ok, set}  = fields |> Encoder.encode_document(pk)
+    command = %{"$set": Enum.into(set, %{})}
 
     with_conn(repo, fn module, conn ->
       module.update(conn, coll, query, command, opts)
@@ -158,7 +159,7 @@ defmodule Mongo.Ecto do
 
   def delete(repo, source, filter, {pk, :binary_id, _value}, opts) do
     coll  = source
-    query = Encoder.encode_document(filter, pk)
+    {:ok, query} = Encoder.encode_document(filter, pk)
 
     with_conn(repo, fn module, conn ->
       module.delete(conn, coll, query, opts)
@@ -167,7 +168,7 @@ defmodule Mongo.Ecto do
   end
 
   defp do_insert(repo, coll, document, pk, opts) do
-    document = Encoder.encode_document(document, pk)
+    {:ok, document} = Encoder.encode_document(document, pk)
 
     with_conn(repo, fn module, conn ->
       module.insert(conn, coll, document, opts)
@@ -177,7 +178,7 @@ defmodule Mongo.Ecto do
   defp handle_response({:ok, response}, fun) do
     fun.(response)
   end
-  defp handle_response({:error, %{__exeption__: true} = exeption}, _fun) do
+  defp handle_response({:error, %{__exception__: true} = exeption}, _fun) do
     raise exeption
   end
   defp handle_response({:error, _} = error, _fun) do
@@ -228,60 +229,6 @@ defmodule Mongo.Ecto do
   ## Mongo specific calls
 
   @doc """
-  Returns a list of all collections in the database and their options
-
-  When available uses `listCollections` command, otherwise queries the
-  `system.namespaces` collection and sanitizes output to match that of
-  the `listCollections` command.
-
-  For more information see: http://docs.mongodb.org/manual/reference/command/listCollections/
-  """
-  def list_collections(repo) when is_atom(repo) do
-    with_new_conn(repo.config, &list_collections/1)
-  end
-  def list_collections(conn) when is_pid(conn) do
-    if Version.match?(server_version(conn), ">3.0.0") do
-      {:ok, collections} = command(conn, %{listCollections: 1})
-
-      collections
-    else
-      query = %NormalizedQuery{from: {"system.namespaces", nil, nil}}
-      Connection.all(conn, query, [])
-      |> handle_response(&sanitize_old_collections/1)
-    end
-  end
-
-  defp sanitize_old_collections(collections) do
-    collections
-    |> Enum.reject(&special_collection?/1)
-    |> Enum.map(fn collection ->
-      update_in(collection, ["name"], fn name ->
-        [_, name] = String.split(name, ".", parts: 2)
-        name
-      end)
-      |> Map.update("options", %{}, &Map.delete(&1, "create"))
-    end)
-  end
-
-  defp special_collection?(map) do
-    map |> Map.get("name") |> String.contains?("$")
-  end
-
-  @doc """
-  Return mongod version.
-
-  Uses `buildInfo` command to retrieve information.
-  """
-  def server_version(repo) when is_atom(repo) do
-    with_new_conn(repo.config, &server_version/1)
-  end
-  def server_version(conn) when is_pid(conn) do
-    {:ok, [build_info]} = command(conn, %{buildInfo: 1})
-
-    Map.get(build_info, "version")
-  end
-
-  @doc """
   Drops all the collections in current database except system ones.
 
   Especially usefull in testing.
@@ -292,7 +239,6 @@ defmodule Mongo.Ecto do
   def truncate(conn) when is_pid(conn) do
     conn
     |> list_collections
-    |> Enum.map(&Map.fetch!(&1, "name"))
     |> Enum.reject(&String.starts_with?(&1, "system"))
     |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
       case drop_collection(conn, collection) do
@@ -306,10 +252,6 @@ defmodule Mongo.Ecto do
        end
   end
 
-  defp drop_collection(conn, collection) when is_pid(conn) do
-    command(conn, %{drop: collection})
-  end
-
   @doc """
   Runs a command in the database.
 
@@ -321,6 +263,25 @@ defmodule Mongo.Ecto do
   end
   def command(conn, command, opts) when is_pid(conn) do
     Connection.command(conn, command, opts)
+  end
+
+  defp list_collections(conn) when is_pid(conn) do
+    query = %NormalizedQuery{from: {"system.namespaces", nil, nil}}
+    {:ok, collections} = Connection.all(conn, query, [])
+
+    collections
+    |> Enum.map(&Map.fetch!(&1, "name"))
+    |> Enum.map(fn collection ->
+      collection |> String.split(".", parts: 2) |> Enum.at(1)
+    end)
+    |> Enum.reject(fn
+      "system" <> _rest -> true
+      collection        -> String.contains?(collection, "$")
+    end)
+  end
+
+  defp drop_collection(conn, collection) when is_pid(conn) do
+    command(conn, %{drop: collection})
   end
 
   defp split_opts(repo, opts) do

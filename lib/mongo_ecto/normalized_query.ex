@@ -1,14 +1,26 @@
+defmodule Mongo.Ecto.NormalizedQuery.Helper do
+  @moduledoc false
+
+  defmacro is_op(op) do
+    quote do
+      is_atom(unquote(op)) and unquote(op) != :^
+    end
+  end
+end
+
 defmodule Mongo.Ecto.NormalizedQuery do
+  @moduledoc false
 
   defstruct [from: {nil, nil, nil}, query_order: %{}, projection: %{},
              fields: [], command: %{}, num_skip: 0, num_return: 0, params: {}]
 
-  import Mongo.Ecto.Encoder
+  import Mongo.Ecto.NormalizedQuery.Helper
+  alias Mongo.Ecto.Encoder
   alias Ecto.Query
 
   def from_query(%Query{} = original, command, params) do
     normalized = from_query(original, params)
-    command    = command(command, normalized.params, normalized.from)
+    command    = command(original, command, normalized.params, normalized.from)
 
     %__MODULE__{normalized | command: command}
   end
@@ -20,7 +32,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     from        = from(original)
     query_order = query_order(original, params, from)
     projection  = projection(original, from)
-    fields      = fields(original.select, params)
+    fields      = fields(original, params)
     num_skip    = num_skip(original)
     num_return  = num_return(original)
 
@@ -57,23 +69,22 @@ defmodule Mongo.Ecto.NormalizedQuery do
         [:_id]
       {{:., _, [{:&, _, [0]}, field]}, _, []} ->
         [field]
-      {fun, _, _} when is_atom(fun) and fun != :^ ->
-        raise Ecto.QueryError, query: query,
-          message: "MongoDB adapter does not support queries with #{Atom.to_string(fun)}"
+      {op, _, _} = expr when is_op(op) ->
+        error(:projection, query, expr)
       _value ->
         # We skip all values and then add them when constructing return result
         []
     end)
-    |> Enum.into(%{}, &{&1, true})
+    |> Enum.map(&{&1, true})
   end
 
-  defp fields(nil, _params) do
+  defp fields(%Query{select: nil}, _params) do
     []
   end
-  defp fields(%Query.SelectExpr{fields: fields}, params) do
+  defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query, params) do
     Enum.map(fields, fn
       %Query.Tagged{value: {:^, _, [idx]}} ->
-        params |> elem(idx) |> encode_value(params)
+        params |> elem(idx) |> value(params, query)
       value ->
         value
     end)
@@ -87,20 +98,27 @@ defmodule Mongo.Ecto.NormalizedQuery do
     offset_limit(limit)
   end
 
-  defp query(%Query{wheres: wheres}, params, {_coll, _model, pk}) do
+  defp query(%Query{wheres: wheres} = query, params, {_coll, _model, pk}) do
     Enum.into(wheres, %{}, fn %Query.QueryExpr{expr: expr} ->
-      pair(expr, params, pk)
+      pair(expr, params, pk, query)
     end)
   end
 
-  defp order(%Query{order_bys: order_bys}, {_coll, _model, pk}) do
+  defp order(%Query{order_bys: order_bys} = query, {_coll, _model, pk}) do
     order_bys
     |> Enum.flat_map(fn %Query.QueryExpr{expr: expr} -> expr end)
-    |> Enum.into(%{}, &order_by_expr(&1, pk))
+    |> Enum.into(%{}, &order_by_expr(&1, pk, query))
   end
 
-  defp command(command, params, {_coll, _model, pk}) do
-    encode_document(command, params, pk)
+  defp command(query, command, params, {_coll, _model, pk}) do
+    # Command is nested inside another map, so we need a map, not a keyword
+    case Encoder.encode_document(command, params, pk) do
+      {:ok, document} -> Enum.into(document, %{})
+      {:error, expr}  ->
+        message = format_expr(expr)
+        raise ArgumentError,
+          "MongoDB adapter does not support #{expr} as used in update query"
+    end
   end
 
   defp offset_limit(nil), do: 0
@@ -111,20 +129,20 @@ defmodule Mongo.Ecto.NormalizedQuery do
     case model.__schema__(:primary_key) do
       [pk] -> pk
       keys ->
-        raise ArgumentError, "MongoDB does not support multiple primary keys " <>
-                             "and #{inspect keys} were defined in #{inspect model}."
+        raise ArgumentError, "MongoDB adapter does not support multiple primary keys " <>
+          "and #{inspect keys} were defined in #{inspect model}."
     end
   end
 
-  defp order_by_expr({:asc,  expr}, pk), do: {field(expr, pk),  1}
-  defp order_by_expr({:desc, expr}, pk), do: {field(expr, pk), -1}
+  defp order_by_expr({:asc,  expr}, pk, query), do: {field(expr, pk, query),  1}
+  defp order_by_expr({:desc, expr}, pk, query), do: {field(expr, pk, query), -1}
 
   defp check_query(query) do
-    check(query.joins, [], query, "MongoDB adapter does not support join clauses")
     check(query.distinct, nil, query, "MongoDB adapter does not support distinct clauses")
-    check(query.lock, nil, query, "MongoDB adapter does not support locking")
+    check(query.lock,     nil, query, "MongoDB adapter does not support locking")
+    check(query.joins,     [], query, "MongoDB adapter does not support join clauses")
     check(query.group_bys, [], query, "MongoDB adapter does not support group_by clauses")
-    check(query.havings, [], query, "MongoDB adapter does not support having clauses")
+    check(query.havings,   [], query, "MongoDB adapter does not support having clauses")
   end
 
   defp check(expr, expr, _, _), do: nil
@@ -132,16 +150,21 @@ defmodule Mongo.Ecto.NormalizedQuery do
     raise Ecto.QueryError, query: query, message: message
   end
 
-  defp field({{:., _, [{:&, _, [0]}, pk]}, _, []}, pk), do: :_id
-  defp field({{:., _, [{:&, _, [0]}, field]}, _, []}, _), do: field
-  defp field({_, _, _} = ast, _pk) do
-    raise ArgumentError, "Mongodb adapter does not support `#{Macro.to_string(ast)}` " <>
-      "in the place used, a field name was expected."
+  defp value(expr, params, query) do
+    case Encoder.encode_value(expr, params) do
+      {:ok, value}   -> value
+      {:error, expr} -> error(:value, query, expr)
+    end
   end
-  defp field(value, _pk) do
-    raise ArgumentError, "Mongodb adapter does not support `#{inspect value}` " <>
-      "in the place used, a field name was expected."
+
+  defp field({{:., _, [{:&, _, [0]}, pk]}, _, []}, pk, _query),
+    do: :_id
+  defp field({{:., _, [{:&, _, [0]}, field]}, _, []}, _pk, _query),
+    do: field
+  defp field(expr, _pk, query) do
+    error(:field, query, expr)
   end
+
 
   binary_ops =
     [>: :"$gt", >=: :"$gte", <: :"$lt", <=: :"$lte", !=: :"$ne", in: :"$in"]
@@ -159,62 +182,69 @@ defmodule Mongo.Ecto.NormalizedQuery do
     defp bool_op(unquote(op)), do: unquote(mongo_op)
   end)
 
-  defp mapped_pair_or_value({op, _, _} = tuple, params, pk) when is_atom(op) and op != :^ do
-    {key, value} = pair(tuple, params, pk)
+  defp mapped_pair_or_value({op, _, _} = tuple, params, pk, query) when is_op(op) do
+    {key, value} = pair(tuple, params, pk, query)
     Map.put(%{}, key, value)
   end
-  defp mapped_pair_or_value(value, params, _pk) do
-    encode_value(value, params)
+  defp mapped_pair_or_value(value, params, _pk, query) do
+    value(value, params, query)
   end
 
-  defp pair({op, _, args}, params, pk) when op in @bool_ops do
-    args = Enum.map(args, &mapped_pair_or_value(&1, params, pk))
+  defp pair({op, _, args}, params, pk, query) when op in @bool_ops do
+    args = Enum.map(args, &mapped_pair_or_value(&1, params, pk, query))
     {bool_op(op), args}
   end
-  defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk) do
+  defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query) do
     args =
       ix..ix+len-1
       |> Enum.map(&elem(params, &1))
-      |> Enum.map(&encode_value(&1, params))
+      |> Enum.map(&value(&1, params, query))
 
-    {field(left, pk), %{"$in": args}}
+    {field(left, pk, query), %{"$in": args}}
   end
-  defp pair({:is_nil, _, [expr]}, _, pk) do
-    {field(expr, pk), nil}
+  defp pair({:is_nil, _, [expr]}, _, pk, query) do
+    {field(expr, pk, query), nil}
   end
-  defp pair({:==, _, [left, right]}, params, pk) do
-    {field(left, pk), encode_value(right, params)}
+  defp pair({:==, _, [left, right]}, params, pk, query) do
+    {field(left, pk, query), value(right, params, query)}
   end
-  defp pair({op, _, [left, right]}, params, pk) when op in @binary_ops do
-    {field(left, pk), Map.put(%{}, binary_op(op), encode_value(right, params))}
+  defp pair({op, _, [left, right]}, params, pk, query) when op in @binary_ops do
+    {field(left, pk, query), Map.put(%{}, binary_op(op), value(right, params, query))}
   end
-  defp pair({:not, _, [{:in, _, [left, {:^, _, [ix, len]}]}]}, params, pk) do
+  defp pair({:not, _, [{:in, _, [left, {:^, _, [ix, len]}]}]}, params, pk, query) do
     args =
       ix..ix+len-1
       |> Enum.map(&elem(params, &1))
-      |> Enum.map(&encode_value(&1, params))
+      |> Enum.map(&value(&1, params, query))
 
-    {field(left, pk), %{"$nin": args}}
+    {field(left, pk, query), %{"$nin": args}}
   end
-  defp pair({:not, _, [{:in, _, [left, right]}]}, params, pk) do
-    {field(left, pk), %{"$nin": encode_value(right, params)}}
+  defp pair({:not, _, [{:in, _, [left, right]}]}, params, pk, query) do
+    {field(left, pk, query), %{"$nin": value(right, params, query)}}
   end
-  defp pair({:not, _, [{:is_nil, _, [expr]}]}, _, pk) do
-    {field(expr, pk), %{"$neq": nil}}
+  defp pair({:not, _, [{:is_nil, _, [expr]}]}, _, pk, query) do
+    {field(expr, pk, query), %{"$neq": nil}}
   end
-  defp pair({:not, _, [{:==, _, [left, right]}]}, params, pk) do
-    {field(left, pk), %{"$neq": encode_value(right, params)}}
+  defp pair({:not, _, [{:==, _, [left, right]}]}, params, pk, query) do
+    {field(left, pk, query), %{"$neq": value(right, params, query)}}
   end
-  defp pair({:not, _, [expr]}, params, pk) do
-    {key, value} = pair(expr, params, pk)
+  defp pair({:not, _, [expr]}, params, pk, query) do
+    {key, value} = pair(expr, params, pk, query)
     {:"$not", Map.put(%{}, key, value)}
   end
-  defp pair({_, _, _} = ast, _params, _pk) do
-    raise ArgumentError, "Mongodb adapter does not support `#{Macro.to_string(ast)}` " <>
-      "in the place used, an expression was expected."
+  defp pair(expr, _params, _pk, query) do
+    error(:expression, query, expr)
   end
-  defp pair(value, _params, _pk) do
-    raise ArgumentError, "Mongodb adapter does not support `#{inspect value}` " <>
-      "in the place used, an expression was expected."
+
+  defp error(expected, query, given) do
+    raise Ecto.QueryError, query: query,
+      message: "MongoDB adapter expected #{expected}, but `#{format_expr(given)}` was given"
   end
+
+  defp format_expr({atom, _, _} = ast) when is_atom(atom),
+    do: Macro.to_string(ast)
+  defp format_expr(string) when is_binary(string),
+    do: string
+  defp format_expr(expr),
+    do: inspect(expr)
 end
