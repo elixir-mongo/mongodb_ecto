@@ -11,34 +11,91 @@ end
 defmodule Mongo.Ecto.NormalizedQuery do
   @moduledoc false
 
-  defstruct [from: {nil, nil, nil}, query_order: %{}, projection: %{},
-             fields: [], command: %{}, num_skip: 0, num_return: 0, params: {}]
+  defmodule QueryAll do
+    @moduledoc false
+
+    defstruct params: {}, from: {nil, nil, nil}, query: %{}, projection: %{},
+              fields: [], opts: []
+  end
+
+  defmodule QueryUpdate do
+    @moduledoc false
+
+    defstruct coll: nil, query: %{}, command: %{}, opts: []
+  end
+
+  defmodule QueryDelete do
+    @moduledoc false
+
+    defstruct coll: nil, query: %{}, opts: []
+  end
+
+  defmodule QueryInsert do
+    @moduledoc false
+
+    defstruct coll: nil, command: %{}, opts: []
+  end
 
   import Mongo.Ecto.NormalizedQuery.Helper
   alias Mongo.Ecto.Encoder
   alias Ecto.Query
 
-  def from_query(%Query{} = original, command, params) do
-    normalized = from_query(original, params)
-    command    = command(original, command, normalized.params, normalized.from)
-
-    %__MODULE__{normalized | command: command}
-  end
-
-  def from_query(%Query{} = original, params) do
+  def all(%Query{} = original, params) do
     check_query(original)
 
-    params      = List.to_tuple(params)
-    from        = from(original)
-    query_order = query_order(original, params, from)
-    projection  = projection(original, from)
-    fields      = fields(original, params)
-    num_skip    = num_skip(original)
-    num_return  = num_return(original)
+    params     = List.to_tuple(params)
+    from       = from(original)
+    query      = query_order(original, params, from)
+    projection = projection(original, from)
+    fields     = fields(original, params)
+    opts       = opts(:all, original)
 
-    %__MODULE__{from: from, query_order: query_order, projection: projection,
-                fields: fields, num_skip: num_skip, num_return: num_return,
-                params: params}
+    %QueryAll{params: params, from: from, query: query, projection: projection,
+              fields: fields, opts: opts}
+  end
+
+  def update_all(%Query{} = original, values, params) do
+    check_query(original)
+
+    params  = List.to_tuple(params)
+    from    = from(original)
+    coll    = coll(from)
+    query   = query(original, params, from)
+    command = command(:update, query, values, params, from)
+    opts    = opts(:update_all, original)
+
+    %QueryUpdate{coll: coll, query: query, command: command, opts: opts}
+  end
+
+  def update(coll, values, filter, pk) do
+    command = command(:update, values, pk)
+    query   = query(filter, pk)
+
+    %QueryUpdate{coll: coll, query: query, command: command}
+  end
+
+  def delete_all(%Query{} = original, params) do
+    check_query(original)
+
+    params = List.to_tuple(params)
+    from   = from(original)
+    coll   = coll(from)
+    query  = query(original, params, from)
+    opts   = opts(:delete_all, original)
+
+    %QueryDelete{coll: coll, query: query, opts: opts}
+  end
+
+  def delete(coll, filter, pk) do
+    query = query(filter, pk)
+
+    %QueryDelete{coll: coll, query: query}
+  end
+
+  def insert(coll, document, pk) do
+    command = command(:insert, document, pk)
+
+    %QueryInsert{coll: coll, command: command}
   end
 
   defp from(%Query{from: {coll, model}}) do
@@ -51,15 +108,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
     query_order(query, order)
   end
 
-  defp query_order(query, order) when order == %{}, do: query
-  defp query_order(query, order), do: %{"$query": query, "$orderby": order}
+  defp query_order(query, order) when order == %{},
+    do: query
+  defp query_order(query, order),
+    do: %{"$query": query, "$orderby": order}
 
-  defp projection(%Query{select: nil}, _from) do
-    %{}
-  end
-  defp projection(%Query{select: %Query.SelectExpr{fields: [{:&, _, [0]}]}}, _from) do
-    %{}
-  end
+  defp projection(%Query{select: nil}, _from),
+    do: %{}
+  defp projection(%Query{select: %Query.SelectExpr{fields: [{:&, _, [0]}]}}, _from),
+    do: %{}
   defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query,
                   {_coll, model, pk}) do
     Enum.flat_map(fields, fn
@@ -78,9 +135,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> Enum.map(&{&1, true})
   end
 
-  defp fields(%Query{select: nil}, _params) do
-    []
-  end
+  defp fields(%Query{select: nil}, _params),
+    do: []
   defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query, params) do
     Enum.map(fields, fn
       %Query.Tagged{value: {:^, _, [idx]}} ->
@@ -90,18 +146,30 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end)
   end
 
-  defp num_skip(%Query{offset: offset}) do
-    offset_limit(offset)
-  end
+  defp opts(:all, query),
+    do: [num_return: num_return(query), num_skip: num_skip(query)]
+  defp opts(:update_all, _query),
+    do: [multi: true]
+  defp opts(:delete_all, _query),
+    do: [multi: true]
 
-  defp num_return(%Query{limit: limit}) do
-    offset_limit(limit)
-  end
+  defp num_skip(%Query{offset: offset}), do: offset_limit(offset)
+
+  defp num_return(%Query{limit: limit}), do: offset_limit(limit)
+
+  defp coll({coll, _model, _pk}), do: coll
 
   defp query(%Query{wheres: wheres} = query, params, {_coll, _model, pk}) do
     Enum.into(wheres, %{}, fn %Query.QueryExpr{expr: expr} ->
       pair(expr, params, pk, query)
     end)
+  end
+  defp query(filter, pk) do
+    case Encoder.encode_document(filter, pk) do
+      {:ok, document} -> document
+      {:error, expr}  ->
+        error(:value, expr)
+    end
   end
 
   defp order(%Query{order_bys: order_bys} = query, {_coll, _model, pk}) do
@@ -110,23 +178,44 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> Enum.into(%{}, &order_by_expr(&1, pk, query))
   end
 
-  defp command(query, command, params, {_coll, _model, pk}) do
-    # Command is nested inside another map, so we need a map, not a keyword
-    case Encoder.encode_document(command, params, pk) do
-      {:ok, document} -> Enum.into(document, %{})
+  defp command(:update, query, values, params, {_coll, _model, pk}) do
+    updates =
+      case Encoder.encode_document(values, params, pk) do
+        {:ok, document} -> Enum.into(document, %{})
+        {:error, expr}  ->
+          error(:value, query, expr)
+      end
+
+    %{"$set": updates}
+  end
+  defp command(:update, values, pk) do
+    updates =
+      case Encoder.encode_document(values, pk) do
+        {:ok, document} -> Enum.into(document, %{})
+        {:error, expr}  ->
+          error(:value, expr)
+      end
+
+    %{"$set": updates}
+  end
+  defp command(:insert, document, pk) do
+    case Encoder.encode_document(document, pk) do
+      {:ok, document} -> document
       {:error, expr}  ->
-        message = format_expr(expr)
-        raise ArgumentError,
-          "MongoDB adapter does not support #{expr} as used in update query"
+        error(:value, expr)
     end
   end
 
-  defp offset_limit(nil), do: 0
-  defp offset_limit(%Query.QueryExpr{expr: int}) when is_integer(int), do: int
+  defp offset_limit(nil),
+    do: 0
+  defp offset_limit(%Query.QueryExpr{expr: int}) when is_integer(int),
+    do: int
 
-  defp primary_key(nil), do: nil
+  defp primary_key(nil),
+    do: nil
   defp primary_key(model) do
     case model.__schema__(:primary_key) do
+      []   -> nil
       [pk] -> pk
       keys ->
         raise ArgumentError, "MongoDB adapter does not support multiple primary keys " <>
@@ -134,8 +223,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end
   end
 
-  defp order_by_expr({:asc,  expr}, pk, query), do: {field(expr, pk, query),  1}
-  defp order_by_expr({:desc, expr}, pk, query), do: {field(expr, pk, query), -1}
+  defp order_by_expr({:asc,  expr}, pk, query),
+    do: {field(expr, pk, query),  1}
+  defp order_by_expr({:desc, expr}, pk, query),
+    do: {field(expr, pk, query), -1}
 
   defp check_query(query) do
     check(query.distinct, nil, query, "MongoDB adapter does not support distinct clauses")
@@ -145,10 +236,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     check(query.havings,   [], query, "MongoDB adapter does not support having clauses")
   end
 
-  defp check(expr, expr, _, _), do: nil
-  defp check(_, _, query, message) do
-    raise Ecto.QueryError, query: query, message: message
-  end
+  defp check(expr, expr, _, _),
+    do: nil
+  defp check(_, _, query, message),
+    do: raise(Ecto.QueryError, query: query, message: message)
 
   defp value(expr, params, query) do
     case Encoder.encode_value(expr, params) do
@@ -161,10 +252,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     do: :_id
   defp field({{:., _, [{:&, _, [0]}, field]}, _, []}, _pk, _query),
     do: field
-  defp field(expr, _pk, query) do
-    error(:field, query, expr)
-  end
-
+  defp field(expr, _pk, query),
+    do: error(:field, query, expr)
 
   binary_ops =
     [>: :"$gt", >=: :"$gte", <: :"$lt", <=: :"$lte", !=: :"$ne", in: :"$in"]
@@ -236,6 +325,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     error(:expression, query, expr)
   end
 
+  defp error(expected, given) do
+    raise ArgumentError,
+      "MongoDB adapter expected #{expected}, but `#{format_expr(given)}` was given"
+  end
   defp error(expected, query, given) do
     raise Ecto.QueryError, query: query,
       message: "MongoDB adapter expected #{expected}, but `#{format_expr(given)}` was given"

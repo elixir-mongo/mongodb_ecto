@@ -16,7 +16,7 @@ defmodule Mongo.Ecto do
   @behaviour Ecto.Adapter.Storage
 
   alias Mongo.Ecto.NormalizedQuery
-  alias Mongo.Ecto.Encoder
+  alias NormalizedQuery.QueryAll
   alias Mongo.Ecto.Decoder
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
@@ -69,7 +69,7 @@ defmodule Mongo.Ecto do
 
   @doc false
   def all(repo, query, params, opts) do
-    normalized = NormalizedQuery.from_query(query, params)
+    normalized = NormalizedQuery.all(query, params)
 
     with_conn(repo, fn module, conn ->
       module.all(conn, normalized, opts)
@@ -81,7 +81,7 @@ defmodule Mongo.Ecto do
 
   @doc false
   def update_all(repo, query, values, params, opts) do
-    normalized = NormalizedQuery.from_query(query, values, params)
+    normalized = NormalizedQuery.update_all(query, values, params)
 
     with_conn(repo, fn module, conn ->
       module.update_all(conn, normalized, opts)
@@ -91,7 +91,7 @@ defmodule Mongo.Ecto do
 
   @doc false
   def delete_all(repo, query, params, opts) do
-    normalized = NormalizedQuery.from_query(query, params)
+    normalized = NormalizedQuery.delete_all(query, params)
 
     with_conn(repo, fn module, conn ->
       module.delete_all(conn, normalized, opts)
@@ -127,6 +127,14 @@ defmodule Mongo.Ecto do
     |> handle_response(fn _ -> {:ok, []} end)
   end
 
+  defp do_insert(repo, coll, document, pk, opts) do
+    normalized = NormalizedQuery.insert(coll, document, pk)
+
+    with_conn(repo, fn module, conn ->
+      module.insert(conn, normalized, opts)
+    end)
+  end
+
   @doc false
   def update(_repo, source, _fields, _filter, {key, :id, _}, _returning, _opts) do
     raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
@@ -140,13 +148,10 @@ defmodule Mongo.Ecto do
   end
 
   def update(repo, source, fields, filter, {pk, :binary_id, _value}, [], opts) do
-    coll    = source
-    {:ok, query}   = Encoder.encode_document(filter, pk)
-    {:ok, set}  = fields |> Encoder.encode_document(pk)
-    command = %{"$set": Enum.into(set, %{})}
+    normalized = NormalizedQuery.update(source, fields, filter, pk)
 
     with_conn(repo, fn module, conn ->
-      module.update(conn, coll, query, command, opts)
+      module.update(conn, normalized, opts)
     end)
     |> handle_response(&{:ok, &1})
   end
@@ -158,21 +163,12 @@ defmodule Mongo.Ecto do
   end
 
   def delete(repo, source, filter, {pk, :binary_id, _value}, opts) do
-    coll  = source
-    {:ok, query} = Encoder.encode_document(filter, pk)
+    normalized = NormalizedQuery.delete(source, filter, pk)
 
     with_conn(repo, fn module, conn ->
-      module.delete(conn, coll, query, opts)
+      module.delete(conn, normalized, opts)
     end)
     |> handle_response(&{:ok, &1})
-  end
-
-  defp do_insert(repo, coll, document, pk, opts) do
-    {:ok, document} = Encoder.encode_document(document, pk)
-
-    with_conn(repo, fn module, conn ->
-      module.insert(conn, coll, document, opts)
-    end)
   end
 
   defp handle_response({:ok, response}, fun) do
@@ -186,7 +182,7 @@ defmodule Mongo.Ecto do
   end
 
   defp process_document(document,
-                        %NormalizedQuery{from: {coll, model, pk}, fields: fields},
+                        %QueryAll{from: {coll, model, pk}, fields: fields},
                         id_types) do
     document = Decoder.decode_document(document, pk)
 
@@ -220,10 +216,11 @@ defmodule Mongo.Ecto do
 
   defp with_new_conn(opts, fun) do
     {:ok, conn} = Connection.connect(opts)
-    result = fun.(conn)
-    :ok = Connection.disconnect(conn)
-
-    result
+    try do
+      fun.(conn)
+    after
+      :ok = Connection.disconnect(conn)
+    end
   end
 
   ## Mongo specific calls
@@ -266,8 +263,8 @@ defmodule Mongo.Ecto do
   end
 
   defp list_collections(conn) when is_pid(conn) do
-    query = %NormalizedQuery{from: {"system.namespaces", nil, nil}}
-    {:ok, collections} = Connection.all(conn, query, [])
+    query = %QueryAll{from: {"system.namespaces", nil, nil}}
+    {:ok, collections} = Connection.all(conn, query)
 
     collections
     |> Enum.map(&Map.fetch!(&1, "name"))
