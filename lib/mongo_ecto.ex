@@ -74,9 +74,8 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.all(conn, normalized, opts)
     end)
-    |> handle_response(fn documents ->
-      Enum.map(documents, &process_document(&1, normalized, id_types(repo)))
-    end)
+    |> elem(1)
+    |> Enum.map(&process_document(&1, normalized, id_types(repo)))
   end
 
   @doc false
@@ -86,7 +85,6 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.update_all(conn, normalized, opts)
     end)
-    |> handle_response(&(&1))
   end
 
   @doc false
@@ -96,7 +94,6 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.delete_all(conn, normalized, opts)
     end)
-    |> handle_response(&(&1))
   end
 
   @doc false
@@ -113,18 +110,18 @@ defmodule Mongo.Ecto do
 
   def insert(repo, source, params, nil, [], opts) do
     do_insert(repo, source, params, nil, opts)
-    |> handle_response(&{:ok, &1})
   end
 
   def insert(repo, source, params, {pk, :binary_id, nil}, [], opts) do
     %BSON.ObjectId{value: value} = id = Mongo.IdServer.new
-    do_insert(repo, source, [{pk, id} | params], pk, opts)
-    |> handle_response(fn _ -> {:ok, [{pk, value}]} end)
+    case do_insert(repo, source, [{pk, id} | params], pk, opts) do
+      {:ok, []} -> {:ok, [{pk, value}]}
+      other     -> other
+    end
   end
 
   def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
     do_insert(repo, source, params, pk, opts)
-    |> handle_response(fn _ -> {:ok, []} end)
   end
 
   defp do_insert(repo, coll, document, pk, opts) do
@@ -153,7 +150,6 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.update(conn, normalized, opts)
     end)
-    |> handle_response(&{:ok, &1})
   end
 
   @doc false
@@ -168,17 +164,6 @@ defmodule Mongo.Ecto do
     with_conn(repo, fn module, conn ->
       module.delete(conn, normalized, opts)
     end)
-    |> handle_response(&{:ok, &1})
-  end
-
-  defp handle_response({:ok, response}, fun) do
-    fun.(response)
-  end
-  defp handle_response({:error, %{__exception__: true} = exeption}, _fun) do
-    raise exeption
-  end
-  defp handle_response({:error, _} = error, _fun) do
-    error
   end
 
   defp process_document(document,
