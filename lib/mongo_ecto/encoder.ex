@@ -28,6 +28,8 @@ defmodule Mongo.Ecto.Encoder do
     do: map(list, &encode_value(&1, params))
   def encode_value({:^, _, [idx]}, params),
     do: elem(params, idx) |> encode_value(params)
+  def encode_value(%Tagged{value: value, type: type}, params),
+    do: {:ok, typed_value(value, type, params)}
   def encode_value(value, _),
     do: encode_value(value)
 
@@ -53,8 +55,15 @@ defmodule Mongo.Ecto.Encoder do
     {:error, value}
   end
 
+  defp typed_value({:^, _, [idx]}, type, params),
+    do: typed_value(elem(params, idx), type)
+  defp typed_value(value, type, _params),
+    do: typed_value(value, type)
+
   defp typed_value(nil, _),
     do: nil
+  defp typed_value(value, :any),
+    do: value
   defp typed_value(value, {:array, type}),
     do: Enum.map(value, &typed_value(&1, type))
   defp typed_value(value, :binary),
