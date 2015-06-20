@@ -45,6 +45,8 @@ defmodule Mongo.Ecto.Encoder do
     do: map(list, &encode_value/1)
   def encode_value(%BSON.ObjectId{} = objectid),
     do: {:ok, objectid}
+  def encode_value(%BSON.JavaScript{} = js),
+    do: {:ok, js}
   def encode_value(%Tagged{value: value, type: type}),
     do: {:ok, typed_value(value, type)}
   def encode_value({{_, _, _} = date, {hour, min, sec, usec}}) do

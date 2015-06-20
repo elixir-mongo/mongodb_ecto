@@ -38,9 +38,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   import Mongo.Ecto.NormalizedQuery.Helper
   alias Mongo.Ecto.Encoder
-  alias Mongo.Ecto.JavaScript
   alias Ecto.Query
-  alias Ecto.Query.Tagged
 
   def all(%Query{} = original, params) do
     check_query(original)
@@ -323,8 +321,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {key, value} = pair(expr, params, pk, query)
     {:"$not", Map.put(%{}, key, value)}
   end
-  defp pair(%Tagged{tag: JavaScript} = tag, params, _pk, query) do
-    {:"$where", value(tag, params, query)}
+  defp pair({:^, _, _} = expr, params, _pk, query) do
+    case value(expr, params, query) do
+      %BSON.JavaScript{} = js ->
+        {:"$where", js}
+      _value ->
+        error(:expression, query, expr)
+    end
   end
   defp pair(expr, _params, _pk, query) do
     error(:expression, query, expr)

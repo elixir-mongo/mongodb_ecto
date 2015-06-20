@@ -18,10 +18,12 @@ defmodule Mongo.EctoTest do
   end
 
   test "javascript" do
+    import Mongo.Ecto.Helpers
+
     TestRepo.insert(%Post{visits: 1})
 
-    js = %BSON.JavaScript{code: "this.visits === 1"}
+    js = javascript("this.visits == count", count: 1)
 
-    assert [%Post{}] = TestRepo.all(from p in Post, where: type(^js, Mongo.Ecto.JavaScript))
+    assert [%Post{}] = TestRepo.all(from p in Post, where: ^js)
   end
 end
