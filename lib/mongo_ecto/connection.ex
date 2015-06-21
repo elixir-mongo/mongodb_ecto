@@ -75,7 +75,7 @@ defmodule Mongo.Ecto.Connection do
   defp read_result({:ok, %ReadResult{docs: docs}}),
     do: {:ok, docs}
   defp read_result({:error, error}),
-    do: raise error
+    do: error(error)
 
   defp single_write_result({:ok, %WriteResult{num_inserted: 1}}),
     do: {:ok, []}
@@ -84,12 +84,20 @@ defmodule Mongo.Ecto.Connection do
   defp single_write_result({:ok, %WriteResult{num_matched: 0}}),
     do: {:error, :stale}
   defp single_write_result({:error, error}),
-    do: raise error
+    do: error(error)
 
   defp multiple_write_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n),
     do: n
   defp multiple_write_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n),
     do: n
   defp multiple_write_result({:error, error}),
-    do: raise error
+    do: error(error)
+
+  defp error(error) do
+    if Exception.exception?(error) do
+      raise error
+    else
+      {:error, error}
+    end
+  end
 end
