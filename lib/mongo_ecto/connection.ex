@@ -22,8 +22,7 @@ defmodule Mongo.Ecto.Connection do
   ## Callbacks for adapter
 
   def all(conn, query, opts \\ []) do
-    %ReadQuery{from: {coll, _, _}, query: query, projection: projection,
-              opts: query_opts} = query
+    %ReadQuery{coll: coll, query: query, projection: projection, opts: query_opts} = query
 
     Mongo.find(conn, coll, query, projection, query_opts ++ opts)
     |> read_result

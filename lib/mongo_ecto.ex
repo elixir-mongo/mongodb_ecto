@@ -166,9 +166,7 @@ defmodule Mongo.Ecto do
     end)
   end
 
-  defp process_document(document,
-                        %ReadQuery{from: {_coll, _model, pk}, fields: fields},
-                        id_types) do
+  defp process_document(document, %ReadQuery{fields: fields, pk: pk}, id_types) do
     document = Decoder.decode_document(document, pk)
 
     Enum.map(fields, fn
@@ -248,7 +246,7 @@ defmodule Mongo.Ecto do
   end
 
   defp list_collections(conn) when is_pid(conn) do
-    query = %ReadQuery{from: {"system.namespaces", nil, nil}}
+    query = %ReadQuery{coll: "system.namespaces"}
     {:ok, collections} = Connection.all(conn, query)
 
     collections

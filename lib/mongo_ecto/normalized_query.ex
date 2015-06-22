@@ -4,7 +4,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defmodule ReadQuery do
     @moduledoc false
 
-    defstruct params: {}, from: {nil, nil, nil}, query: %{}, projection: %{},
+    defstruct coll: nil, pk: nil, params: {}, query: %{}, projection: %{},
               fields: [], opts: []
   end
 
@@ -26,14 +26,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
   def all(%Query{} = original, params) do
     check_query(original)
 
+    from = {coll, _, pk} = from(original)
+
     params     = List.to_tuple(params)
-    from       = from(original)
     query      = query_order(original, params, from)
     projection = projection(original, from)
     fields     = fields(original, params, from)
     opts       = opts(:all, original)
 
-    %ReadQuery{params: params, from: from, query: query, projection: projection,
+    %ReadQuery{coll: coll, pk: pk, params: params, query: query, projection: projection,
                fields: fields, opts: opts}
   end
 
@@ -118,7 +119,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp fields(%Query{select: nil}, _params, _from),
     do: []
-  defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, {coll, model, _}) do
+  defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query,
+                params, {coll, model, _pk}) do
     Enum.map(fields, fn
       %Query.Tagged{value: {:^, _, [idx]}} ->
         params |> elem(idx) |> value(params, query, "select clause")

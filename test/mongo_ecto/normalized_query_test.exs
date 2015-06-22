@@ -30,13 +30,13 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "bare model" do
     query = Model |> from |> all
-    assert_query(query, from: {"model", Model, :id}, query: %{},
-                 projection: %{}, opts: [num_return: 0, num_skip: 0])
+    assert_query(query, coll: "model", query: %{}, projection: %{},
+                 fields: [model: {Model, "model"}], opts: [num_return: 0, num_skip: 0])
   end
 
   test "from without model" do
     query = "posts" |> select([r], r.x) |> all
-    assert_query(query, from: {"posts", nil, nil}, projection: [x: true])
+    assert_query(query, coll: "posts", projection: [x: true])
   end
 
   test "where" do
