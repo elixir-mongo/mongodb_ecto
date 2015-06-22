@@ -1,44 +1,27 @@
-defmodule Mongo.Ecto.NormalizedQuery.Helper do
-  @moduledoc false
-
-  defmacro is_op(op) do
-    quote do
-      is_atom(unquote(op)) and unquote(op) != :^
-    end
-  end
-end
-
 defmodule Mongo.Ecto.NormalizedQuery do
   @moduledoc false
 
-  defmodule QueryAll do
+  defmodule ReadQuery do
     @moduledoc false
 
     defstruct params: {}, from: {nil, nil, nil}, query: %{}, projection: %{},
               fields: [], opts: []
   end
 
-  defmodule QueryUpdate do
+  defmodule WriteQuery do
     @moduledoc false
 
     defstruct coll: nil, query: %{}, command: %{}, opts: []
   end
 
-  defmodule QueryDelete do
-    @moduledoc false
-
-    defstruct coll: nil, query: %{}, opts: []
-  end
-
-  defmodule QueryInsert do
-    @moduledoc false
-
-    defstruct coll: nil, command: %{}, opts: []
-  end
-
-  import Mongo.Ecto.NormalizedQuery.Helper
   alias Mongo.Ecto.Encoder
   alias Ecto.Query
+
+  defmacrop is_op(op) do
+    quote do
+      is_atom(unquote(op)) and unquote(op) != :^
+    end
+  end
 
   def all(%Query{} = original, params) do
     check_query(original)
@@ -50,8 +33,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     fields     = fields(original, params)
     opts       = opts(:all, original)
 
-    %QueryAll{params: params, from: from, query: query, projection: projection,
-              fields: fields, opts: opts}
+    %ReadQuery{params: params, from: from, query: query, projection: projection,
+               fields: fields, opts: opts}
   end
 
   def update_all(%Query{} = original, values, params) do
@@ -64,14 +47,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
     command = command(:update, query, values, params, from)
     opts    = opts(:update_all, original)
 
-    %QueryUpdate{coll: coll, query: query, command: command, opts: opts}
+    %WriteQuery{coll: coll, query: query, command: command, opts: opts}
   end
 
   def update(coll, values, filter, pk) do
     command = command(:update, values, pk)
     query   = query(filter, pk)
 
-    %QueryUpdate{coll: coll, query: query, command: command}
+    %WriteQuery{coll: coll, query: query, command: command}
   end
 
   def delete_all(%Query{} = original, params) do
@@ -83,19 +66,19 @@ defmodule Mongo.Ecto.NormalizedQuery do
     query  = query(original, params, from)
     opts   = opts(:delete_all, original)
 
-    %QueryDelete{coll: coll, query: query, opts: opts}
+    %WriteQuery{coll: coll, query: query, opts: opts}
   end
 
   def delete(coll, filter, pk) do
     query = query(filter, pk)
 
-    %QueryDelete{coll: coll, query: query}
+    %WriteQuery{coll: coll, query: query}
   end
 
   def insert(coll, document, pk) do
     command = command(:insert, document, pk)
 
-    %QueryInsert{coll: coll, command: command}
+    %WriteQuery{coll: coll, command: command}
   end
 
   defp from(%Query{from: {coll, model}}) do

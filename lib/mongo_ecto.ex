@@ -16,7 +16,7 @@ defmodule Mongo.Ecto do
   @behaviour Ecto.Adapter.Storage
 
   alias Mongo.Ecto.NormalizedQuery
-  alias NormalizedQuery.QueryAll
+  alias NormalizedQuery.ReadQuery
   alias Mongo.Ecto.Decoder
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
@@ -167,7 +167,7 @@ defmodule Mongo.Ecto do
   end
 
   defp process_document(document,
-                        %QueryAll{from: {coll, model, pk}, fields: fields},
+                        %ReadQuery{from: {coll, model, pk}, fields: fields},
                         id_types) do
     document = Decoder.decode_document(document, pk)
 
@@ -248,7 +248,7 @@ defmodule Mongo.Ecto do
   end
 
   defp list_collections(conn) when is_pid(conn) do
-    query = %QueryAll{from: {"system.namespaces", nil, nil}}
+    query = %ReadQuery{from: {"system.namespaces", nil, nil}}
     {:ok, collections} = Connection.all(conn, query)
 
     collections

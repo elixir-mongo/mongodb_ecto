@@ -6,10 +6,8 @@ defmodule Mongo.Ecto.Connection do
   alias Mongo.ReadResult
   alias Mongo.WriteResult
 
-  alias Mongo.Ecto.NormalizedQuery.QueryAll
-  alias Mongo.Ecto.NormalizedQuery.QueryUpdate
-  alias Mongo.Ecto.NormalizedQuery.QueryDelete
-  alias Mongo.Ecto.NormalizedQuery.QueryInsert
+  alias Mongo.Ecto.NormalizedQuery.ReadQuery
+  alias Mongo.Ecto.NormalizedQuery.WriteQuery
 
   ## Worker
 
@@ -24,7 +22,7 @@ defmodule Mongo.Ecto.Connection do
   ## Callbacks for adapter
 
   def all(conn, query, opts \\ []) do
-    %QueryAll{from: {coll, _, _}, query: query, projection: projection,
+    %ReadQuery{from: {coll, _, _}, query: query, projection: projection,
               opts: query_opts} = query
 
     Mongo.find(conn, coll, query, projection, query_opts ++ opts)
@@ -32,35 +30,35 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def delete_all(conn, query, opts) do
-    %QueryDelete{coll: coll, query: query, opts: query_opts} = query
+    %WriteQuery{coll: coll, query: query, opts: query_opts} = query
 
     Mongo.remove(conn, coll, query, query_opts ++ opts)
     |> multiple_write_result
   end
 
   def delete(conn, query, opts) do
-    %QueryDelete{coll: coll, query: query, opts: query_opts} = query
+    %WriteQuery{coll: coll, query: query, opts: query_opts} = query
 
     Mongo.remove(conn, coll, query, query_opts ++ opts)
     |> single_write_result
   end
 
   def update_all(conn, query, opts) do
-    %QueryUpdate{coll: coll, query: query, command: command, opts: query_opts} = query
+    %WriteQuery{coll: coll, query: query, command: command, opts: query_opts} = query
 
     Mongo.update(conn, coll, query, command, query_opts ++ opts)
     |> multiple_write_result
   end
 
   def update(conn, query, opts) do
-    %QueryUpdate{coll: coll, query: query, command: command, opts: query_opts} = query
+    %WriteQuery{coll: coll, query: query, command: command, opts: query_opts} = query
 
     Mongo.update(conn, coll, query, command, query_opts ++ opts)
     |> single_write_result
   end
 
   def insert(conn, query, opts) do
-    %QueryInsert{coll: coll, command: command, opts: query_opts} = query
+    %WriteQuery{coll: coll, command: command, opts: query_opts} = query
 
     Mongo.insert(conn, coll, command, query_opts ++ opts)
     |> single_write_result
