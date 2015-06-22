@@ -11,7 +11,7 @@ defmodule Mongo.EctoTest do
   end
 
   test "truncate/1" do
-    TestRepo.insert(%Post{})
+    TestRepo.insert!(%Post{})
 
     Mongo.Ecto.truncate(TestRepo)
     assert [] == TestRepo.all(Post)
@@ -20,7 +20,7 @@ defmodule Mongo.EctoTest do
   test "javascript" do
     import Mongo.Ecto.Helpers
 
-    TestRepo.insert(%Post{visits: 1})
+    TestRepo.insert!(%Post{visits: 1})
 
     js = javascript("this.visits == count", count: 1)
 

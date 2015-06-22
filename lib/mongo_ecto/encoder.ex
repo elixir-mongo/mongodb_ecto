@@ -49,6 +49,10 @@ defmodule Mongo.Ecto.Encoder do
     do: {:ok, js}
   def encode_value(%Tagged{value: value, type: type}),
     do: {:ok, typed_value(value, type)}
+  def encode_value(%{__struct__: _} = value),
+    do: {:error, value} # Other structs are not supported
+  def encode_value(map) when is_map(map),
+    do: {:ok, map}
   def encode_value({{_, _, _} = date, {hour, min, sec, usec}}) do
     seconds = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
     {:ok, %BSON.DateTime{utc: seconds * 1000 + div(usec, 1000)}}

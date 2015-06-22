@@ -18,6 +18,6 @@ defmodule Mongo.Ecto.ObjectID do
   end
   def dump(_), do: :error
 
-  def load(binary), do: {:ok, Base.encode16(binary, case: :lower)}
+  def load(binary) when is_binary(binary), do: {:ok, Base.encode16(binary, case: :lower)}
   def load(_), do: :error
 end

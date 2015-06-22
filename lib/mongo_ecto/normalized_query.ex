@@ -120,7 +120,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp fields(%Query{select: nil}, _params, _from),
     do: []
   defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query,
-                params, {coll, model, _pk}) do
+              params, {coll, model, _pk}) do
     Enum.map(fields, fn
       %Query.Tagged{value: {:^, _, [idx]}} ->
         params |> elem(idx) |> value(params, query, "select clause")
@@ -301,10 +301,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {field(left, pk, query, place), %{"$nin": value(right, params, query, place)}}
   end
   defp pair({:not, _, [{:is_nil, _, [expr]}]}, _, pk, query, place) do
-    {field(expr, pk, query, place), %{"$neq": nil}}
+    {field(expr, pk, query, place), %{"$ne": nil}}
   end
   defp pair({:not, _, [{:==, _, [left, right]}]}, params, pk, query, place) do
-    {field(left, pk, query, place), %{"$neq": value(right, params, query, place)}}
+    {field(left, pk, query, place), %{"$ne": value(right, params, query, place)}}
   end
   defp pair({:not, _, [expr]}, params, pk, query, place) do
     {key, value} = pair(expr, params, pk, query, place)

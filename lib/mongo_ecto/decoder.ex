@@ -21,4 +21,5 @@ defmodule Mongo.Ecto.Decoder do
     {date, {hour, min, sec}} = :calendar.gregorian_seconds_to_datetime(seconds)
     {date, {hour, min, sec, usec}}
   end
+  def decode_value(map) when is_map(map), do: map
 end

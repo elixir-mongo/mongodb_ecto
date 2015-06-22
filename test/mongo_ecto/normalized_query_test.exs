@@ -45,7 +45,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, query: %{x: 42, y: %{"$ne": 43}}, projection: [x: true])
 
     query = Model |> where([r], not (r.x == 42)) |> all
-    assert_query(query, query: %{x: %{"$neq": 42}})
+    assert_query(query, query: %{x: %{"$ne": 42}})
   end
 
   test "select" do
@@ -130,7 +130,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, query: %{x: nil})
 
     query = Model |> where([r], not is_nil(r.x)) |> all
-    assert_query(query, query: %{x: %{"$neq": nil}})
+    assert_query(query, query: %{x: %{"$ne": nil}})
   end
 
   test "literals" do
