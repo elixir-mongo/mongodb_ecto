@@ -30,7 +30,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     from       = from(original)
     query      = query_order(original, params, from)
     projection = projection(original, from)
-    fields     = fields(original, params)
+    fields     = fields(original, params, from)
     opts       = opts(:all, original)
 
     %ReadQuery{params: params, from: from, query: query, projection: projection,
@@ -98,34 +98,37 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp projection(%Query{select: nil}, _from),
     do: %{}
-  defp projection(%Query{select: %Query.SelectExpr{fields: [{:&, _, [0]}]}}, _from),
+  defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, {_, _, pk}),
+    do: projection(fields, query, pk, [])
+  defp projection([], _query, _pk, []),
     do: %{}
-  defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query,
-                  {_coll, model, pk}) do
-    Enum.flat_map(fields, fn
-      {:&, _, [0]} ->
-        model.__schema__(:fields)
-      {{:., _, [{:&, _, [0]}, field]}, _, []} when field == pk ->
-        [:_id]
-      {{:., _, [{:&, _, [0]}, field]}, _, []} ->
-        [field]
-      {op, _, _} when is_op(op) ->
-        error(query, "select clause")
-      _value ->
-        # We skip all values and then add them when constructing return result
-        []
-    end)
-    |> Enum.map(&{&1, true})
-  end
+  defp projection([], _query, _pk, acc),
+    do: Enum.map(acc, &{&1, true})
+  defp projection([{:&, _, [0]} | _rest], _query, _pk, _acc),
+    do: %{}
+  defp projection([{{:., _, [{:&, _, [0]}, pk]}, _, []} | rest], query, pk, acc),
+    do: projection(rest, query, pk, [:_id | acc])
+  defp projection([{{:., _, [{:&, _, [0]}, field]}, _, []} | rest], query, pk, acc),
+    do: projection(rest, query, pk, [field | acc])
+  defp projection([{op, _, _} | _rest], query, _pk, _acc) when is_op(op),
+    do: error(query, "select clause")
+  # We skip all values and then add them when constructing return result
+  defp projection([_value | rest], query, pk, acc),
+    do: projection(rest, query, pk, acc)
 
-  defp fields(%Query{select: nil}, _params),
+  defp fields(%Query{select: nil}, _params, _from),
     do: []
-  defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query, params) do
+  defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, {coll, model, _}) do
     Enum.map(fields, fn
       %Query.Tagged{value: {:^, _, [idx]}} ->
         params |> elem(idx) |> value(params, query, "select clause")
+      {:&, _, [0]} ->
+        # We get a flattened list, so only way to have a tuple is when we insert it
+        {:model, {model, coll}}
+      {{:., _, [{:&, _, [0]}, field]}, _, []} ->
+        {:field, field}
       value ->
-        value
+        value(value, params, query, "select clause")
     end)
   end
 
@@ -314,7 +317,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end
   end
   defp pair(_expr, _params, _pk, query, place) do
-    # Pair is used only in where clauses
     error(query, place)
   end
 

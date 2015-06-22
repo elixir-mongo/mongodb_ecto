@@ -50,10 +50,32 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "select" do
     query = Model |> select([r], {r.x, r.y}) |> all
-    assert_query(query, projection: [x: true, y: true])
+    assert_query(query, projection: [y: true, x: true],
+                        fields: [field: :x, field: :y])
 
     query = Model |> select([r], [r.x, r.y]) |> all
-    assert_query(query, projection: [x: true, y: true])
+    assert_query(query, projection: [y: true, x: true],
+                        fields: [field: :x, field: :y])
+
+    query = Model |> select([r], [r, r.x]) |> all
+    assert_query(query, projection: %{},
+                        fields: [model: {Model, "model"}, field: :x])
+
+    query = Model |> select([r], [r]) |> all
+    assert_query(query, projection: %{},
+                        fields: [model: {Model, "model"}])
+
+    query = Model |> select([r], {1}) |> all
+    assert_query(query, projection: %{},
+                        fields: [1])
+
+    query = Model |> select([r], [r.id]) |> all
+    assert_query(query, projection: [_id: true],
+                        fields: [field: :id])
+
+    query = from(r in Model) |> all
+    assert_query(query, projection: %{},
+                        fields: [model: {Model, "model"}])
   end
 
   test "order by" do

@@ -167,17 +167,17 @@ defmodule Mongo.Ecto do
   end
 
   defp process_document(document,
-                        %ReadQuery{from: {coll, model, pk}, fields: fields},
+                        %ReadQuery{from: {_coll, _model, pk}, fields: fields},
                         id_types) do
     document = Decoder.decode_document(document, pk)
 
     Enum.map(fields, fn
-      {:&, _, [0]} ->
+      {:model, {model, coll}} ->
         row = model.__schema__(:fields)
               |> Enum.map(&Map.get(document, Atom.to_string(&1)))
               |> List.to_tuple
         model.__schema__(:load, coll, 0, row, id_types)
-      {{:., _, [{:&, _, [0]}, field]}, _, []} ->
+      {:field, field} ->
         Map.get(document, Atom.to_string(field))
       value ->
         Decoder.decode_value(value)
