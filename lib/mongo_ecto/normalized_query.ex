@@ -44,7 +44,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     from    = from(original)
     coll    = coll(from)
     query   = query(original, params, from)
-    command = command(:update, query, values, params, from)
+    command = command(:update, values, params, from)
     opts    = opts(:update_all, original)
 
     %WriteQuery{coll: coll, query: query, command: command, opts: opts}
@@ -109,8 +109,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
         [:_id]
       {{:., _, [{:&, _, [0]}, field]}, _, []} ->
         [field]
-      {op, _, _} = expr when is_op(op) ->
-        error(:projection, query, expr)
+      {op, _, _} when is_op(op) ->
+        error(query, "select clause")
       _value ->
         # We skip all values and then add them when constructing return result
         []
@@ -123,7 +123,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query, params) do
     Enum.map(fields, fn
       %Query.Tagged{value: {:^, _, [idx]}} ->
-        params |> elem(idx) |> value(params, query)
+        params |> elem(idx) |> value(params, query, "select clause")
       value ->
         value
     end)
@@ -144,14 +144,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp query(%Query{wheres: wheres} = query, params, {_coll, _model, pk}) do
     Enum.into(wheres, %{}, fn %Query.QueryExpr{expr: expr} ->
-      pair(expr, params, pk, query)
+      pair(expr, params, pk, query, "where clause")
     end)
   end
   defp query(filter, pk) do
     case Encoder.encode_document(filter, pk) do
       {:ok, document} -> document
-      {:error, expr}  ->
-        error(:value, expr)
+      {:error, _expr}  ->
+        error("where clause")
     end
   end
 
@@ -161,31 +161,31 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> Enum.into(%{}, &order_by_expr(&1, pk, query))
   end
 
-  defp command(:update, query, values, params, {_coll, _model, pk}) do
+  defp command(:update, values, params, {_coll, _model, pk}) do
     updates =
       case Encoder.encode_document(values, params, pk) do
         {:ok, document} -> Enum.into(document, %{})
-        {:error, expr}  ->
-          error(:value, query, expr)
+        {:error, _expr}  ->
+          error("update command")
       end
 
-    %{"$set": updates}
+    ["$set": updates]
   end
   defp command(:update, values, pk) do
     updates =
       case Encoder.encode_document(values, pk) do
         {:ok, document} -> Enum.into(document, %{})
-        {:error, expr}  ->
-          error(:value, expr)
+        {:error, _expr}  ->
+          error("update command")
       end
 
-    %{"$set": updates}
+    ["$set": updates]
   end
   defp command(:insert, document, pk) do
     case Encoder.encode_document(document, pk) do
       {:ok, document} -> document
-      {:error, expr}  ->
-        error(:value, expr)
+      {:error, _expr}  ->
+        error("insert command")
     end
   end
 
@@ -207,9 +207,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   defp order_by_expr({:asc,  expr}, pk, query),
-    do: {field(expr, pk, query),  1}
+    do: {field(expr, pk, query, "order clause"),  1}
   defp order_by_expr({:desc, expr}, pk, query),
-    do: {field(expr, pk, query), -1}
+    do: {field(expr, pk, query, "order clause"), -1}
 
   defp check_query(query) do
     check(query.distinct, nil, query, "MongoDB adapter does not support distinct clauses")
@@ -224,19 +224,19 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp check(_, _, query, message),
     do: raise(Ecto.QueryError, query: query, message: message)
 
-  defp value(expr, params, query) do
+  defp value(expr, params, query, place) do
     case Encoder.encode_value(expr, params) do
       {:ok, value}   -> value
-      {:error, expr} -> error(:value, query, expr)
+      {:error, _expr} -> error(query, place)
     end
   end
 
-  defp field({{:., _, [{:&, _, [0]}, pk]}, _, []}, pk, _query),
+  defp field({{:., _, [{:&, _, [0]}, pk]}, _, []}, pk, _query, _place),
     do: :_id
-  defp field({{:., _, [{:&, _, [0]}, field]}, _, []}, _pk, _query),
+  defp field({{:., _, [{:&, _, [0]}, field]}, _, []}, _pk, _query, _place),
     do: field
-  defp field(expr, _pk, query),
-    do: error(:field, query, expr)
+  defp field(_expr, _pk, query, place),
+    do: error(query, place)
 
   binary_ops =
     [>: :"$gt", >=: :"$gte", <: :"$lt", <=: :"$lte", !=: :"$ne", in: :"$in"]
@@ -254,81 +254,75 @@ defmodule Mongo.Ecto.NormalizedQuery do
     defp bool_op(unquote(op)), do: unquote(mongo_op)
   end)
 
-  defp mapped_pair_or_value({op, _, _} = tuple, params, pk, query) when is_op(op) do
-    {key, value} = pair(tuple, params, pk, query)
+  defp mapped_pair_or_value({op, _, _} = tuple, params, pk, query, place) when is_op(op) do
+    {key, value} = pair(tuple, params, pk, query, place)
     Map.put(%{}, key, value)
   end
-  defp mapped_pair_or_value(value, params, _pk, query) do
-    value(value, params, query)
+  defp mapped_pair_or_value(value, params, _pk, query, place) do
+    value(value, params, query, place)
   end
 
-  defp pair({op, _, args}, params, pk, query) when op in @bool_ops do
-    args = Enum.map(args, &mapped_pair_or_value(&1, params, pk, query))
+  defp pair({op, _, args}, params, pk, query, place) when op in @bool_ops do
+    args = Enum.map(args, &mapped_pair_or_value(&1, params, pk, query, place))
     {bool_op(op), args}
   end
-  defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query) do
+  defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query, place) do
     args =
       ix..ix+len-1
       |> Enum.map(&elem(params, &1))
-      |> Enum.map(&value(&1, params, query))
+      |> Enum.map(&value(&1, params, query, place))
 
-    {field(left, pk, query), %{"$in": args}}
+    {field(left, pk, query, place), %{"$in": args}}
   end
-  defp pair({:is_nil, _, [expr]}, _, pk, query) do
-    {field(expr, pk, query), nil}
+  defp pair({:is_nil, _, [expr]}, _, pk, query, place) do
+    {field(expr, pk, query, place), nil}
   end
-  defp pair({:==, _, [left, right]}, params, pk, query) do
-    {field(left, pk, query), value(right, params, query)}
+  defp pair({:==, _, [left, right]}, params, pk, query, place) do
+    {field(left, pk, query, place), value(right, params, query, place)}
   end
-  defp pair({op, _, [left, right]}, params, pk, query) when op in @binary_ops do
-    {field(left, pk, query), Map.put(%{}, binary_op(op), value(right, params, query))}
+  defp pair({op, _, [left, right]}, params, pk, query, place) when op in @binary_ops do
+    value = Map.put(%{}, binary_op(op), value(right, params, query, place))
+    {field(left, pk, query, place), value}
   end
-  defp pair({:not, _, [{:in, _, [left, {:^, _, [ix, len]}]}]}, params, pk, query) do
+  defp pair({:not, _, [{:in, _, [left, {:^, _, [ix, len]}]}]}, params, pk, query, place) do
     args =
       ix..ix+len-1
       |> Enum.map(&elem(params, &1))
-      |> Enum.map(&value(&1, params, query))
+      |> Enum.map(&value(&1, params, query, place))
 
-    {field(left, pk, query), %{"$nin": args}}
+    {field(left, pk, query, place), %{"$nin": args}}
   end
-  defp pair({:not, _, [{:in, _, [left, right]}]}, params, pk, query) do
-    {field(left, pk, query), %{"$nin": value(right, params, query)}}
+  defp pair({:not, _, [{:in, _, [left, right]}]}, params, pk, query, place) do
+    {field(left, pk, query, place), %{"$nin": value(right, params, query, place)}}
   end
-  defp pair({:not, _, [{:is_nil, _, [expr]}]}, _, pk, query) do
-    {field(expr, pk, query), %{"$neq": nil}}
+  defp pair({:not, _, [{:is_nil, _, [expr]}]}, _, pk, query, place) do
+    {field(expr, pk, query, place), %{"$neq": nil}}
   end
-  defp pair({:not, _, [{:==, _, [left, right]}]}, params, pk, query) do
-    {field(left, pk, query), %{"$neq": value(right, params, query)}}
+  defp pair({:not, _, [{:==, _, [left, right]}]}, params, pk, query, place) do
+    {field(left, pk, query, place), %{"$neq": value(right, params, query, place)}}
   end
-  defp pair({:not, _, [expr]}, params, pk, query) do
-    {key, value} = pair(expr, params, pk, query)
+  defp pair({:not, _, [expr]}, params, pk, query, place) do
+    {key, value} = pair(expr, params, pk, query, place)
     {:"$not", Map.put(%{}, key, value)}
   end
-  defp pair({:^, _, _} = expr, params, _pk, query) do
-    case value(expr, params, query) do
+  defp pair({:^, _, _} = expr, params, _pk, query, place) do
+    case value(expr, params, query, place) do
       %BSON.JavaScript{} = js ->
         {:"$where", js}
       _value ->
-        error(:expression, query, expr)
+        error(query, place)
     end
   end
-  defp pair(expr, _params, _pk, query) do
-    error(:expression, query, expr)
+  defp pair(_expr, _params, _pk, query, place) do
+    # Pair is used only in where clauses
+    error(query, place)
   end
 
-  defp error(expected, given) do
-    raise ArgumentError,
-      "MongoDB adapter expected #{expected}, but `#{format_expr(given)}` was given"
-  end
-  defp error(expected, query, given) do
+  defp error(query, place) do
     raise Ecto.QueryError, query: query,
-      message: "MongoDB adapter expected #{expected}, but `#{format_expr(given)}` was given"
+      message: "Invalid expression for MongoDB adapter in #{place}"
   end
-
-  defp format_expr({atom, _, _} = ast) when is_atom(atom),
-    do: Macro.to_string(ast)
-  defp format_expr(string) when is_binary(string),
-    do: string
-  defp format_expr(expr),
-    do: inspect(expr)
+  defp error(place) do
+    raise ArgumentError, "Invalid expression for MongoDB adapter in #{place}"
+  end
 end
