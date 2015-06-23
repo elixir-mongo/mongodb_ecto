@@ -95,16 +95,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp query_order(query, order) when order == %{},
     do: query
   defp query_order(query, order),
-    do: %{"$query": query, "$orderby": order}
+    do: ["$query": query, "$orderby": order]
 
   defp projection(%Query{select: nil}, _from),
     do: %{}
   defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, {_, _, pk}),
     do: projection(fields, query, pk, [])
-  defp projection([], _query, _pk, []),
-    do: %{}
   defp projection([], _query, _pk, acc),
-    do: Enum.map(acc, &{&1, true})
+    do: Enum.map(acc, &{&1, true}) |> map_unless_empty
   defp projection([{:&, _, [0]} | _rest], _query, _pk, _acc),
     do: %{}
   defp projection([{{:., _, [{:&, _, [0]}, pk]}, _, []} | rest], query, pk, acc),
@@ -148,13 +146,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp coll({coll, _model, _pk}), do: coll
 
   defp query(%Query{wheres: wheres} = query, params, {_coll, _model, pk}) do
-    Enum.into(wheres, %{}, fn %Query.QueryExpr{expr: expr} ->
+    wheres
+    |> Enum.map(fn %Query.QueryExpr{expr: expr} ->
       pair(expr, params, pk, query, "where clause")
     end)
+    |> map_unless_empty
   end
   defp query(filter, pk) do
     case Encoder.encode_document(filter, pk) do
-      {:ok, document} -> document
+      {:ok, document} -> map_unless_empty(document)
       {:error, _expr}  ->
         error("where clause")
     end
@@ -162,15 +162,17 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp order(%Query{order_bys: order_bys} = query, {_coll, _model, pk}) do
     order_bys
-    |> Enum.flat_map(fn %Query.QueryExpr{expr: expr} -> expr end)
-    |> Enum.into(%{}, &order_by_expr(&1, pk, query))
+    |> Enum.flat_map(fn %Query.QueryExpr{expr: expr} ->
+      Enum.map(expr, &order_by_expr(&1, pk, query))
+    end)
+    |> map_unless_empty
   end
 
   defp command(:update, values, params, {_coll, _model, pk}) do
     updates =
       case Encoder.encode_document(values, params, pk) do
-        {:ok, document} -> Enum.into(document, %{})
-        {:error, _expr}  ->
+        {:ok, document} -> map_unless_empty(document)
+        {:error, _expr} ->
           error("update command")
       end
 
@@ -179,8 +181,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp command(:update, values, pk) do
     updates =
       case Encoder.encode_document(values, pk) do
-        {:ok, document} -> Enum.into(document, %{})
-        {:error, _expr}  ->
+        {:ok, document} -> map_unless_empty(document)
+        {:error, _expr} ->
           error("update command")
       end
 
@@ -188,8 +190,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
   defp command(:insert, document, pk) do
     case Encoder.encode_document(document, pk) do
-      {:ok, document} -> document
-      {:error, _expr}  ->
+      {:ok, document} -> map_unless_empty(document)
+      {:error, _expr} ->
         error("insert command")
     end
   end
@@ -243,6 +245,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp field(_expr, _pk, query, place),
     do: error(query, place)
 
+  defp map_unless_empty([]), do: %{}
+  defp map_unless_empty(list), do: list
+
   binary_ops =
     [>: :"$gt", >=: :"$gte", <: :"$lt", <=: :"$lte", !=: :"$ne", in: :"$in"]
   bool_ops =
@@ -260,8 +265,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end)
 
   defp mapped_pair_or_value({op, _, _} = tuple, params, pk, query, place) when is_op(op) do
-    {key, value} = pair(tuple, params, pk, query, place)
-    Map.put(%{}, key, value)
+    [pair(tuple, params, pk, query, place)]
   end
   defp mapped_pair_or_value(value, params, _pk, query, place) do
     value(value, params, query, place)
@@ -277,7 +281,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
       |> Enum.map(&elem(params, &1))
       |> Enum.map(&value(&1, params, query, place))
 
-    {field(left, pk, query, place), %{"$in": args}}
+    {field(left, pk, query, place), ["$in": args]}
   end
   defp pair({:is_nil, _, [expr]}, _, pk, query, place) do
     {field(expr, pk, query, place), nil}
@@ -286,8 +290,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {field(left, pk, query, place), value(right, params, query, place)}
   end
   defp pair({op, _, [left, right]}, params, pk, query, place) when op in @binary_ops do
-    value = Map.put(%{}, binary_op(op), value(right, params, query, place))
-    {field(left, pk, query, place), value}
+    {field(left, pk, query, place), [{binary_op(op), value(right, params, query, place)}]}
   end
   defp pair({:not, _, [{:in, _, [left, {:^, _, [ix, len]}]}]}, params, pk, query, place) do
     args =
@@ -295,20 +298,19 @@ defmodule Mongo.Ecto.NormalizedQuery do
       |> Enum.map(&elem(params, &1))
       |> Enum.map(&value(&1, params, query, place))
 
-    {field(left, pk, query, place), %{"$nin": args}}
+    {field(left, pk, query, place), ["$nin": args]}
   end
   defp pair({:not, _, [{:in, _, [left, right]}]}, params, pk, query, place) do
-    {field(left, pk, query, place), %{"$nin": value(right, params, query, place)}}
+    {field(left, pk, query, place), ["$nin": value(right, params, query, place)]}
   end
   defp pair({:not, _, [{:is_nil, _, [expr]}]}, _, pk, query, place) do
-    {field(expr, pk, query, place), %{"$ne": nil}}
+    {field(expr, pk, query, place), ["$ne": nil]}
   end
   defp pair({:not, _, [{:==, _, [left, right]}]}, params, pk, query, place) do
-    {field(left, pk, query, place), %{"$ne": value(right, params, query, place)}}
+    {field(left, pk, query, place), ["$ne": value(right, params, query, place)]}
   end
   defp pair({:not, _, [expr]}, params, pk, query, place) do
-    {key, value} = pair(expr, params, pk, query, place)
-    {:"$not", Map.put(%{}, key, value)}
+    {:"$not", [pair(expr, params, pk, query, place)]}
   end
   defp pair({:^, _, _} = expr, params, _pk, query, place) do
     case value(expr, params, query, place) do

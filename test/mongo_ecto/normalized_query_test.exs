@@ -42,10 +42,10 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
   test "where" do
     query = Model |> where([r], r.x == 42) |> where([r], r.y != 43)
                   |> select([r], r.x) |> all
-    assert_query(query, query: %{x: 42, y: %{"$ne": 43}}, projection: [x: true])
+    assert_query(query, query: [x: 42, y: ["$ne": 43]], projection: [x: true])
 
     query = Model |> where([r], not (r.x == 42)) |> all
-    assert_query(query, query: %{x: %{"$ne": 42}})
+    assert_query(query, query: [x: ["$ne": 42]])
   end
 
   test "select" do
@@ -80,13 +80,13 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "order by" do
     query = Model |> order_by([r], r.x) |> select([r], r.x) |> all
-    assert_query(query, query: %{"$query": %{}, "$orderby": %{x: 1}})
+    assert_query(query, query: ["$query": %{}, "$orderby": [x: 1]])
 
     query = Model |> order_by([r], [r.x, r.y]) |> select([r], r.x) |> all
-    assert_query(query, query: %{"$query": %{}, "$orderby": %{x: 1, y: 1}})
+    assert_query(query, query: ["$query": %{}, "$orderby": [x: 1, y: 1]])
 
     query = Model |> order_by([r], [asc: r.x, desc: r.y]) |> select([r], r.x) |> all
-    assert_query(query, query: %{"$query": %{}, "$orderby": %{x: 1, y: -1}})
+    assert_query(query, query: ["$query": %{}, "$orderby": [x: 1, y: -1]])
 
     query = Model |> order_by([r], []) |> select([r], r.x) |> all
     assert_query(query, query: %{})
@@ -127,10 +127,10 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "is_nil" do
     query = Model |> where([r], is_nil(r.x)) |> all
-    assert_query(query, query: %{x: nil})
+    assert_query(query, query: [x: nil])
 
     query = Model |> where([r], not is_nil(r.x)) |> all
-    assert_query(query, query: %{x: %{"$ne": nil}})
+    assert_query(query, query: [x: ["$ne": nil]])
   end
 
   test "literals" do
@@ -138,19 +138,19 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, fields: [nil])
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == true) |> all
-    assert_query(query, query: %{x: true})
+    assert_query(query, query: [x: true])
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == false) |> all
-    assert_query(query, query: %{x: false})
+    assert_query(query, query: [x: false])
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == "abc") |> all
-    assert_query(query, query: %{x: "abc"})
+    assert_query(query, query: [x: "abc"])
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == 123) |> all
-    assert_query(query, query: %{x: 123})
+    assert_query(query, query: [x: 123])
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == 123.0) |> all
-    assert_query(query, query: %{x: 123.0})
+    assert_query(query, query: [x: 123.0])
   end
 
   test "nested expressions" do
@@ -158,50 +158,50 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     query = from(r in Model, [])
                       |> where([r], r.x > 0 and (r.y > ^(-z)) or true) |> all
     assert_query(query, query:
-                 %{"$or": [%{"$and": [%{x: %{"$gt": 0}}, %{y: %{"$gt": -123}}]}, true]})
+                 ["$or": [["$and": [[x: ["$gt": 0]], [y: ["$gt": -123]]]], true]])
   end
 
   test "binary ops" do
     query = Model |> where([r], r.x == 2) |> all
-    assert_query(query, query: %{x: 2})
+    assert_query(query, query: [x: 2])
 
     query = Model |> where([r], r.x != 2) |> all
-    assert_query(query, query: %{x: %{"$ne": 2}})
+    assert_query(query, query: [x: ["$ne": 2]])
 
     query = Model |> where([r], r.x <= 2) |> all
-    assert_query(query, query: %{x: %{"$lte": 2}})
+    assert_query(query, query: [x: ["$lte": 2]])
 
     query = Model |> where([r], r.x >= 2) |> all
-    assert_query(query, query: %{x: %{"$gte": 2}})
+    assert_query(query, query: [x: ["$gte": 2]])
 
     query = Model |> where([r], r.x < 2) |> all
-    assert_query(query, query: %{x: %{"$lt": 2}})
+    assert_query(query, query: [x: ["$lt": 2]])
 
     query = Model |> where([r], r.x > 2) |> all
-    assert_query(query, query: %{x: %{"$gt": 2}})
+    assert_query(query, query: [x: ["$gt": 2]])
   end
 
   test "bool ops" do
     query = Model |> where([], true and false) |> all
-    assert_query(query, query: %{"$and": [true, false]})
+    assert_query(query, query: ["$and": [true, false]])
 
     query = Model |> where([], true or false) |> all
-    assert_query(query, query: %{"$or": [true, false]})
+    assert_query(query, query: ["$or": [true, false]])
 
     query = Model |> where([r], not (r.x > 0) and not (r.x < 5)) |> all
     assert_query(query, query:
-                 %{"$and": [%{"$not": %{x: %{"$gt": 0}}}, %{"$not": %{x: %{"$lt": 5}}}]})
+                 ["$and": [["$not": [x: ["$gt": 0]]], ["$not": [x: ["$lt": 5]]]]])
   end
 
   test "in expression" do
     query = Model |> where([e], e.x in []) |> all
-    assert_query(query, query: %{x: %{"$in": []}})
+    assert_query(query, query: [x: ["$in": []]])
 
     query = Model |> where([e], e.x in ^[1, 2, 3]) |> all
-    assert_query(query, query: %{x: %{"$in": [1, 2, 3]}})
+    assert_query(query, query: [x: ["$in": [1, 2, 3]]])
 
     query = Model |> where([e], e.x in [1, ^2, 3]) |> all
-    assert_query(query, query: %{x: %{"$in": [1, 2, 3]}})
+    assert_query(query, query: [x: ["$in": [1, 2, 3]]])
 
     assert_raise Ecto.QueryError, fn ->
       Model |> where([e], 1 in ^[]) |> all
