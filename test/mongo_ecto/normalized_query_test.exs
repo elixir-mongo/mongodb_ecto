@@ -31,19 +31,25 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "bare model" do
     query = Model |> from |> all
-    assert_query(query, coll: "model", query: %{}, projection: %{},
+    assert_query(query, coll: "model", query: %{},
+                 projection: %{_id: true, x: true, y: true, z: true},
                  fields: [model: {Model, "model"}], opts: [num_return: 0, num_skip: 0])
   end
 
   test "from without model" do
     query = "posts" |> select([r], r.x) |> all
-    assert_query(query, coll: "posts", projection: [x: true])
+    assert_query(query, coll: "posts", projection: %{x: true},
+                                       fields: [field: :x])
+
+    query = "posts" |> select([r], {r, r.x}) |> all
+    assert_query(query, coll: "posts", projection: %{},
+                                       fields: [document: nil, field: :x])
   end
 
   test "where" do
     query = Model |> where([r], r.x == 42) |> where([r], r.y != 43)
                   |> select([r], r.x) |> all
-    assert_query(query, query: [x: 42, y: ["$ne": 43]], projection: [x: true])
+    assert_query(query, query: [x: 42, y: ["$ne": 43]], projection: %{x: true})
 
     query = Model |> where([r], not (r.x == 42)) |> all
     assert_query(query, query: [x: ["$ne": 42]])
@@ -51,19 +57,19 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "select" do
     query = Model |> select([r], {r.x, r.y}) |> all
-    assert_query(query, projection: [y: true, x: true],
+    assert_query(query, projection: %{y: true, x: true},
                         fields: [field: :x, field: :y])
 
     query = Model |> select([r], [r.x, r.y]) |> all
-    assert_query(query, projection: [y: true, x: true],
+    assert_query(query, projection: %{y: true, x: true},
                         fields: [field: :x, field: :y])
 
     query = Model |> select([r], [r, r.x]) |> all
-    assert_query(query, projection: %{},
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true},
                         fields: [model: {Model, "model"}, field: :x])
 
     query = Model |> select([r], [r]) |> all
-    assert_query(query, projection: %{},
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true},
                         fields: [model: {Model, "model"}])
 
     query = Model |> select([r], {1}) |> all
@@ -71,11 +77,11 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
                         fields: [1])
 
     query = Model |> select([r], [r.id]) |> all
-    assert_query(query, projection: [_id: true],
+    assert_query(query, projection: %{_id: true},
                         fields: [field: :id])
 
     query = from(r in Model) |> all
-    assert_query(query, projection: %{},
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true},
                         fields: [model: {Model, "model"}])
   end
 
@@ -129,12 +135,12 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "fragments in select" do
     query = Model |> select([], fragment("z.$": 1)) |> all
-    assert_query(query, projection: ["z.$": 1],
-                        fields: [{:document}])
+    assert_query(query, projection: %{"z.$": 1},
+                        fields: [document: nil])
 
     query = Model |> select([r], {r.x, fragment("z.$": 1)}) |> all
-    assert_query(query, projection: ["z.$": 1, x: true],
-                        fields: [{:field, :x}, {:document}])
+    assert_query(query, projection: %{"z.$": 1, x: true},
+                        fields: [field: :x, document: nil])
   end
 
   test "distinct" do

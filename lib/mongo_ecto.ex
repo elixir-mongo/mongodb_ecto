@@ -170,6 +170,8 @@ defmodule Mongo.Ecto do
     document = Decoder.decode_document(document, pk)
 
     Enum.map(fields, fn
+      {:document, nil} ->
+        document
       {:model, {model, coll}} ->
         row = model.__schema__(:fields)
               |> Enum.map(&Map.get(document, Atom.to_string(&1)))

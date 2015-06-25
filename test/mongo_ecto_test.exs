@@ -3,6 +3,7 @@ defmodule Mongo.EctoTest do
 
   alias Ecto.Integration.TestRepo
   alias Ecto.Integration.Post
+  alias Ecto.Integration.Tag
 
   import Ecto.Query, only: [from: 2]
 
@@ -25,5 +26,12 @@ defmodule Mongo.EctoTest do
     js = javascript("this.visits == count", count: 1)
 
     assert [%Post{}] = TestRepo.all(from p in Post, where: ^js)
+  end
+
+  test "retrieve whole document" do
+    TestRepo.insert!(%Tag{ints: [1, 2, 3]})
+
+    query = from t in Tag, where: 1 in t.ints, select: fragment("ints.$": 1)
+    assert [%{"ints" => [1]}] = TestRepo.all(query)
   end
 end

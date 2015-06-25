@@ -99,28 +99,38 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp projection(%Query{select: nil}, _params, _from),
     do: %{}
-  defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, {_, _, pk}),
-    do: projection(fields, params, pk, query, [])
+  defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, from),
+    do: projection(fields, params, from, query, %{})
 
-  defp projection([], _params, _pk, _query, acc),
-    do: map_unless_empty(acc)
-  defp projection([{:&, _, [0]} | _rest], _params, _pk, _query, _acc),
-    do: %{}
-  defp projection([{{:., _, _}, _, _} = field | rest], params, pk, query, acc) do
+  defp projection([], _params, _from, _query, acc),
+    do: acc
+  defp projection([{:&, _, [0]} | rest], params, {_, model, pk} = from, query, acc)
+      when  model != nil do
+    acc = Enum.into(model.__schema__(:fields), acc, &{field(&1, pk), true})
+    projection(rest, params, from, query, acc)
+  end
+  defp projection([{:&, _, [0]} | _], _params, {_, nil, _}, _query, _acc) do
+    # Model is nil, we want everything
+    %{}
+  end
+  defp projection([{{:., _, _}, _, _} = field | rest], params, {_, _, pk} = from, query, acc) do
     field = field(field, pk, query, "select clause")
-    projection(rest, params, pk, query, [{field, true} | acc])
+    projection(rest, params, from, query, Map.put(acc, field, true))
   end
   # Keyword and interpolated fragments
-  defp projection([{:fragment, _, [args]}| rest], params, pk, query, acc)
+  defp projection([{:fragment, _, [args]}| rest], params, {_, _, pk} = from, query, acc)
       when is_list(args) or tuple_size(args) == 3 do
-    args = value(args, params, pk, query, "select clause")
-    projection(rest, params, pk, query, args ++ acc)
+    acc =
+      args
+      |> value(params, pk, query, "select clause")
+      |> Enum.into(acc)
+    projection(rest, params, from, query, acc)
   end
-  defp projection([{op, _, _} | _rest], _params, _pk, query, _acc) when is_op(op),
+  defp projection([{op, _, _} | _rest], _params, _from, query, _acc) when is_op(op),
     do: error(query, "select clause")
   # We skip all values and then add them when constructing return result (in fields/3)
-  defp projection([_value | rest], params, pk, query, acc),
-    do: projection(rest, params, pk, query, acc)
+  defp projection([_value | rest], params, from, query, acc),
+    do: projection(rest, params, from, query, acc)
 
   defp fields(%Query{select: nil}, _params, _from),
     do: []
@@ -128,12 +138,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
               params, {coll, model, pk}) do
     Enum.map(fields, fn
       # We get a flattened list, so only way to have a tuple is when we insert it
-      {:&, _, [0]} ->
+      {:&, _, [0]} when model == nil ->
+        {:document, nil}
+      {:&, _, [0]} when model != nil ->
         {:model, {model, coll}}
       {{:., _, [{:&, _, [0]}, field]}, _, []} ->
         {:field, field}
       {:fragment, _, _} ->
-        {:document}
+        {:document, nil}
       %Query.Tagged{value: {:^, _, [idx]}} ->
         params |> elem(idx) |> value(params, pk, query, "select clause")
       value ->
@@ -236,10 +248,11 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end
   end
 
-  defp field({{:., _, [{:&, _, [0]}, pk]}, _, []}, pk, _query, _place),
-    do: :_id
-  defp field({{:., _, [{:&, _, [0]}, field]}, _, []}, _pk, _query, _place),
-    do: field
+  defp field(pk, pk), do: :_id
+  defp field(key, _), do: key
+
+  defp field({{:., _, [{:&, _, [0]}, field]}, _, []}, pk, _query, _place),
+    do: field(field, pk)
   defp field(_expr, _pk, query, place),
     do: error(query, place)
 
