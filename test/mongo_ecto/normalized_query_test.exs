@@ -225,6 +225,9 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     query = Model |> where([e], e.x in [1, ^2, 3]) |> all
     assert_query(query, query: [x: ["$in": [1, 2, 3]]])
 
+    query = Model |> where([e], 1 in e.z) |> all
+    assert_query(query, query: [z: 1])
+
     assert_raise Ecto.QueryError, fn ->
       Model |> where([e], 1 in ^[]) |> all
     end

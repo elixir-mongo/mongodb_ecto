@@ -273,6 +273,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
     args = Enum.map(args, &mapped_pair_or_value(&1, params, pk, query, place))
     {bool_op(op), args}
   end
+  defp pair({:is_nil, _, [expr]}, _, pk, query, place) do
+    {field(expr, pk, query, place), nil}
+  end
+  defp pair({:==, _, [left, right]}, params, pk, query, place) do
+    {field(left, pk, query, place), value(right, params, pk, query, place)}
+  end
   defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query, place) do
     args =
       ix..ix+len-1
@@ -281,11 +287,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     {field(left, pk, query, place), ["$in": args]}
   end
-  defp pair({:is_nil, _, [expr]}, _, pk, query, place) do
-    {field(expr, pk, query, place), nil}
-  end
-  defp pair({:==, _, [left, right]}, params, pk, query, place) do
-    {field(left, pk, query, place), value(right, params, pk, query, place)}
+  defp pair({:in, _, [lhs, {{:., _, _}, _, _} = rhs]}, params, pk, query, place) do
+    {field(rhs, pk, query, place), value(lhs, params, pk, query, place)}
   end
   defp pair({op, _, [left, right]}, params, pk, query, place) when op in @binary_ops do
     {field(left, pk, query, place), [{binary_op(op), value(right, params, pk, query, place)}]}
