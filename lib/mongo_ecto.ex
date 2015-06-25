@@ -180,7 +180,7 @@ defmodule Mongo.Ecto do
       {:field, field} ->
         Map.get(document, Atom.to_string(field))
       value ->
-        Decoder.decode_value(value)
+        Decoder.decode_value(value, pk)
     end)
   end
 
