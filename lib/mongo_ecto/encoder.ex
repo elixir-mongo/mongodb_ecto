@@ -1,65 +1,75 @@
 defmodule Mongo.Ecto.Encoder do
   @moduledoc false
 
+  import Mongo.Ecto.Utils
   alias Ecto.Query.Tagged
 
-  def encode_document(doc, pk) do
+  def encode(doc, params, pk) when is_keyword(doc),
+    do: document(doc, params, pk)
+  def encode(list, params, pk) when is_list(list),
+    do: map(list, &encode(&1, params, pk))
+  def encode({:^, _, [idx]}, params, pk),
+    do: elem(params, idx) |> encode(params, pk)
+  def encode(%Tagged{value: value, type: type}, params, _pk),
+    do: {:ok, typed_value(value, type, params)}
+  def encode(%{__struct__: _} = struct, _params, pk),
+    do: encode(struct, pk) # Pass down other structs
+  def encode(map, params, pk) when is_map(map),
+    do: document(map, params, pk)
+  def encode(value, _params, pk),
+    do: encode(value, pk)
+
+  def encode(doc, pk) when is_keyword(doc),
+    do: document(doc, pk)
+  def encode(int, _pk) when is_integer(int),
+    do: {:ok, int}
+  def encode(float, _pk) when is_float(float),
+    do: {:ok, float}
+  def encode(string, _pk) when is_binary(string),
+    do: {:ok, string}
+  def encode(atom, _pk) when is_atom(atom),
+    do: {:ok, atom}
+  def encode(list, pk) when is_list(list),
+    do: map(list, &encode(&1, pk))
+  def encode(%BSON.ObjectId{} = objectid, _pk),
+    do: {:ok, objectid}
+  def encode(%BSON.JavaScript{} = js, _pk),
+    do: {:ok, js}
+  def encode(%Tagged{value: value, type: type}, _pk),
+    do: {:ok, typed_value(value, type)}
+  def encode(%{__struct__: _}, _pk),
+    do: :error # Other structs are not supported
+  def encode(map, pk) when is_map(map),
+    do: document(map, pk)
+  def encode({{_, _, _} = date, {hour, min, sec, usec}}, _pk) do
+    seconds = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
+    {:ok, %BSON.DateTime{utc: seconds * 1000 + div(usec, 1000)}}
+  end
+  def encode(_value, _pk) do
+    :error
+  end
+
+  defp document(doc, pk) do
     map(doc, fn {key, value} ->
-      encode_pair(key, value, pk, &encode_value/1)
+      pair(key, value, pk, &encode(&1, pk))
     end)
   end
-  def encode_document(doc, params, pk) do
+
+  defp document(doc, params, pk) do
     map(doc, fn {key, value} ->
-      encode_pair(key, value, pk, &encode_value(&1, params))
+      pair(key, value, pk, &encode(&1, params, pk))
     end)
+  end
+
+  defp pair(key, value, pk, fun) do
+    case fun.(value) do
+      {:ok, encoded} -> {:ok, {key(key, pk), encoded}}
+      :error         -> :error
+    end
   end
 
   defp key(pk, pk), do: :_id
   defp key(key, _), do: key
-
-  defp encode_pair(key, value, pk, fun) do
-    case fun.(value) do
-      {:ok, encoded}    -> {:ok, {key(key, pk), encoded}}
-      {:error, _} = err -> err
-    end
-  end
-
-  def encode_value(list, params) when is_list(list),
-    do: map(list, &encode_value(&1, params))
-  def encode_value({:^, _, [idx]}, params),
-    do: elem(params, idx) |> encode_value(params)
-  def encode_value(%Tagged{value: value, type: type}, params),
-    do: {:ok, typed_value(value, type, params)}
-  def encode_value(value, _),
-    do: encode_value(value)
-
-  def encode_value(int) when is_integer(int),
-    do: {:ok, int}
-  def encode_value(float) when is_float(float),
-    do: {:ok, float}
-  def encode_value(string) when is_binary(string),
-    do: {:ok, string}
-  def encode_value(atom) when is_atom(atom),
-    do: {:ok, atom}
-  def encode_value(list) when is_list(list),
-    do: map(list, &encode_value/1)
-  def encode_value(%BSON.ObjectId{} = objectid),
-    do: {:ok, objectid}
-  def encode_value(%BSON.JavaScript{} = js),
-    do: {:ok, js}
-  def encode_value(%Tagged{value: value, type: type}),
-    do: {:ok, typed_value(value, type)}
-  def encode_value(%{__struct__: _} = value),
-    do: {:error, value} # Other structs are not supported
-  def encode_value(map) when is_map(map),
-    do: {:ok, map}
-  def encode_value({{_, _, _} = date, {hour, min, sec, usec}}) do
-    seconds = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
-    {:ok, %BSON.DateTime{utc: seconds * 1000 + div(usec, 1000)}}
-  end
-  def encode_value(value) do
-    {:error, value}
-  end
 
   defp typed_value({:^, _, [idx]}, type, params),
     do: typed_value(elem(params, idx), type)
@@ -83,16 +93,14 @@ defmodule Mongo.Ecto.Encoder do
     return =
       Enum.flat_map_reduce(list, :ok, fn elem, :ok ->
         case fun.(elem) do
-          {:ok, value}      -> {[value], :ok}
-          {:error, _} = err -> {:halt, err}
+          {:ok, value} -> {[value], :ok}
+          :error       -> {:halt, :error}
         end
       end)
 
     case return do
-      {values, :ok} ->
-        {:ok, values}
-      {_values, {:error, _} = err} ->
-        err
+      {values,  :ok}    -> {:ok, values}
+      {_values, :error} -> :error
     end
   end
 end

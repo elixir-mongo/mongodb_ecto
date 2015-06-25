@@ -10,6 +10,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     schema "model" do
       field :x, :integer
       field :y, :integer
+      field :z, {:array, :integer}
     end
   end
 
@@ -109,10 +110,31 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     end
   end
 
-  test "fragment" do
+  test "sql fragments" do
     assert_raise Ecto.QueryError, fn ->
       Model |> select([r], fragment("downcase(?)", r.x)) |> all
     end
+  end
+
+  test "fragments in where" do
+    query = Model |> where([], fragment(x: 1)) |> all
+    assert_query(query, query: [x: 1])
+
+    query = Model |> where([], fragment(x: ["$in": ^[1, 2, 3]])) |> all
+    assert_query(query, query: [x: ["$in": [1, 2, 3]]])
+
+    query = Model |> where([], fragment(^[x: 1])) |> all
+    assert_query(query, query: [x: 1])
+  end
+
+  test "fragments in select" do
+    query = Model |> select([], fragment("z.$": 1)) |> all
+    assert_query(query, projection: ["z.$": 1],
+                        fields: [{:document}])
+
+    query = Model |> select([r], {r.x, fragment("z.$": 1)}) |> all
+    assert_query(query, projection: ["z.$": 1, x: true],
+                        fields: [{:field, :x}, {:document}])
   end
 
   test "distinct" do

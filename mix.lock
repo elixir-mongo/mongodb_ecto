@@ -1,6 +1,6 @@
 %{"connection": {:git, "git://github.com/fishcakez/connection.git", "0673602e65532f9e11e95cd9dd80968731183dd6", []},
   "decimal": {:hex, :decimal, "1.1.0"},
-  "ecto": {:git, "git://github.com/elixir-lang/ecto.git", "89c5f75baf56cf4b35d36d2a86eea69202f3f28e", []},
+  "ecto": {:git, "git://github.com/elixir-lang/ecto.git", "a70d018c63c59a6c1e1caf1fcefbb16c0baf3ca9", []},
   "mongodb": {:git, "git://github.com/ericmj/mongodb.git", "14e86860838deb23abfe0c5c7d12c16ab0a892f4", []},
   "pbkdf2": {:git, "git://github.com/basho/erlang-pbkdf2.git", "7076584f5377e98600a7e2cb81980b2992fb2f71", []},
   "poolboy": {:hex, :poolboy, "1.5.1"}}
