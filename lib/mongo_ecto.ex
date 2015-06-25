@@ -40,8 +40,8 @@ defmodule Mongo.Ecto do
 
   @doc false
   def start_link(repo, opts) do
+    {:ok, _} = Application.ensure_all_started(:mongodb_ecto)
     {pool_opts, worker_opts} = split_opts(repo, opts)
-
     :poolboy.start_link(pool_opts, {Connection, worker_opts})
   end
 
