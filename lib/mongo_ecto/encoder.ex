@@ -35,6 +35,8 @@ defmodule Mongo.Ecto.Encoder do
     do: {:ok, objectid}
   def encode(%BSON.JavaScript{} = js, _pk),
     do: {:ok, js}
+  def encode(%BSON.Regex{} = regex, _pk),
+    do: {:ok, regex}
   def encode(%Tagged{value: value, type: type}, _pk),
     do: {:ok, typed_value(value, type)}
   def encode(%{__struct__: _}, _pk),
