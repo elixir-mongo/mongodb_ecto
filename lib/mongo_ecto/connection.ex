@@ -1,7 +1,7 @@
 defmodule Mongo.Ecto.Connection do
   @moduledoc false
 
-  @behaviour Ecto.Adapters.Worker
+  @behaviour Ecto.Adapters.Connection
 
   alias Mongo.ReadResult
   alias Mongo.WriteResult

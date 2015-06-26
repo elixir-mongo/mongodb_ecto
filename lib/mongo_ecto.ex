@@ -16,24 +16,27 @@ defmodule Mongo.Ecto do
   @behaviour Ecto.Adapter.Storage
 
   alias Mongo.Ecto.NormalizedQuery
-  alias NormalizedQuery.ReadQuery
+  alias Mongo.Ecto.NormalizedQuery.ReadQuery
   alias Mongo.Ecto.Decoder
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
-  alias Ecto.Adapters.Worker
+
+  alias Ecto.Adapters.Pool
 
   ## Adapter
 
   @doc false
   defmacro __before_compile__(env) do
-    timeout =
+    config =
       env.module
       |> Module.get_attribute(:config)
-      |> Keyword.get(:timeout, 5000)
+
+    timeout = Keyword.get(config, :timeout, 5000)
+    pool_mod = Keyword.get(config, :pool, Ecto.Adapters.Poolboy)
 
     quote do
       def __pool__ do
-        {__MODULE__.Pool, unquote(timeout)}
+        {unquote(pool_mod), __MODULE__.Pool, unquote(timeout)}
       end
     end
   end
@@ -41,13 +44,20 @@ defmodule Mongo.Ecto do
   @doc false
   def start_link(repo, opts) do
     {:ok, _} = Application.ensure_all_started(:mongodb_ecto)
-    {pool_opts, worker_opts} = split_opts(repo, opts)
-    :poolboy.start_link(pool_opts, {Connection, worker_opts})
+
+    {pool_mod, pool, _} = repo.__pool__
+    opts = opts
+      |> Keyword.put(:timeout, Keyword.get(opts, :connect_timeout, 5000))
+      |> Keyword.put(:name, pool)
+      |> Keyword.put_new(:size, 10)
+
+    pool_mod.start_link(Connection, opts)
   end
 
   @doc false
   def stop(repo) do
-    repo.__pool__ |> elem(0) |> :poolboy.stop
+    {pool_mod, pool, _} = repo.__pool__
+    pool_mod.stop(pool)
   end
 
   @doc false
@@ -56,14 +66,28 @@ defmodule Mongo.Ecto do
   end
 
   defp with_conn(repo, fun) do
-    {pool, timeout} = repo.__pool__
+    {pool_mod, pool, timeout} = repo.__pool__
 
-    worker = :poolboy.checkout(pool, true, timeout)
-    try do
-      {module, conn} = Worker.ask!(worker, timeout)
-      fun.(module, conn)
-    after
-      :ok = :poolboy.checkin(pool, worker)
+    case Pool.run(pool_mod, pool, timeout, &do_with_conn(&1, &2, &3, &4, timeout, fun)) do
+      {:ok, :noconnect} ->
+        # :noconnect can never be the reason a call fails because
+        # it is converted to {:nodedown, node}. This means the exit
+        # reason can be easily identified.
+        exit({:noconnect, {__MODULE__, :with_conn, [repo, fun]}})
+      {:ok, result} ->
+        result
+      {:error, :noproc} ->
+        raise ArgumentError, "repo #{inspect repo} is not started, " <>
+                             "please ensure it is part of your supervision tree"
+    end
+  end
+
+  defp do_with_conn(ref, _mode, _depth, _queue_time, timeout, fun) do
+    case Pool.connection(ref) do
+      {:ok, {mod, conn}} ->
+        Pool.fuse(ref, timeout, fn -> fun.(mod, conn) end)
+      {:error, :noconnect} ->
+        :noconnect
     end
   end
 
@@ -264,22 +288,5 @@ defmodule Mongo.Ecto do
 
   defp drop_collection(conn, collection) when is_pid(conn) do
     command(conn, %{drop: collection})
-  end
-
-  defp split_opts(repo, opts) do
-    {pool_name, _} = repo.__pool__
-
-    {pool_opts, worker_opts} = Keyword.split(opts, [:size, :max_overflow])
-
-    pool_opts = pool_opts
-      |> Keyword.put_new(:size, 10)
-      |> Keyword.put_new(:max_overflow, 0)
-      |> Keyword.put(:worker_module, Worker)
-      |> Keyword.put(:name, {:local, pool_name})
-
-    worker_opts = worker_opts
-      |> Keyword.put(:timeout, Keyword.get(worker_opts, :connect_timeout, 5000))
-
-    {pool_opts, worker_opts}
   end
 end

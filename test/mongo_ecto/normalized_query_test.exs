@@ -49,7 +49,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
   test "where" do
     query = Model |> where([r], r.x == 42) |> where([r], r.y != 43)
                   |> select([r], r.x) |> all
-    assert_query(query, query: [x: 42, y: ["$ne": 43]], projection: %{x: true})
+    assert_query(query, query: [y: ["$ne": 43], x: 42], projection: %{x: true})
 
     query = Model |> where([r], not (r.x == 42)) |> all
     assert_query(query, query: [x: ["$ne": 42]])
