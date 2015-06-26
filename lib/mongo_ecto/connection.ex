@@ -32,35 +32,35 @@ defmodule Mongo.Ecto.Connection do
     %WriteQuery{coll: coll, query: query, opts: query_opts} = query
 
     Mongo.remove(conn, coll, query, query_opts ++ opts)
-    |> multiple_write_result
+    |> write_result
   end
 
   def delete(conn, query, opts) do
     %WriteQuery{coll: coll, query: query, opts: query_opts} = query
 
     Mongo.remove(conn, coll, query, query_opts ++ opts)
-    |> single_write_result
+    |> write_result
   end
 
   def update_all(conn, query, opts) do
     %WriteQuery{coll: coll, query: query, command: command, opts: query_opts} = query
 
     Mongo.update(conn, coll, query, command, query_opts ++ opts)
-    |> multiple_write_result
+    |> write_result
   end
 
   def update(conn, query, opts) do
     %WriteQuery{coll: coll, query: query, command: command, opts: query_opts} = query
 
     Mongo.update(conn, coll, query, command, query_opts ++ opts)
-    |> single_write_result
+    |> write_result
   end
 
   def insert(conn, query, opts) do
     %WriteQuery{coll: coll, command: command, opts: query_opts} = query
 
     Mongo.insert(conn, coll, command, query_opts ++ opts)
-    |> single_write_result
+    |> write_result
   end
 
   def command(conn, command, opts) do
@@ -71,30 +71,15 @@ defmodule Mongo.Ecto.Connection do
 
   defp read_result({:ok, %ReadResult{docs: docs}}),
     do: {:ok, docs}
-  defp read_result({:error, error}),
-    do: error(error)
+  defp read_result({:error, _} = error),
+    do: error
 
-  defp single_write_result({:ok, %WriteResult{num_inserted: 1}}),
-    do: {:ok, []}
-  defp single_write_result({:ok, %WriteResult{num_matched: 1}}),
-    do: {:ok, []}
-  defp single_write_result({:ok, %WriteResult{num_matched: 0}}),
-    do: {:error, :stale}
-  defp single_write_result({:error, error}),
-    do: error(error)
-
-  defp multiple_write_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n),
-    do: n
-  defp multiple_write_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n),
-    do: n
-  defp multiple_write_result({:error, error}),
-    do: error(error)
-
-  defp error(error) do
-    if Exception.exception?(error) do
-      raise error
-    else
-      {:error, error}
-    end
-  end
+  defp write_result({:ok, %WriteResult{num_inserted: n}}) when is_integer(n),
+    do: {:ok, n}
+  defp write_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n),
+    do: {:ok, n}
+  defp write_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n),
+    do: {:ok, n}
+  defp write_result({:error, _} = error),
+    do: error
 end

@@ -65,40 +65,91 @@ defmodule Mongo.Ecto do
     %{binary_id: ObjectID}
   end
 
-  defp with_conn(repo, fun) do
+  defp query(repo, fun, query, opts) do
     {pool_mod, pool, timeout} = repo.__pool__
+    opts    = Keyword.put_new(opts, :timeout, timeout)
+    timeout = Keyword.fetch!(opts, :timeout)
+    log?    = Keyword.get(opts, :log, true)
 
-    case Pool.run(pool_mod, pool, timeout, &do_with_conn(&1, &2, &3, &4, timeout, fun)) do
+    query_fun = fn(ref, _mode, _depth, queue_time) ->
+      query(ref, queue_time, fun, query, log?, timeout, opts)
+    end
+
+    case Pool.run(pool_mod, pool, timeout, query_fun) do
+      {:ok, {result, entry}} ->
+        log(repo, entry)
+        result(result)
       {:ok, :noconnect} ->
         # :noconnect can never be the reason a call fails because
         # it is converted to {:nodedown, node}. This means the exit
         # reason can be easily identified.
-        exit({:noconnect, {__MODULE__, :with_conn, [repo, fun]}})
-      {:ok, result} ->
-        result
+        exit({:noconnect, {__MODULE__, :query, [repo, fun, query, opts]}})
       {:error, :noproc} ->
         raise ArgumentError, "repo #{inspect repo} is not started, " <>
                              "please ensure it is part of your supervision tree"
     end
   end
 
-  defp do_with_conn(ref, _mode, _depth, _queue_time, timeout, fun) do
+  defp query(ref, queue_time, fun, query, log?, timeout, opts) do
     case Pool.connection(ref) do
       {:ok, {mod, conn}} ->
-        Pool.fuse(ref, timeout, fn -> fun.(mod, conn) end)
+        query(ref, mod, conn, queue_time, fun, query, log?, timeout, opts)
       {:error, :noconnect} ->
         :noconnect
     end
+  end
+
+  defp query(ref, mod, conn, _queue_time, fun, query, false, timeout, opts) do
+    query_fun = fn -> apply(mod, fun, [conn, query, opts]) end
+
+    {Pool.fuse(ref, timeout, query_fun), nil}
+  end
+  defp query(ref, mod, conn, queue_time, fun, query, true, timeout, opts) do
+    query_fun = fn -> :timer.tc(mod, fun, [conn, query, opts]) end
+
+    {query_time, res} = Pool.fuse(ref, timeout, query_fun)
+    entry = %Ecto.LogEntry{query: &format_query(&1, fun, query), params: [],
+                           result: res, query_time: query_time, queue_time: queue_time}
+
+    {res, entry}
+  end
+
+  defp log(_repo, nil), do: :ok
+  defp log(repo, entry), do: repo.log(entry)
+
+  defp result({:ok, result}),
+    do: result
+  defp result({:error, %{__exception__: _} = error}),
+    do: raise error
+  defp result({:error, reason}),
+    do: raise(ArgumentError, "MongoDB driver errored with #{inspect reason}")
+
+  defp format_query(_entry, :all, query) do
+    ["FIND coll=", inspect(query.coll),
+     " query=", inspect(query.query),
+     " projection=", inspect(query.projection)]
+  end
+  defp format_query(_entry, :insert, query) do
+    ["INSERT coll=", inspect(query.coll),
+     " document=", inspect(query.command)]
+  end
+  defp format_query(_entry, op, query) when op in [:delete, :delete_all] do
+    ["REMOVE coll=", inspect(query.coll),
+     " query=", inspect(query.query),
+     " opts=", inspect(query.opts)]
+  end
+  defp format_query(_entry, op, query) when op in [:update, :update_all] do
+    ["UPDATE coll=", inspect(query.coll),
+     " query=", inspect(query.query),
+     " command=", inspect(query.command),
+     " opts=", inspect(query.opts)]
   end
 
   @doc false
   def all(repo, query, params, opts) do
     normalized = NormalizedQuery.all(query, params)
 
-    with_conn(repo, fn module, conn ->
-      module.all(conn, normalized, opts)
-    end)
-    |> elem(1)
+    query(repo, :all, normalized, opts)
     |> Enum.map(&process_document(&1, normalized, id_types(repo)))
   end
 
@@ -106,18 +157,14 @@ defmodule Mongo.Ecto do
   def update_all(repo, query, values, params, opts) do
     normalized = NormalizedQuery.update_all(query, values, params)
 
-    with_conn(repo, fn module, conn ->
-      module.update_all(conn, normalized, opts)
-    end)
+    query(repo, :update_all, normalized, opts)
   end
 
   @doc false
   def delete_all(repo, query, params, opts) do
     normalized = NormalizedQuery.delete_all(query, params)
 
-    with_conn(repo, fn module, conn ->
-      module.delete_all(conn, normalized, opts)
-    end)
+    query(repo, :delete_all, normalized, opts)
   end
 
   @doc false
@@ -133,27 +180,27 @@ defmodule Mongo.Ecto do
   end
 
   def insert(repo, source, params, nil, [], opts) do
-    do_insert(repo, source, params, nil, opts)
+    normalized = NormalizedQuery.insert(source, params, nil)
+
+    query(repo, :insert, normalized, opts)
+    |> single_result([])
   end
 
   def insert(repo, source, params, {pk, :binary_id, nil}, [], opts) do
     %BSON.ObjectId{value: value} = id = Mongo.IdServer.new
-    case do_insert(repo, source, [{pk, id} | params], pk, opts) do
-      {:ok, []} -> {:ok, [{pk, value}]}
-      other     -> other
-    end
+    params = Keyword.put(params, pk, id)
+
+    normalized = NormalizedQuery.insert(source, params, pk)
+
+    query(repo, :insert, normalized, opts)
+    |> single_result([{pk, value}])
   end
 
   def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
-    do_insert(repo, source, params, pk, opts)
-  end
+    normalized = NormalizedQuery.insert(source, params, pk)
 
-  defp do_insert(repo, coll, document, pk, opts) do
-    normalized = NormalizedQuery.insert(coll, document, pk)
-
-    with_conn(repo, fn module, conn ->
-      module.insert(conn, normalized, opts)
-    end)
+    query(repo, :insert, normalized, opts)
+    |> single_result([])
   end
 
   @doc false
@@ -171,9 +218,8 @@ defmodule Mongo.Ecto do
   def update(repo, source, fields, filter, {pk, :binary_id, _value}, [], opts) do
     normalized = NormalizedQuery.update(source, fields, filter, pk)
 
-    with_conn(repo, fn module, conn ->
-      module.update(conn, normalized, opts)
-    end)
+    query(repo, :update, normalized, opts)
+    |> single_result([])
   end
 
   @doc false
@@ -185,10 +231,12 @@ defmodule Mongo.Ecto do
   def delete(repo, source, filter, {pk, :binary_id, _value}, opts) do
     normalized = NormalizedQuery.delete(source, filter, pk)
 
-    with_conn(repo, fn module, conn ->
-      module.delete(conn, normalized, opts)
-    end)
+    query(repo, :delete, normalized, opts)
+    |> single_result([])
   end
+
+  defp single_result(1, result), do: {:ok, result}
+  defp single_result(_, _),      do: {:error, :stale}
 
   defp process_document(document, %ReadQuery{fields: fields, pk: pk}, id_types) do
     document = Decoder.decode_document(document, pk)
@@ -248,8 +296,8 @@ defmodule Mongo.Ecto do
     |> Enum.reject(&String.starts_with?(&1, "system"))
     |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
       case drop_collection(conn, collection) do
-        {:ok, _} -> {[collection], :ok}
-        error    -> {[], error}
+        {:error, _} = error -> {:halt, error}
+        _                   -> {[collection], :ok}
       end
     end)
     |> case do
@@ -273,6 +321,7 @@ defmodule Mongo.Ecto do
 
   defp list_collections(conn) when is_pid(conn) do
     query = %ReadQuery{coll: "system.namespaces"}
+
     {:ok, collections} = Connection.all(conn, query)
 
     collections
