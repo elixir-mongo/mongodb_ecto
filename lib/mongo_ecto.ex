@@ -71,15 +71,11 @@ defmodule Mongo.Ecto do
     timeout = Keyword.fetch!(opts, :timeout)
     log?    = Keyword.get(opts, :log, true)
 
-    query_fun = fn(ref, _mode, _depth, queue_time) ->
-      query(ref, queue_time, fun, query, log?, timeout, opts)
-    end
-
-    case Pool.run(pool_mod, pool, timeout, query_fun) do
+    case Pool.run(pool_mod, pool, timeout, &query(&1, &2, fun, query, log?, opts)) do
       {:ok, {result, entry}} ->
         log(repo, entry)
         result(result)
-      {:ok, :noconnect} ->
+      {:error, :noconnect} ->
         # :noconnect can never be the reason a call fails because
         # it is converted to {:nodedown, node}. This means the exit
         # reason can be easily identified.
@@ -90,24 +86,12 @@ defmodule Mongo.Ecto do
     end
   end
 
-  defp query(ref, queue_time, fun, query, log?, timeout, opts) do
-    case Pool.connection(ref) do
-      {:ok, {mod, conn}} ->
-        query(ref, mod, conn, queue_time, fun, query, log?, timeout, opts)
-      {:error, :noconnect} ->
-        :noconnect
-    end
+  defp query({mod, conn}, _queue_time, fun, query, false, opts) do
+    {apply(mod, fun, [conn, query, opts]), nil}
   end
+  defp query({mod, conn}, queue_time, fun, query, true, opts) do
+    {query_time, res} = :timer.tc(mod, fun, [conn, query, opts])
 
-  defp query(ref, mod, conn, _queue_time, fun, query, false, timeout, opts) do
-    query_fun = fn -> apply(mod, fun, [conn, query, opts]) end
-
-    {Pool.fuse(ref, timeout, query_fun), nil}
-  end
-  defp query(ref, mod, conn, queue_time, fun, query, true, timeout, opts) do
-    query_fun = fn -> :timer.tc(mod, fun, [conn, query, opts]) end
-
-    {query_time, res} = Pool.fuse(ref, timeout, query_fun)
     entry = %Ecto.LogEntry{query: &format_query(&1, fun, query), params: [],
                            result: res, query_time: query_time, queue_time: queue_time}
 
@@ -317,14 +301,15 @@ defmodule Mongo.Ecto do
   end
   def command(conn, command, opts) when is_pid(conn) do
     Connection.command(conn, command, opts)
+    |> result
   end
 
   defp list_collections(conn) when is_pid(conn) do
     query = %ReadQuery{coll: "system.namespaces"}
 
-    {:ok, collections} = Connection.all(conn, query)
-
-    collections
+    conn
+    |> Connection.all(query)
+    |> result
     |> Enum.map(&Map.fetch!(&1, "name"))
     |> Enum.map(fn collection ->
       collection |> String.split(".", parts: 2) |> Enum.at(1)
