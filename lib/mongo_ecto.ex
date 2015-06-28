@@ -138,17 +138,17 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def update_all(repo, query, values, params, opts) do
-    normalized = NormalizedQuery.update_all(query, values, params)
+  def update_all(repo, query, params, opts) do
+    normalized = NormalizedQuery.update_all(query, params)
 
-    query(repo, :update_all, normalized, opts)
+    {query(repo, :update_all, normalized, opts), nil}
   end
 
   @doc false
   def delete_all(repo, query, params, opts) do
     normalized = NormalizedQuery.delete_all(query, params)
 
-    query(repo, :delete_all, normalized, opts)
+    {query(repo, :delete_all, normalized, opts), nil}
   end
 
   @doc false

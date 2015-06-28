@@ -38,14 +38,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
                fields: fields, opts: opts}
   end
 
-  def update_all(%Query{} = original, values, params) do
+  def update_all(%Query{} = original, params) do
     check_query(original)
 
     params  = List.to_tuple(params)
     from    = from(original)
     coll    = coll(from)
     query   = query(original, params, from)
-    command = command(:update, values, params, original, from)
+    command = command(:update, original, params, from)
     opts    = opts(:update_all, original)
 
     %WriteQuery{coll: coll, query: query, command: command, opts: opts}
@@ -187,8 +187,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> map_unless_empty
   end
 
-  defp command(:update, values, params, query, {_coll, _model, pk}) do
-    ["$set": values |> value(params, pk, query, "update command") |> map_unless_empty]
+  defp command(:update, %Query{updates: updates} = query, params, {_coll, _model, pk}) do
+    updates
+    |> Enum.flat_map(fn %Query.QueryExpr{expr: expr} ->
+      Enum.map(expr, fn {key, value} ->
+        value = value |> value(params, pk, query, "update clause")
+        {update_op(key, query), value}
+      end)
+    end)
+    |> merge_keys
   end
 
   defp command(:update, values, pk) do
@@ -258,6 +265,21 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp map_unless_empty([]), do: %{}
   defp map_unless_empty(list), do: list
+
+  defp merge_keys(keyword) do
+    Enum.reduce(keyword, %{}, fn {key, value}, acc ->
+      Map.update(acc, key, value, &(value ++ &1))
+    end)
+  end
+
+  # For now we support only set & inc, we should support more in the future
+  update = [set: :"$set", inc: :"$inc"]
+
+  Enum.map(update, fn {key, op} ->
+    def update_op(unquote(key), _query), do: unquote(op)
+  end)
+
+  def update_op(_, query), do: error(query, "update clause")
 
   binary_ops =
     [>: :"$gt", >=: :"$gte", <: :"$lt", <=: :"$lte", !=: :"$ne", in: :"$in"]
