@@ -172,7 +172,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
       pair(expr, params, pk, query, "where clause")
     end)
     |> :lists.flatten
-    |> map_unless_empty
+    |> merge_keys(query, "where clause")
   end
 
   defp query(filter, pk) do
@@ -195,7 +195,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
         {update_op(key, query), value}
       end)
     end)
-    |> merge_keys
+    |> merge_keys(query, "update clause")
   end
 
   defp command(:update, values, pk) do
@@ -266,9 +266,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp map_unless_empty([]), do: %{}
   defp map_unless_empty(list), do: list
 
-  defp merge_keys(keyword) do
+  defp merge_keys(keyword, query, place) do
     Enum.reduce(keyword, %{}, fn {key, value}, acc ->
-      Map.update(acc, key, value, &(value ++ &1))
+      Map.update(acc, key, value, fn
+        old when is_list(old) -> old ++ value
+        _                     -> error(query, place)
+      end)
     end)
   end
 

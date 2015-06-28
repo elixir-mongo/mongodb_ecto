@@ -50,10 +50,13 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
   test "where" do
     query = Model |> where([r], r.x == 42) |> where([r], r.y != 43)
                   |> select([r], r.x) |> normalize
-    assert_query(query, query: [y: ["$ne": 43], x: 42], projection: %{x: true})
+    assert_query(query, query: %{y: ["$ne": 43], x: 42}, projection: %{x: true})
+
+    query = Model |> where([r], r.x > 5) |> where([r], r.x < 10) |> normalize
+    assert_query(query, query: %{x: ["$lt": 10, "$gt": 5]})
 
     query = Model |> where([r], not (r.x == 42)) |> normalize
-    assert_query(query, query: [x: ["$ne": 42]])
+    assert_query(query, query: %{x: ["$ne": 42]})
   end
 
   test "select" do
@@ -125,13 +128,13 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "fragments in where" do
     query = Model |> where([], fragment(x: 1)) |> normalize
-    assert_query(query, query: [x: 1])
+    assert_query(query, query: %{x: 1})
 
     query = Model |> where([], fragment(x: ["$in": ^[1, 2, 3]])) |> normalize
-    assert_query(query, query: [x: ["$in": [1, 2, 3]]])
+    assert_query(query, query: %{x: ["$in": [1, 2, 3]]})
 
     query = Model |> where([], fragment(^[x: 1])) |> normalize
-    assert_query(query, query: [x: 1])
+    assert_query(query, query: %{x: 1})
   end
 
   test "fragments in select" do
@@ -156,10 +159,10 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "is_nil" do
     query = Model |> where([r], is_nil(r.x)) |> normalize
-    assert_query(query, query: [x: nil])
+    assert_query(query, query: %{x: nil})
 
     query = Model |> where([r], not is_nil(r.x)) |> normalize
-    assert_query(query, query: [x: ["$ne": nil]])
+    assert_query(query, query: %{x: ["$ne": nil]})
   end
 
   test "literals" do
@@ -167,19 +170,19 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, fields: [nil])
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == true) |> normalize
-    assert_query(query, query: [x: true])
+    assert_query(query, query: %{x: true})
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == false) |> normalize
-    assert_query(query, query: [x: false])
+    assert_query(query, query: %{x: false})
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == "abc") |> normalize
-    assert_query(query, query: [x: "abc"])
+    assert_query(query, query: %{x: "abc"})
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == 123) |> normalize
-    assert_query(query, query: [x: 123])
+    assert_query(query, query: %{x: 123})
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == 123.0) |> normalize
-    assert_query(query, query: [x: 123.0])
+    assert_query(query, query: %{x: 123.0})
   end
 
   test "nested expressions" do
@@ -187,53 +190,53 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     query = from(r in Model, [])
                       |> where([r], r.x > 0 and (r.y > ^(-z)) or true) |> normalize
     assert_query(query, query:
-                 ["$or": [["$and": [[x: ["$gt": 0]], [y: ["$gt": -123]]]], true]])
+                 %{"$or": [["$and": [[x: ["$gt": 0]], [y: ["$gt": -123]]]], true]})
   end
 
   test "binary ops" do
     query = Model |> where([r], r.x == 2) |> normalize
-    assert_query(query, query: [x: 2])
+    assert_query(query, query: %{x: 2})
 
     query = Model |> where([r], r.x != 2) |> normalize
-    assert_query(query, query: [x: ["$ne": 2]])
+    assert_query(query, query: %{x: ["$ne": 2]})
 
     query = Model |> where([r], r.x <= 2) |> normalize
-    assert_query(query, query: [x: ["$lte": 2]])
+    assert_query(query, query: %{x: ["$lte": 2]})
 
     query = Model |> where([r], r.x >= 2) |> normalize
-    assert_query(query, query: [x: ["$gte": 2]])
+    assert_query(query, query: %{x: ["$gte": 2]})
 
     query = Model |> where([r], r.x < 2) |> normalize
-    assert_query(query, query: [x: ["$lt": 2]])
+    assert_query(query, query: %{x: ["$lt": 2]})
 
     query = Model |> where([r], r.x > 2) |> normalize
-    assert_query(query, query: [x: ["$gt": 2]])
+    assert_query(query, query: %{x: ["$gt": 2]})
   end
 
   test "bool ops" do
     query = Model |> where([], true and false) |> normalize
-    assert_query(query, query: ["$and": [true, false]])
+    assert_query(query, query: %{"$and": [true, false]})
 
     query = Model |> where([], true or false) |> normalize
-    assert_query(query, query: ["$or": [true, false]])
+    assert_query(query, query: %{"$or": [true, false]})
 
     query = Model |> where([r], not (r.x > 0) and not (r.x < 5)) |> normalize
     assert_query(query, query:
-                 ["$and": [["$not": [x: ["$gt": 0]]], ["$not": [x: ["$lt": 5]]]]])
+                 %{"$and": [["$not": [x: ["$gt": 0]]], ["$not": [x: ["$lt": 5]]]]})
   end
 
   test "in expression" do
     query = Model |> where([e], e.x in []) |> normalize
-    assert_query(query, query: [x: ["$in": []]])
+    assert_query(query, query: %{x: ["$in": []]})
 
     query = Model |> where([e], e.x in ^[1, 2, 3]) |> normalize
-    assert_query(query, query: [x: ["$in": [1, 2, 3]]])
+    assert_query(query, query: %{x: ["$in": [1, 2, 3]]})
 
     query = Model |> where([e], e.x in [1, ^2, 3]) |> normalize
-    assert_query(query, query: [x: ["$in": [1, 2, 3]]])
+    assert_query(query, query: %{x: ["$in": [1, 2, 3]]})
 
     query = Model |> where([e], 1 in e.z) |> normalize
-    assert_query(query, query: [z: 1])
+    assert_query(query, query: %{z: 1})
 
     assert_raise Ecto.QueryError, fn ->
       Model |> where([e], 1 in ^[]) |> normalize
@@ -268,7 +271,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
     query = from(e in Model, where: e.x == 123, update: [set: [x: 0]]) |> normalize(:update_all)
     assert_query(query, command: %{"$set": [x: 0]},
-                        query: [x: 123])
+                        query: %{x: 123})
 
     query = from(m in Model, update: [set: [x: 0, y: "123"]]) |> normalize(:update_all)
     assert_query(query, command: %{"$set": [x: 0, y: "123"]})
@@ -277,7 +280,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, command: %{"$set": [x: 0]})
 
     query = from(m in Model, update: [set: [x: 0]], update: [set: [y: 123]]) |> normalize(:update_all)
-    assert_query(query, command: %{"$set": [x: 0, y: 123]})
+    assert_query(query, command: %{"$set": [y: 123, x: 0]})
   end
 
   test "delete all" do
@@ -285,7 +288,6 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, query: %{})
 
     query = from(e in Model, where: e.x == 123) |> normalize(:delete_all)
-    assert_query(query, query: [x: 123])
-
+    assert_query(query, query: %{x: 123})
   end
 end
