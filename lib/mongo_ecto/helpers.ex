@@ -8,13 +8,26 @@ defmodule Mongo.Ecto.Helpers do
   Allows using inline JavaScript in queries in where clauses and inserting it
   as a value to the database.
 
+  The second argument acts as a context for the function. All values will be
+  converted to valid BSON types.
+
+  Raises ArgumentError if any of the values cannot be converted.
+
   ## Usage in queries
 
       from p in Post,
         where: ^javascript("this.value === value", value: 1)
   """
+  @spec javascript(String.t, Keyword.t) :: Mongo.Ecto.JavaScript.t
   def javascript(code, scope \\ []) do
-    %Mongo.Ecto.JavaScript{code: code, scope: Enum.into(scope, %{})}
+    case Mongo.Ecto.Encoder.encode(scope, nil) do
+      {:ok, nil} ->
+        %Mongo.Ecto.JavaScript{code: code}
+      {:ok, scope} ->
+        %Mongo.Ecto.JavaScript{code: code, scope: scope}
+      :error ->
+        raise ArgumentError, "invaid expression for JavaScript scope"
+    end
   end
 
   @doc """
@@ -24,7 +37,10 @@ defmodule Mongo.Ecto.Helpers do
 
       from p in Post,
         where: fragment(title: ^regex("elixir", "i"))
+
+  For supported options please see `Mongo.Ecto.Regex` module documentation.
   """
+  @spec regex(String.t, String.t) :: Mongo.Ecto.Regex.t
   def regex(pattern, options \\ "") do
     %Mongo.Ecto.Regex{pattern: pattern, options: options}
   end
