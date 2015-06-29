@@ -299,9 +299,9 @@ defmodule Mongo.Ecto do
   The `Repo.all/2` function accepts a keyword of options. MongoDB adapter allows
   you to use parameters specific to MongoDB `find` function:
 
-  * `:slave_ok` - the read operation may run on secondary replica set member
-  * `:partial` - partial data from a query against a sharded cluster in which
-    some shards do not respond will be returned in stead of raising error
+    * `:slave_ok` - the read operation may run on secondary replica set member
+    * `:partial` - partial data from a query against a sharded cluster in which
+      some shards do not respond will be returned in stead of raising error
 
   ## Other topics related to Ecto
 

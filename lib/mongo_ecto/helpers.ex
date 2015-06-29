@@ -21,7 +21,7 @@ defmodule Mongo.Ecto.Helpers do
   @spec javascript(String.t, Keyword.t) :: Mongo.Ecto.JavaScript.t
   def javascript(code, scope \\ []) do
     case Mongo.Ecto.Encoder.encode(scope, nil) do
-      {:ok, nil} ->
+      {:ok, []} ->
         %Mongo.Ecto.JavaScript{code: code}
       {:ok, scope} ->
         %Mongo.Ecto.JavaScript{code: code, scope: scope}

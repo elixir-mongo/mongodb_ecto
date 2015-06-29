@@ -154,7 +154,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   defp opts(:all, query),
-    do: [num_return: num_return(query), num_skip: num_skip(query)]
+    do: [exhaust: true, num_return: num_return(query), num_skip: num_skip(query)]
   defp opts(:update_all, _query),
     do: [multi: true]
   defp opts(:delete_all, _query),

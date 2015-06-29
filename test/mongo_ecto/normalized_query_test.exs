@@ -34,7 +34,8 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     query = Model |> from |> normalize
     assert_query(query, coll: "model", query: %{},
                  projection: %{_id: true, x: true, y: true, z: true},
-                 fields: [model: {Model, "model"}], opts: [num_return: 0, num_skip: 0])
+                 fields: [model: {Model, "model"}],
+                 opts: [exhaust: true, num_return: 0, num_skip: 0])
   end
 
   test "from without model" do
@@ -105,13 +106,13 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "limit and offset" do
     query = Model |> limit([r], 3) |> normalize
-    assert_query(query, opts: [num_return: 3, num_skip: 0])
+    assert_query(query, opts: [exhaust: true, num_return: 3, num_skip: 0])
 
     query = Model |> offset([r], 5) |> normalize
-    assert_query(query, opts: [num_return: 0, num_skip: 5])
+    assert_query(query, opts: [exhaust: true, num_return: 0, num_skip: 5])
 
     query = Model |> offset([r], 5) |> limit([r], 3) |> normalize
-    assert_query(query, opts: [num_return: 3, num_skip: 5])
+    assert_query(query, opts: [exhaust: true, num_return: 3, num_skip: 5])
   end
 
   test "lock" do
