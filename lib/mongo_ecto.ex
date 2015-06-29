@@ -1,38 +1,25 @@
 defmodule Mongo.Ecto do
   @moduledoc """
-  Ecto is split into 3 main components:
+  Ecto integration with MongoDB.
 
-    * `Ecto.Repo` - repositories are wrappers around the database.
-      Via the repository, we can create, update, destroy and query existing entries.
-      A repository needs an adapter and a URL to communicate to the database
+  This document will present a general overview of using Mongo with Ecto,
+  including common pitfalls and extra functionalities.
 
-    * `Ecto.Model` - models provide a set of functionalities for defining
-      data structures, how changes are performed in the storage, life-cycle
-      callbacks and more
+  Check the [Ecto documentation](http://hexdocs.pm/ecto) for an introduction
+  or [examples/simple](https://github.com/michalmuskala/mongodb_ecto/tree/master/examples/simple)
+  for a sample application using Ecto and MongoDB.
 
-    * `Ecto.Query` - written in Elixir syntax, queries are used to retrieve
-      information from a given repository. Queries in Ecto provide type safety.
-      Queries are composable via the `Ecto.Queryable` protocol
+  ## Repositories
 
-  In the following sections, we will provide an overview of those components and
-  how they interact with each other as well as explain specifics of using
-  MongoDB with Ecto as your datastore. Feel free to access their respective module
-  documentation for more specific examples, options and configuration.
-
-  If you want to quickly check a sample application using Ecto and MongoDB,
-  please check https://github.com/michalmuskala/mongodb_ecto/tree/master/examples/simple.
-
-  ## Ecto repositories
-
-  `Ecto.Repo` is a wrapper around the database. We can define a
-  repository as follows:
+  The first step to use MongoDB with Ecto is to define a repository
+  with `Mongo.Ecto` as an adapter. First define a module:
 
       defmodule Repo do
         use Ecto.Repo, otp_app: :my_app
       end
 
-  Where the configuration for the Repo must be in your application
-  environment, usually defined in your `config/config.exs`:
+  Then configure it your application environment, usually in your
+  `config/config.exs`:
 
       config :my_app, Repo,
         adapter: Mongo.Ecto,
@@ -41,14 +28,9 @@ defmodule Mongo.Ecto do
         password: "mongodb",
         hostname: "localhost"
 
-  Each repository in Ecto defines a `start_link/0` function that needs to be invoked
-  before using the repository. In general, this function is not called directly,
-  but used as part of your application supervision tree.
-
-  If your application was generated with a supervisor (by passing `--sup` to `mix new`)
-  you will have a `lib/my_app.ex` file containing the application start callback that
-  defines and starts your supervisor. You just need to edit the `start/2` function to
-  start the repo as a worker on the supervisor:
+  Each repository in Ecto defines a `start_link/0` function that needs to
+  be invoked before using the repository. This function is generally from
+  your supervision tree:
 
       def start(_type, _args) do
         import Supervisor.Spec
@@ -61,17 +43,10 @@ defmodule Mongo.Ecto do
         Supervisor.start_link(children, opts)
       end
 
-  ## Ecto models
+  ## Models
 
-  Models provide a set of functionalities around structuring your data,
-  defining relationships and applying changes to repositories.
+  With the repository defined, we can define our models:
 
-  For now, we will cover two of those:
-
-    * `Ecto.Schema` - provides the API necessary to define schemas
-    * `Ecto.Changeset` - defines how models should be changed in the database
-
-  Let's see an example:
       defmodule Weather do
         use Ecto.Model
 
@@ -90,13 +65,31 @@ defmodule Mongo.Ecto do
   Ecto defaults to using `:id` type for primary keys, that is translated to
   `:integer` for SQL databases, and is not handled by MongoDB. You need to
   specify the primary key to use the `:binary_id` type, that the adapter will
-  handle as ObjectID. Remember to place this declaration before the `schema` call.
-  The name of the primary key is just a syntactic sugar, as MongoDB forces us to
+  translate it to ObjectID. Remember to place this declaration before the
+  `schema` call.
+
+  The name of the primary key is just a convenience, as MongoDB forces us to
   use `_id`. Every other name will be recursively changed to `_id` in all calls
   to the adapter. We propose to use `id` or `_id` as your primary key name
   to limit eventual confusion, but you are free to use whatever you like.
-  Using the `autogenrate: true` option will tell the adapter to take care of
+  Using the `autogenerate: true` option will tell the adapter to take care of
   generating new ObjectIDs. Otherwise you need to do this yourself.
+
+  Since setting `@primary_key` for every model can be too repetitive, we
+  recommend you to define your own module that properly configures it:
+
+      defmodule MyApp.Model do
+        defmacro __using__(_) do
+          quote do
+            use Ecto.Model
+            @primary_key {:id, :binary_id, autogenerate: true}
+            @foreign_key_type :binary_id # For associations
+          end
+        end
+      end
+
+  Now, instead of `use Ecto.Model`, you can `use MyApp.Model` in your
+  modules. All Ecto types, except `:decimal`, are supported by `Mongo.Ecto`.
 
   By defining a schema, Ecto automatically defines a struct with
   the schema fields:
@@ -128,114 +121,10 @@ defmodule Mongo.Ecto do
       iex> Repo.delete!(weather)
       %Weather{...}
 
-  Notice how the storage (repository) and the data are decoupled. This provides
-  two main benefits:
+  ## Queries
 
-    * By having structs as data, we guarantee they are light-weight,
-      serializable structures. In many languages, the data is often represented
-      by large, complex objects, with entwined state transactions, which makes
-      serialization, maintenance and understanding hard;
-
-    * By making the storage explicit with repositories, we don't pollute the
-      repository with unnecessary overhead, providing straight-forward and
-      performant access to storage;
-
-  ## Ecto changesets
-
-  Although in the example above we have directly inserted and updated the
-  model in the repository, most of the times, developers will use changesets
-  to perform those operations.
-
-  Changesets allow developers to filter, cast, and validate changes before
-  we apply them to a model. Imagine the given model:
-
-      defmodule User do
-        use Ecto.Model
-
-        schema "users" do
-          field :name
-          field :email
-          field :age, :integer
-        end
-
-        def changeset(user, params \\ nil) do
-          user
-          |> cast(params, ~w(name email), ~w(age))
-          |> validate_format(:email, ~r/@/)
-          |> validate_inclusion(:age, 0..130)
-          |> validate_unique(:email, on: Repo)
-        end
-      end
-
-  Since `Ecto.Model` by default imports `Ecto.Changeset` functions,
-  we use them to generate and manipulate a changeset in the `changeset/2`
-  function above.
-
-  First we invoke `Ecto.Changeset.cast/4` with the model, the parameters
-  and a list of required and optional fields; this returns a changeset.
-  The parameter is a map with binary keys and a value that will be cast
-  based on the type defined on the model schema.
-
-  Any parameter that was not explicitly listed in the required or
-  optional fields list will be ignored. Furthermore, if a field is given
-  as required but it is not in the parameter map nor in the model, it will
-  be marked with an error and the changeset is deemed invalid.
-
-  After casting, the changeset is given to many `Ecto.Changeset.validate_*/2`
-  functions that validate only the **changed fields**. In other words:
-  if a field was not given as a parameter, it won't be validated at all.
-  For example, if the params map contain only the "name" and "email" keys,
-  the "age" validation won't run.
-
-  As an example, let's see how we could use the changeset above in
-  a web application that needs to update users:
-
-      def update(id, params) do
-        changeset = User.changeset Repo.get!(User, id), params["user"]
-
-        if changeset.valid? do
-          user = Repo.update!(changeset)
-          send_resp conn, 200, "Ok"
-        else
-          send_resp conn, 400, "Bad request"
-        end
-      end
-
-  The `changeset/2` function receives the user model and its parameters
-  and returns a changeset. If the changeset is valid, we persist the
-  changes to the database, otherwise, we handle the error by emitting
-  a bad request code.
-
-  Another example to create users:
-
-      def create(id, params) do
-        changeset = User.changeset %User{}, params["user"]
-
-        if changeset.valid? do
-          user = Repo.insert!(changeset)
-          send_resp conn, 200, "Ok"
-        else
-          send_resp conn, 400, "Bad request"
-        end
-      end
-
-  The benefit of having explicit changesets is that we can easily provide
-  different changesets for different use cases. For example, one
-  could easily provide specific changesets for create and update:
-
-      def changeset(user, :create, params) do
-        # Changeset on create
-      end
-
-      def changeset(user, :update, params) do
-        # Changeset on update
-      end
-
-  ## Queries in Ecto
-
-  Last but not least, Ecto allows you to write queries in Elixir and send
-  them to the repository, which translates them to the underlying database.
-  Let's see an example:
+  `Mongo.Ecto` also supports writing queries in Elixir to interact with
+  your MongoDB. Let's see an example:
 
       import Ecto.Query, only: [from: 2]
 
@@ -256,9 +145,6 @@ defmodule Mongo.Ecto do
     * `:select`
     * `:preload`
 
-  Examples and detailed documentation for each of those are available in the
-  `Ecto.Query` module.
-
   When writing a query, you are inside Ecto's query syntax. In order to
   access params values or invoke functions, you need to use the `^`
   operator, which is overloaded by Ecto:
@@ -271,7 +157,7 @@ defmodule Mongo.Ecto do
   provide `Repo.one/1`, which returns one entry or nil, and `Repo.one!/1`
   which returns one entry or raises.
 
-  Please note that not all Ecto queries are valid Mongo queries. The adapter
+  Please note that not all Ecto queries are valid MongoDB queries. The adapter
   will raise `Ecto.QueryError` if it encounters one, and will try to be as
   specific as possible as to what exactly is causing the problem.
 
@@ -280,41 +166,36 @@ defmodule Mongo.Ecto do
 
       from p in Post, where: fragment("$exists": "name"), select: p
 
-  To ease using more advanced queries there is `Mongo.Ecto.Helpers` module you
-  should import into modules dealing with queries. Currently it defines two
+  To ease using more advanced queries, there is `Mongo.Ecto.Helpers` module
+  you could import into modules dealing with queries. Currently it defines two
   functions:
 
     * `javascript/2` to use inline JavaScript
+
+          from p in Post, where: ^javascript("this.visits === count", count: 10)
+
     * `regex/2` to use regex objects
 
-
-      from p in Post, where: ^javascript("this.visits === count", count: 10)
-      from p in Post, where: fragment(title: ^regex("elixir", "i"))
+          from p in Post, where: fragment(title: ^regex("elixir", "i"))
 
   Please see the documentation of the `Mongo.Ecto.Helpers` module for more
   information and supported options.
 
-  ### Options for `Repo.all/2`
+  ### Options for reader functions (`Repo.all/2`, `Repo.one/2`, etc)
 
-  The `Repo.all/2` function accepts a keyword of options. MongoDB adapter allows
+  Such functions also accept options when invoked which allow
   you to use parameters specific to MongoDB `find` function:
 
     * `:slave_ok` - the read operation may run on secondary replica set member
     * `:partial` - partial data from a query against a sharded cluster in which
       some shards do not respond will be returned in stead of raising error
 
-  ## Other topics related to Ecto
+  ## Commands
 
-  ### Mix tasks and generators
+  TODO: List how to invoke MongoDB specific commands
+  TODO: Mention truncate and how to use it in tests
 
-  Ecto provides many tasks to help your workflow as well as code generators.
-  You can find all available tasks by typing `mix help` inside a project
-  with Ecto listed as a dependency.
-
-  Ecto generators will automatically open the generated files if you have
-  `ECTO_EDITOR` set in your environment variable.
-
-  ### Associations
+  ## Associations
 
   Ecto supports defining associations on schemas:
 
@@ -329,80 +210,39 @@ defmodule Mongo.Ecto do
         end
       end
 
-      defmodule Comment do
-        use Ecto.Model
+  Keep in mind that Ecto associations are stored in different Mongo
+  collections and multiple queries may be required for retriving them.
 
-        @primary_key {:id, :binary_id, autogenerate: true}
-        @foreign_key_type :binary_id
-
-        schema "comments" do
-          field :title, :string
-          belongs_to :post, Post
-        end
-      end
-
-  Once an association is defined, Ecto provides a couple conveniences. The
-  first one is the `Ecto.Model.assoc/2` function that allows us to easily
-  retrieve all associated data to a given struct:
-
-      import Ecto.Model
-
-      # Get all comments for the given post
-      Repo.all assoc(post, :comments)
-
-      # Or build a query on top of the associated comments
-      query = from c in assoc(post, :comments), where: c.title != nil
-      Repo.all(query)
-
-  When an association is defined, Ecto also defines a field in the model
-  with the association name. By default, associations are not loaded into
-  this field:
-
-      iex> post = Repo.get(Post, 42)
-      iex> post.comments
-      #Ecto.Association.NotLoaded<...>
-
-  However, developers can use the preload functionality in queries to
-  automatically pre-populate the field:
-
-      iex> post = Repo.get from(p in Post, preload: [:comments]), 42
-      iex> post.comments
-      [%Comment{...}, %Comment{...}]
-
-  Keep in mind that MongoDB does not support joins as used in SQL - it's not
-  possible to query your associations together with the main model. If you find
-  yourself doing that you may need to consider using a `:map` field with
-  embedded objects.
+  While `Mongo.Ecto` supports almost all association features in Ecto,
+  keep in mind that MongoDB does not support joins as used in SQL - it's
+  not possible to query your associations together with the main model.
 
   Some more elaborate association schemas may force Ecto to use joins in
-  some queries, that are not supported by MongoDB.
-  One such call is `Ecto.Model.assoc/2` function combined with a `through` relation.
+  some queries, that are not supported by MongoDB as well. One such call
+  is `Ecto.Model.assoc/2` function with a `has_many :through` association.
 
   You can find more information about defining associations and each respective
   association module in `Ecto.Schema` docs.
 
-  > NOTE: Ecto does not lazy load associations. While lazily loading associations
-  > may sound convenient at first, in the long run it becomes a source of confusion
-  > and performance issues.
-
-  ### Migrations
+  ## Migrations
 
   TODO: Actually support migrations
 
   Ecto supports database migrations. You can generate a migration with:
+
       $ mix ecto.gen.migration create_posts
 
   This will create a new file inside `priv/repo/migrations` with the `up` and
   `down` functions. Check `Ecto.Migration` for more information.
 
   Keep in mind that MongoDB does not support (or need) database schemas, so
-  majority of the functionality provided by `Ecto.Migration` is not usefull when
+  majority of the functionality provided by `Ecto.Migration` is not useful when
   working with MongoDB. What is very usefull are index definitions.
 
   ## MongoDB adapter features
 
-  The adapter uses `mongodb` for communicating with the database and a pooling library
-  such as `poolboy` for managing connections.
+  The adapter uses `mongodb` for communicating with the database and a pooling
+  library such as `poolboy` for managing connections.
 
   The adapter has:
 
@@ -411,7 +251,7 @@ defmodule Mongo.Ecto do
     * Support for management commands with `command/2`
     * Support for embedded objects with `:map` and `{:array, :map}` types
 
-  ## MongoDB adapter options
+  ### MongoDB adapter options
 
   Options passed to the adapter are split into different categories decscribed
   below. All options should be given via the repository configuration.
