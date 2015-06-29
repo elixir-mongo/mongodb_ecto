@@ -26,12 +26,8 @@ defmodule Mongo.Ecto.Decoder do
     do: value
   def decode_value(%BSON.ObjectId{value: value}, _pk),
     do: value
-  def decode_value(%BSON.DateTime{utc: utc}, _pk) do
-    seconds = div(utc, 1000)
-    usec = rem(utc, 1000) * 1000
-    {date, {hour, min, sec}} = :calendar.gregorian_seconds_to_datetime(seconds)
-    {date, {hour, min, sec, usec}}
-  end
+  def decode_value(%BSON.DateTime{} = datetime, _pk),
+    do: BSON.DateTime.to_datetime(datetime)
   def decode_value(map, pk) when is_map(map),
     do: decode_document(map, pk)
 end
