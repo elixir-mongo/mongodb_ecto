@@ -1,15 +1,31 @@
 language: elixir
 
-services:
-  - mongodb
-
-sudo: false
+cache: apt
 
 elixir:
   - 1.0.4
 
 otp_release:
   - 17.4
+
+before_install:
+  - npm install -g mongodb-version-manager
+
+install:
+  - m $MONGOVERSION
+  - mkdir db
+  - export PATH=`m path`:$PATH
+  - mix local.hex --force
+
+before_script:
+  - mongod --fork --logpath mongo.log --dbpath db
+  - mix deps.get
+
+env:
+  matrix:
+    - MONGOVERSION=2.4.14
+    - MONGOVERSION=2.6.10
+    - MONGOVERSION=3.0.3
 
 script:
   - mix test
