@@ -64,7 +64,7 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def command(conn, command, opts) do
-    opts = [num_return: -1] ++ opts
+    opts = [num_return: -1, exhaust: true] ++ opts
     Mongo.find(conn, "$cmd", command, %{}, opts)
     |> read_result
   end

@@ -248,8 +248,6 @@ defmodule Mongo.Ecto do
 
   ## Migrations
 
-  TODO: Actually support migrations
-
   Ecto supports database migrations. You can generate a migration with:
 
       $ mix ecto.gen.migration create_posts
@@ -259,7 +257,22 @@ defmodule Mongo.Ecto do
 
   Keep in mind that MongoDB does not support (or need) database schemas, so
   majority of the functionality provided by `Ecto.Migration` is not useful when
-  working with MongoDB. What is very usefull are index definitions.
+  working with MongoDB. The usefull elements include creating indexes, capped
+  collections, executing commands or migrating data, e.g.:
+
+      defmodule SampleMigration do
+        use Ecto.Migration
+
+        def up do
+          create table(:my_table, options: [capped: true, size: 1024])
+          create index(:my_table, [:value], unique: true)
+          execute touch: "my_table", data: true, index: true
+        end
+
+        def down do
+          # ...
+        end
+      end
 
   ## MongoDB adapter features
 
@@ -310,9 +323,11 @@ defmodule Mongo.Ecto do
 
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Storage
+  @behaviour Ecto.Adapter.Migration
 
   alias Mongo.Ecto.NormalizedQuery
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
+  alias Mongo.Ecto.NormalizedQuery.WriteQuery
   alias Mongo.Ecto.Decoder
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
@@ -537,36 +552,93 @@ defmodule Mongo.Ecto do
 
   @doc false
   def storage_down(opts) do
-    with_new_conn(opts, fn conn ->
-      command(conn, %{dropDatabase: 1})
-    end)
-  end
-
-  defp with_new_conn(opts, fun) do
     {:ok, conn} = Connection.connect(opts)
     try do
-      fun.(conn)
+      command(conn, dropDatabase: 1)
     after
       :ok = Connection.disconnect(conn)
     end
   end
 
+  ## Migration
+
+  alias Ecto.Migration.Table
+  alias Ecto.Migration.Index
+
+  @doc false
+  def supports_ddl_transaction?, do: false
+
+  @doc false
+  def ddl_exists?(repo, %Table{name: coll}, opts) do
+    to_string(coll) in list_collections(repo, opts)
+  end
+
+  def ddl_exists?(repo, %Index{table: coll, name: name}, opts) do
+    to_string(name) in list_indexes(repo, coll, opts)
+  end
+
+  @doc false
+  def execute_ddl(_repo, string, _opts) when is_binary(string) do
+    raise ArgumentError, "MongoDB adapter does not support SQL statements in `execute`"
+  end
+
+  def execute_ddl(repo, command, opts) when is_list(command) do
+    command(repo, command, opts)
+    |> ddl_result
+  end
+
+  def execute_ddl(repo, {:create, %Table{options: nil, name: coll}, _columns}, opts) do
+    command(repo, [create: coll], opts)
+    |> ddl_result
+  end
+
+  def execute_ddl(repo, {:create, %Table{options: options, name: coll}, _columns}, opts)
+      when is_list(options) do
+    command(repo, [create: coll] ++ options, opts)
+    |> ddl_result
+  end
+
+  def execute_ddl(_repo, {:create, %Table{options: string}, _columns}, _opts)
+      when is_binary(string) do
+    raise ArgumentError, "MongoDB adapter does not support SQL statements as collection options"
+  end
+
+  def execute_ddl(repo, {:create, %Index{} = command}, opts) do
+    index = [name: to_string(command.name),
+             unique: command.unique,
+             background: command.concurrently,
+             key: Enum.map(command.columns, &{&1, 1}),
+             ns: namespace(repo, command.table)]
+
+    query = %WriteQuery{coll: "system.indexes", command: index}
+
+    query(repo, :insert, query, opts)
+    :ok
+  end
+
+  def execute_ddl(repo, {:drop, %Index{name: name, table: coll}}, opts) do
+    command(repo, [dropIndexes: coll, index: to_string(name)], opts)
+    |> ddl_result
+  end
+
+  def execute_ddl(repo, {:drop, %Table{name: coll}}, opts) do
+    command(repo, [drop: coll], opts)
+    |> ddl_result
+  end
+
   ## Mongo specific calls
 
   @doc """
-  Drops all the collections in current database except system ones.
+  Drops all the collections in current database.
+
+  Skips system collections and `schema_migrations` collection.
 
   Especially usefull in testing.
   """
-  def truncate(repo) when is_atom(repo) do
-    with_new_conn(repo.config, &truncate/1)
-  end
-  def truncate(conn) when is_pid(conn) do
-    conn
-    |> list_collections
-    |> Enum.reject(&String.starts_with?(&1, "system"))
+  def truncate(repo, opts \\ []) do
+    list_collections(repo, opts)
     |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
-      case drop_collection(conn, collection) do
+      case drop_collection(repo, collection, opts) do
         {:error, _} = error -> {:halt, error}
         _                   -> {[collection], :ok}
       end
@@ -588,30 +660,58 @@ defmodule Mongo.Ecto do
   """
   def command(repo, command, opts \\ [])
   def command(repo, command, opts) when is_atom(repo) do
-    with_new_conn(repo.config, &command(&1, command, opts))
+    query(repo, :command, command, opts)
+    |> command_result
   end
   def command(conn, command, opts) when is_pid(conn) do
     Connection.command(conn, command, opts)
     |> result
+    |> command_result
   end
 
-  defp list_collections(conn) when is_pid(conn) do
-    query = %ReadQuery{coll: "system.namespaces"}
+  defp command_result([%{"ok" => 1.0} = result]),
+    do: {:ok, result}
+  defp command_result([%{"ok" => 0.0} = result]),
+    do: {:error, result}
 
-    conn
-    |> Connection.all(query)
-    |> result
+  special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
+  migration = Ecto.Migration.SchemaMigration.__schema__(:source)
+  migration_regex = %BSON.Regex{pattern: migration, options: ""}
+
+  @list_collections_query ["$and": [[name: ["$not": special_regex]],
+                                    [name: ["$not": migration_regex]]]]
+
+  defp list_collections(repo, opts) do
+    query = %ReadQuery{coll: "system.namespaces", query: @list_collections_query}
+
+    query(repo, :all, query, opts)
     |> Enum.map(&Map.fetch!(&1, "name"))
     |> Enum.map(fn collection ->
       collection |> String.split(".", parts: 2) |> Enum.at(1)
     end)
-    |> Enum.reject(fn
-      "system" <> _rest -> true
-      collection        -> String.contains?(collection, "$")
-    end)
   end
 
-  defp drop_collection(conn, collection) when is_pid(conn) do
-    command(conn, drop: collection)
+  defp list_indexes(repo, coll, opts) do
+    regex = %BSON.Regex{pattern: to_string(coll), options: ""}
+    query = %ReadQuery{coll: "system.indexes", query: [ns: regex]}
+
+    query(repo, :all, query, opts)
+    |> Enum.map(&Map.fetch!(&1, "name"))
+  end
+
+  defp drop_collection(repo, collection, opts) do
+    command(repo, [drop: collection], opts)
+  end
+
+  defp ddl_result({:ok, _}), do: :ok
+  # Already exists error, raised with schema_migrations table, Mongo 3.0
+  defp ddl_result({:error, %{"code" => 48}}), do: :ok
+  # Already exists error, raised with schema_migrations table, Mongo < 3.0
+  defp ddl_result({:error, %{"errmsg" => "collection already exists"}}), do: :ok
+  defp ddl_result({:error, %{"errmsg" => msg}}),
+    do: raise msg
+
+  defp namespace(repo, coll) do
+    "#{repo.config[:database]}.#{coll}"
   end
 end
