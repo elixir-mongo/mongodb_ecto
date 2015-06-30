@@ -192,8 +192,30 @@ defmodule Mongo.Ecto do
 
   ## Commands
 
-  TODO: List how to invoke MongoDB specific commands
-  TODO: Mention truncate and how to use it in tests
+  MongoDB has many administrative commands you can use to manage your database.
+  We support them thourgh `Mongo.Ecto.command/2` function.
+
+      Mongo.Ecto.command(MyRepo, createUser: "ecto", ...)
+
+  We also support one higher level command - `Mongo.Ecto.truncate/1` that is
+  used to clear the database, i.e. during testing.
+
+      Mongo.Ecto.truncate(MyRepo)
+
+  You can use it in your `setup` call for cleaning the database before every
+  test. You can define your own module to use instead of `ExUnit.Case`, so you
+  don't have to define this each time.
+
+      defmodule MyApp.Case do
+        use ExUnit.CaseTemplate
+
+        setup do
+          Mongo.Ecto.truncate(MyRepo)
+          :ok
+        end
+      end
+
+  Please see documentation for those functions for more information.
 
   ## Associations
 
