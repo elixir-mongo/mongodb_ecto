@@ -15,6 +15,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   alias Mongo.Ecto.Encoder
+  alias Ecto.Query.Tagged
   alias Ecto.Query
 
   defmacrop is_op(op) do
@@ -28,11 +29,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     from = {coll, _, pk} = from(original)
 
-    params     = List.to_tuple(params)
-    query      = query_order(original, params, from)
-    projection = projection(original, params, from)
-    fields     = fields(original, params, from)
-    opts       = opts(:all, original)
+    params = List.to_tuple(params)
+    query  = query_order(original, params, from)
+    opts   = opts(:all, original)
+    {projection, fields} = projection(original, params, from)
 
     %ReadQuery{coll: coll, pk: pk, params: params, query: query, projection: projection,
                fields: fields, opts: opts}
@@ -98,59 +98,59 @@ defmodule Mongo.Ecto.NormalizedQuery do
     do: ["$query": query, "$orderby": order]
 
   defp projection(%Query{select: nil}, _params, _from),
-    do: %{}
+    do: {%{}, []}
   defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, from),
-    do: projection(fields, params, from, query, %{})
+    do: projection(fields, params, from, query, %{}, [])
 
-  defp projection([], _params, _from, _query, acc),
-    do: acc
-  defp projection([{:&, _, [0]} | rest], params, {_, model, pk} = from, query, acc)
+  defp projection([], _params, _from, _query, pacc, facc),
+    do: {pacc, Enum.reverse(facc)}
+  defp projection([{:&, _, [0]} | rest], params, {coll, model, pk} = from, query, pacc, facc)
       when  model != nil do
-    acc = Enum.into(model.__schema__(:fields), acc, &{field(&1, pk), true})
-    projection(rest, params, from, query, acc)
+    pacc = Enum.into(model.__schema__(:fields), pacc, &{field(&1, pk), true})
+    facc = [{:model, {model, coll}} | facc]
+
+    projection(rest, params, from, query, pacc, facc)
   end
-  defp projection([{:&, _, [0]} | _], _params, {_, nil, _}, _query, _acc) do
-    # Model is nil, we want everything
-    %{}
+  defp projection([{:&, _, [0]} | rest], params, {_, nil, _} = from, query, _pacc, facc) do
+    # Model is nil, we want empty projection, but still extract fields
+    {_, facc} = projection(rest, params, from, query, %{}, [{:document, nil} | facc])
+    {%{}, facc}
   end
-  defp projection([{{:., _, _}, _, _} = field | rest], params, {_, _, pk} = from, query, acc) do
-    field = field(field, pk, query, "select clause")
-    projection(rest, params, from, query, Map.put(acc, field, true))
+  defp projection([{{:., _, [_, field]}, _, _}| rest], params, from, query, pacc, facc) do
+    {_, _, pk} = from
+
+    # Projections use names as in database, fields as in models
+    pacc = Map.put(pacc, field(field, pk), true)
+    facc = [{:field, field} | facc]
+    projection(rest, params, from, query, pacc, facc)
   end
   # Keyword and interpolated fragments
-  defp projection([{:fragment, _, [args]}| rest], params, {_, _, pk} = from, query, acc)
+  defp projection([{:fragment, _, [args]}| rest], params, from, query, pacc, facc)
       when is_list(args) or tuple_size(args) == 3 do
-    acc =
+    {_, _, pk} = from
+    pacc =
       args
       |> value(params, pk, query, "select clause")
-      |> Enum.into(acc)
-    projection(rest, params, from, query, acc)
-  end
-  defp projection([{op, _, _} | _rest], _params, _from, query, _acc) when is_op(op),
-    do: error(query, "select clause")
-  # We skip all values and then add them when constructing return result (in fields/3)
-  defp projection([_value | rest], params, from, query, acc),
-    do: projection(rest, params, from, query, acc)
+      |> Enum.into(pacc)
+    facc = [{:document, nil} | facc]
 
-  defp fields(%Query{select: nil}, _params, _from),
-    do: []
-  defp fields(%Query{select: %Query.SelectExpr{fields: fields}} = query,
-              params, {coll, model, pk}) do
-    Enum.map(fields, fn
-      # We get a flattened list, so only way to have a tuple is when we insert it
-      {:&, _, [0]} when model == nil ->
-        {:document, nil}
-      {:&, _, [0]} when model != nil ->
-        {:model, {model, coll}}
-      {{:., _, [{:&, _, [0]}, field]}, _, []} ->
-        {:field, field}
-      {:fragment, _, _} ->
-        {:document, nil}
-      %Query.Tagged{value: {:^, _, [idx]}} ->
-        params |> elem(idx) |> value(params, pk, query, "select clause")
-      value ->
-        value(value, params, pk, query, "select clause")
-    end)
+    projection(rest, params, from, query, pacc, facc)
+  end
+  defp projection([{op, _, _} | _rest], _params, _from, query, _pacc, _facc) when is_op(op) do
+    error(query, "select clause")
+  end
+  # We skip all values and then add them when constructing return result
+  defp projection([%Tagged{value: {:^, _, [idx]}} | rest], params, from, query, pacc, facc) do
+    {_, _, pk} = from
+    facc = [params |> elem(idx) |> value(params, pk, query, "select clause") | facc]
+
+    projection(rest, params, from, query, pacc, facc)
+  end
+  defp projection([value | rest], params, from, query, pacc, facc) do
+    {_, _, pk} = from
+    facc = [value(value, params, pk, query, "select clause") | facc]
+
+    projection(rest, params, from, query, pacc, facc)
   end
 
   defp opts(:all, query),
