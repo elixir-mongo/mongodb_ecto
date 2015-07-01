@@ -322,29 +322,20 @@ defmodule Mongo.Ecto do
   ## Adapter
 
   @doc false
-  defmacro __before_compile__(env) do
-    config =
-      env.module
-      |> Module.get_attribute(:config)
-
-    timeout = Keyword.get(config, :timeout, 5000)
-    pool_mod = Keyword.get(config, :pool, Ecto.Adapters.Poolboy)
-
-    quote do
-      def __pool__ do
-        {unquote(pool_mod), __MODULE__.Pool, unquote(timeout)}
-      end
-    end
+  defmacro __before_compile__(_env) do
+    :ok
   end
 
   @doc false
   def start_link(repo, opts) do
     {:ok, _} = Application.ensure_all_started(:mongodb_ecto)
 
-    {pool_mod, pool, _} = repo.__pool__
+    {default_pool_mod, default_pool_name, _} = repo.__pool__
+    pool_mod = Keyword.get(opts, :pool, default_pool_mod)
+
     opts = opts
       |> Keyword.put(:timeout, Keyword.get(opts, :connect_timeout, 5000))
-      |> Keyword.put(:name, pool)
+      |> Keyword.put_new(:name, default_pool_name)
       |> Keyword.put_new(:size, 10)
 
     pool_mod.start_link(Connection, opts)
