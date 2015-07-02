@@ -20,7 +20,7 @@ install:
 before_script:
   - mongod --fork --logpath mongo.log --dbpath db
   - mix deps.get
-  - cd examples/simple; mix deps.get
+  - (cd examples/simple; mix deps.get)
 
 env:
   matrix:
@@ -30,7 +30,7 @@ env:
 
 script:
   - mix test
-  - cd examples/simple; mix test
+  - (cd examples/simple; mix test)
 
 notifications:
   recipients:
