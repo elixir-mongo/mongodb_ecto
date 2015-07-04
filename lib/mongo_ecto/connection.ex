@@ -8,6 +8,7 @@ defmodule Mongo.Ecto.Connection do
 
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
+  alias Mongo.Ecto.NormalizedQuery.CommandQuery
 
   ## Worker
 
@@ -63,9 +64,10 @@ defmodule Mongo.Ecto.Connection do
     |> write_result
   end
 
-  def command(conn, command, opts) do
-    opts = [num_return: -1, exhaust: true] ++ opts
-    Mongo.find(conn, "$cmd", command, %{}, opts)
+  def command(conn, query, opts) do
+    %CommandQuery{command: command, opts: query_opts} = query
+
+    Mongo.find(conn, "$cmd", command, %{}, query_opts ++ opts)
     |> read_result
   end
 

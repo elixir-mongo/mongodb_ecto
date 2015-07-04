@@ -14,6 +14,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
     defstruct coll: nil, query: %{}, command: %{}, opts: []
   end
 
+  defmodule CommandQuery do
+    @moduledoc false
+
+    defstruct command: nil, opts: []
+  end
+
   alias Mongo.Ecto.Encoder
   alias Ecto.Query.Tagged
   alias Ecto.Query
@@ -27,15 +33,32 @@ defmodule Mongo.Ecto.NormalizedQuery do
   def all(%Query{} = original, params) do
     check_query(original)
 
-    from = {coll, _, pk} = from(original)
-
+    from   = from(original)
     params = List.to_tuple(params)
     query  = query_order(original, params, from)
-    opts   = opts(:all, original)
-    {projection, fields} = projection(original, params, from)
+
+    case projection(original, params, from) do
+      :count ->
+        count(original, query, from)
+      {projection, fields} ->
+        find_all(original, query, projection, fields, params, from)
+    end
+  end
+
+  defp find_all(original, query, projection, fields, params, {coll, _, pk}) do
+    opts   = opts(:find_all, original)
 
     %ReadQuery{coll: coll, pk: pk, params: params, query: query, projection: projection,
                fields: fields, opts: opts}
+  end
+
+  defp count(original, query, {coll, _, _}) do
+    command =
+      [count: coll, query: query]
+      |> put_if_not_zero(:limit, num_return(original))
+      |> put_if_not_zero(:skip, num_skip(original))
+
+    %CommandQuery{command: command, opts: opts(:command)}
   end
 
   def update_all(%Query{} = original, params) do
@@ -80,6 +103,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     command = command(:insert, document, pk)
 
     %WriteQuery{coll: coll, command: command}
+  end
+
+  def command(command) do
+    %CommandQuery{command: command, opts: opts(:command)}
   end
 
   defp from(%Query{from: {coll, model}}) do
@@ -136,6 +163,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     projection(rest, params, from, query, pacc, facc)
   end
+  defp projection([{:count, _, _} | rest], _params, _from, query, pacc, _facc) do
+    if (rest != [] || pacc != %{}) do
+      error(query, "select clause (only one count without other selects is allowed)")
+    end
+    :count
+  end
   defp projection([{op, _, _} | _rest], _params, _from, query, _pacc, _facc) when is_op(op) do
     error(query, "select clause")
   end
@@ -153,12 +186,22 @@ defmodule Mongo.Ecto.NormalizedQuery do
     projection(rest, params, from, query, pacc, facc)
   end
 
-  defp opts(:all, query),
+  defp opts(:find_all, query),
     do: [exhaust: true, num_return: num_return(query), num_skip: num_skip(query)]
   defp opts(:update_all, _query),
     do: [multi: true]
   defp opts(:delete_all, _query),
     do: [multi: true]
+  defp opts(:command),
+    do: [num_return: -1, exhaust: true]
+
+  defp put_if_not_zero(keyword, key, value) do
+    if value != 0 do
+      Keyword.put(keyword, key, value)
+    else
+      keyword
+    end
+  end
 
   defp num_skip(%Query{offset: offset}), do: offset_limit(offset)
 

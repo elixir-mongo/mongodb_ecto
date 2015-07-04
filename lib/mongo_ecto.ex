@@ -157,6 +157,11 @@ defmodule Mongo.Ecto do
   provide `Repo.one/1`, which returns one entry or nil, and `Repo.one!/1`
   which returns one entry or raises.
 
+  There is also support for count function in queries that uses `MongoDB`
+  `count` command. Please not that unline in SQL databases you can only select
+  a count - there is no support for querying using a count, there is also no
+  support for counting documents and selecting them at the same time.
+
   Please note that not all Ecto queries are valid MongoDB queries. The adapter
   will raise `Ecto.QueryError` if it encounters one, and will try to be as
   specific as possible as to what exactly is causing the problem.
@@ -282,7 +287,7 @@ defmodule Mongo.Ecto do
   The adapter has:
 
     * Support for documents with ObjectID as their primary key
-    * Support for insert, find, update and remove mongo functions
+    * Support for insert, find, update and remove and count mongo functions
     * Support for management commands with `command/2`
     * Support for embedded objects with `:map` and `{:array, :map}` types
 
@@ -328,6 +333,7 @@ defmodule Mongo.Ecto do
   alias Mongo.Ecto.NormalizedQuery
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
+  alias Mongo.Ecto.NormalizedQuery.CommandQuery
   alias Mongo.Ecto.Decoder
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
@@ -369,10 +375,14 @@ defmodule Mongo.Ecto do
 
   @doc false
   def all(repo, query, params, opts) do
-    normalized = NormalizedQuery.all(query, params)
-
-    query(repo, :all, normalized, opts)
-    |> Enum.map(&process_document(&1, normalized, id_types(repo)))
+    case NormalizedQuery.all(query, params) do
+      %ReadQuery{} = read ->
+        query(repo, :all, read, opts)
+        |> Enum.map(&process_document(&1, read, id_types(repo)))
+      %CommandQuery{} = command ->
+        query(repo, :command, command, opts)
+        |> Enum.map(&[Map.get(&1, "n")])
+    end
   end
 
   @doc false
@@ -509,6 +519,9 @@ defmodule Mongo.Ecto do
     ["INSERT coll=", inspect(query.coll),
      " document=", inspect(query.command)]
   end
+  defp format_query(_entry, :command, query) do
+    ["COMMAND ", inspect(query.command)]
+  end
   defp format_query(_entry, op, query) when op in [:delete, :delete_all] do
     ["REMOVE coll=", inspect(query.coll),
      " query=", inspect(query.query),
@@ -524,7 +537,7 @@ defmodule Mongo.Ecto do
   defp single_result(1, result), do: {:ok, result}
   defp single_result(_, _),      do: {:error, :stale}
 
-  defp process_document(document, %ReadQuery{fields: fields, pk: pk}, id_types) do
+  defp process_document(document, %{fields: fields, pk: pk}, id_types) do
     document = Decoder.decode_document(document, pk)
 
     Enum.map(fields, fn
@@ -660,11 +673,15 @@ defmodule Mongo.Ecto do
   """
   def command(repo, command, opts \\ [])
   def command(repo, command, opts) when is_atom(repo) do
-    query(repo, :command, command, opts)
+    normalized = NormalizedQuery.command(command)
+
+    query(repo, :command, normalized, opts)
     |> command_result
   end
   def command(conn, command, opts) when is_pid(conn) do
-    Connection.command(conn, command, opts)
+    normalized = NormalizedQuery.command(command)
+
+    Connection.command(conn, normalized, opts)
     |> result
     |> command_result
   end

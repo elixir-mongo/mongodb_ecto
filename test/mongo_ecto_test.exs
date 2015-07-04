@@ -12,7 +12,7 @@ defmodule Mongo.EctoTest do
     assert {:ok, _} = Mongo.Ecto.command(TestRepo, ping: 1)
   end
 
-  test "truncate/1" do
+  test "truncate/2" do
     TestRepo.insert!(%Post{})
 
     Mongo.Ecto.truncate(TestRepo)
@@ -40,5 +40,12 @@ defmodule Mongo.EctoTest do
 
     query = from t in Tag, where: 1 in t.ints, select: fragment("ints.$": 1)
     assert [%{"ints" => [1]}] = TestRepo.all(query)
+  end
+
+  test "count" do
+    TestRepo.insert!(%Post{visits: 1})
+
+    query = from p in Post, where: p.visits == 1, select: count(p.id)
+    assert [1] == TestRepo.all(query)
   end
 end

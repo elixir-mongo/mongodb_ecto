@@ -90,6 +90,18 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
                         fields: [model: {Model, "model"}])
   end
 
+  test "count" do
+    query = Model |> select([r], count(r.id)) |> normalize
+    assert_query(query, command: [count: "model", query: %{}])
+
+    query = Model |> select([r], count(r.id)) |> where([r], r.x > 10) |> normalize
+    assert_query(query, command: [count: "model", query: %{x: ["$gt": 10]}])
+
+    assert_raise Ecto.QueryError, fn ->
+      Model |> select([r], {r.id, count(r.id)}) |> normalize
+    end
+  end
+
   test "order by" do
     query = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize
     assert_query(query, query: ["$query": %{}, "$orderby": [x: 1]])
