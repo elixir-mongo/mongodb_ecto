@@ -649,6 +649,8 @@ defmodule Mongo.Ecto do
   Especially usefull in testing.
   """
   def truncate(repo, opts \\ []) do
+    opts = Keyword.put(opts, :log, false)
+
     list_collections(repo, opts)
     |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
       case drop_collection(repo, collection, opts) do
@@ -700,6 +702,7 @@ defmodule Mongo.Ecto do
 
   defp list_collections(repo, opts) do
     query = %ReadQuery{coll: "system.namespaces", query: @list_collections_query}
+    opts = Keyword.put(opts, :log, false)
 
     query(repo, :all, query, opts)
     |> Enum.map(&Map.fetch!(&1, "name"))
@@ -711,6 +714,7 @@ defmodule Mongo.Ecto do
   defp list_indexes(repo, coll, opts) do
     regex = %BSON.Regex{pattern: to_string(coll), options: ""}
     query = %ReadQuery{coll: "system.indexes", query: [ns: regex]}
+    opts = Keyword.put(opts, :log, false)
 
     query(repo, :all, query, opts)
     |> Enum.map(&Map.fetch!(&1, "name"))

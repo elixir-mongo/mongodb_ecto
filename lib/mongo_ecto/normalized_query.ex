@@ -163,11 +163,11 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     projection(rest, params, from, query, pacc, facc)
   end
-  defp projection([{:count, _, _} | rest], _params, _from, query, pacc, _facc) do
-    if (rest != [] || pacc != %{}) do
-      error(query, "select clause (only one count without other selects is allowed)")
-    end
+  defp projection([{:count, _, _}], _params, _from, _query, pacc, _facc) when pacc == %{} do
     :count
+  end
+  defp projection([{:count, _, _}], _params, _from, query, _pacc, _facc) do
+    error(query, "select clause (only one count without other selects is allowed)")
   end
   defp projection([{op, _, _} | _rest], _params, _from, query, _pacc, _facc) when is_op(op) do
     error(query, "select clause")
@@ -195,13 +195,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp opts(:command),
     do: [num_return: -1, exhaust: true]
 
-  defp put_if_not_zero(keyword, key, value) do
-    if value != 0 do
-      Keyword.put(keyword, key, value)
-    else
-      keyword
-    end
-  end
+  defp put_if_not_zero(keyword, _key, 0),
+    do: keyword
+  defp put_if_not_zero(keyword, key, value),
+    do: Keyword.put(keyword, key, value)
 
   defp num_skip(%Query{offset: offset}), do: offset_limit(offset)
 

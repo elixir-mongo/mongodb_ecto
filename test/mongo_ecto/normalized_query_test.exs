@@ -100,6 +100,10 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_raise Ecto.QueryError, fn ->
       Model |> select([r], {r.id, count(r.id)}) |> normalize
     end
+
+    assert_raise Ecto.QueryError, fn ->
+      Model |> select([r], {count(r.id), r.id}) |> normalize
+    end
   end
 
   test "order by" do
