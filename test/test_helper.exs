@@ -36,9 +36,9 @@ end
 defmodule Ecto.Integration.Case do
   use ExUnit.CaseTemplate
 
+  alias Ecto.Integration.TestRepo
+
   setup_all do
-    Ecto.Storage.up(TestRepo)
-    on_exit fn -> Ecto.Storage.down(TestRepo) end
     :ok
   end
 
