@@ -20,18 +20,6 @@ defmodule Ecto.Integration.TestRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
 end
 
-# Pool repo for transaction and lock tests
-alias Ecto.Integration.PoolRepo
-
-Application.put_env(:ecto, PoolRepo,
-                    adapter: Mongo.Ecto,
-                    url: "ecto://localhost:27017/ecto_test",
-                    size: 10)
-
-defmodule Ecto.Integration.PoolRepo do
-  use Ecto.Integration.Repo, otp_app: :ecto
-end
-
 
 defmodule Ecto.Integration.Case do
   use ExUnit.CaseTemplate
@@ -54,6 +42,5 @@ _   = Ecto.Storage.down(TestRepo)
 :ok = Ecto.Storage.up(TestRepo)
 
 {:ok, _pid} = TestRepo.start_link
-{:ok, _pid} = PoolRepo.start_link
 
 Process.flag(:trap_exit, true)
