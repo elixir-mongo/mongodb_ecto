@@ -544,10 +544,7 @@ defmodule Mongo.Ecto do
       {:document, nil} ->
         document
       {:model, {model, coll}} ->
-        row = model.__schema__(:fields)
-              |> Enum.map(&Map.get(document, Atom.to_string(&1)))
-              |> List.to_tuple
-        model.__schema__(:load, coll, 0, row, id_types)
+        Ecto.Schema.Serializer.load!(model, coll, document, id_types)
       {:field, field} ->
         Map.get(document, Atom.to_string(field))
       value ->
