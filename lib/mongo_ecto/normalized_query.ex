@@ -74,7 +74,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, command: command, opts: opts}
   end
 
-  def update(coll, values, filter, pk) do
+  def update({coll, _model}, values, filter, pk) do
     command = command(:update, values, pk)
     query   = query(filter, pk)
 
@@ -93,14 +93,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, opts: opts}
   end
 
-  def delete(coll, filter, pk) do
+  def delete({coll, _model}, filter, pk) do
     query = query(filter, pk)
 
     %WriteQuery{coll: coll, query: query}
   end
 
-  def insert(coll, document, pk) do
-    command = command(:insert, document, pk)
+  def insert({coll, model}, document, pk) do
+    command = command(:insert, document, model.__struct__(), pk)
 
     %WriteQuery{coll: coll, command: command}
   end
@@ -238,13 +238,18 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> merge_keys(query, "update clause")
   end
 
+  defp command(:insert, document, struct, pk) do
+    document
+    |> Enum.reject(fn {key, value} -> both_nil(value, Map.get(struct, key)) end)
+    |> value(pk, "insert command") |> map_unless_empty
+  end
+
   defp command(:update, values, pk) do
     ["$set": values |> value(pk, "update command") |> map_unless_empty]
   end
 
-  defp command(:insert, document, pk) do
-    document |> value(pk, "insert command") |> map_unless_empty
-  end
+  defp both_nil(nil, nil), do: true
+  defp both_nil(_, _), do: false
 
   defp offset_limit(nil),
     do: 0

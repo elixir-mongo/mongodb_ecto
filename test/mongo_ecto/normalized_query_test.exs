@@ -11,7 +11,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
     schema "model" do
       field :x, :integer
-      field :y, :integer
+      field :y, :integer, default: 5
       field :z, {:array, :integer}
     end
   end
@@ -24,7 +24,14 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     apply(NormalizedQuery, operation, [query, params])
   end
 
-  defmacro assert_query(query, kw) do
+  defp insert(model, values) do
+    source = model.__schema__(:source)
+    [pk] = model.__schema__(:primary_key)
+
+    NormalizedQuery.insert({source, model}, values, pk)
+  end
+
+  defmacrop assert_query(query, kw) do
     Enum.map(kw, fn {key, value} ->
       quote do
         assert unquote(query).unquote(key) == unquote(value)
@@ -308,5 +315,13 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
     query = from(e in Model, where: e.x == 123) |> normalize(:delete_all)
     assert_query(query, query: %{x: 123})
+  end
+
+  test "insert skips default nil values" do
+    query = Model |> insert(x: nil, y: nil, z: nil)
+    assert_query(query, command: [y: nil])
+
+    query = Model |> insert(x: 1, y: 5, z: [])
+    assert_query(query, command: [x: 1, y: 5, z: []])
   end
 end
