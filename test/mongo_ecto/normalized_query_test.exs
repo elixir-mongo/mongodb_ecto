@@ -16,10 +16,12 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     end
   end
 
-  defp normalize(query, op \\ :all) do
-    {query, params} = Ecto.Query.Planner.prepare(query, op, [], %{binary_id: Mongo.Ecto.ObjectID})
-    query = Ecto.Query.Planner.normalize(query, op, [])
-    apply(NormalizedQuery, op, [query, params])
+  @id_types %{binary_id: Mongo.Ecto.ObjectID}
+
+  defp normalize(query, operation \\ :all) do
+    {query, params} = Ecto.Query.Planner.prepare(query, operation, @id_types)
+    query = Ecto.Query.Planner.normalize(query, operation, @id_types)
+    apply(NormalizedQuery, operation, [query, params])
   end
 
   defmacro assert_query(query, kw) do
@@ -283,15 +285,15 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, command: %{"$set": [x: 0]},
                         query: %{})
 
-    query = from(m in Model, update: [set: [x: 0], inc: [y: 1, z: -3]]) |> normalize(:update_all)
-    assert_query(query, command: %{"$set": [x: 0], "$inc": [y: 1, z: -3]})
+    query = from(m in Model, update: [set: [x: 0], inc: [y: 1, z: [-3]]]) |> normalize(:update_all)
+    assert_query(query, command: %{"$set": [x: 0], "$inc": [y: 1, z: [-3]]})
 
     query = from(e in Model, where: e.x == 123, update: [set: [x: 0]]) |> normalize(:update_all)
     assert_query(query, command: %{"$set": [x: 0]},
                         query: %{x: 123})
 
     query = from(m in Model, update: [set: [x: 0, y: "123"]]) |> normalize(:update_all)
-    assert_query(query, command: %{"$set": [x: 0, y: "123"]})
+    assert_query(query, command: %{"$set": [x: 0, y: 123]})
 
     query = from(m in Model, update: [set: [x: ^0]]) |> normalize(:update_all)
     assert_query(query, command: %{"$set": [x: 0]})

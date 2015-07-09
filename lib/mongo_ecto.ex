@@ -338,7 +338,7 @@ defmodule Mongo.Ecto do
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
 
-  alias Ecto.Adapters.Pool
+  alias Ecto.Pool
 
   ## Adapter
 
