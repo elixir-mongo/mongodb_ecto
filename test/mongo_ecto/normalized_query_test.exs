@@ -43,18 +43,18 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     query = Model |> from |> normalize
     assert_query(query, coll: "model", query: %{},
                  projection: %{_id: true, x: true, y: true, z: true},
-                 fields: [model: {Model, "model"}],
                  opts: [exhaust: true, num_return: 0, num_skip: 0])
+    assert [{:&, _, _}] = query.fields
   end
 
   test "from without model" do
     query = "posts" |> select([r], r.x) |> normalize
-    assert_query(query, coll: "posts", projection: %{x: true},
-                                       fields: [field: :x])
+    assert_query(query, coll: "posts", projection: %{x: true})
+    assert [{:field, :x, _}] = query.fields
 
     query = "posts" |> select([r], {r, r.x}) |> normalize
-    assert_query(query, coll: "posts", projection: %{},
-                                       fields: [document: nil, field: :x])
+    assert_query(query, coll: "posts", projection: %{})
+    assert [{:&, _, _}, {:field, :x, _}] = query.fields
   end
 
   test "where" do
@@ -71,32 +71,32 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "select" do
     query = Model |> select([r], {r.x, r.y}) |> normalize
-    assert_query(query, projection: %{y: true, x: true},
-                        fields: [field: :x, field: :y])
+    assert_query(query, projection: %{y: true, x: true})
+    assert [{:field, :x, _}, {:field, :y, _}] = query.fields
 
     query = Model |> select([r], [r.x, r.y]) |> normalize
-    assert_query(query, projection: %{y: true, x: true},
-                        fields: [field: :x, field: :y])
+    assert_query(query, projection: %{y: true, x: true})
+    assert [{:field, :x, _}, {:field, :y, _}] = query.fields
 
     query = Model |> select([r], [r, r.x]) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true},
-                        fields: [model: {Model, "model"}, field: :x])
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true})
+    assert [{:&, _, _}, {:field, :x, _}] = query.fields
 
     query = Model |> select([r], [r]) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true},
-                        fields: [model: {Model, "model"}])
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true})
+    assert [{:&, _, _}] = query.fields
 
     query = Model |> select([r], {1}) |> normalize
     assert_query(query, projection: %{},
-                        fields: [1])
+                        fields: [{:value, 1, 1}])
 
     query = Model |> select([r], [r.id]) |> normalize
-    assert_query(query, projection: %{_id: true},
-                        fields: [field: :id])
+    assert_query(query, projection: %{_id: true})
+    assert [{:field, :id, _}] = query.fields
 
     query = from(r in Model) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true},
-                        fields: [model: {Model, "model"}])
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true})
+    assert [{:&, _, _}] = query.fields
   end
 
   test "count" do
@@ -165,12 +165,12 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "fragments in select" do
     query = Model |> select([], fragment("z.$": 1)) |> normalize
-    assert_query(query, projection: %{"z.$": 1},
-                        fields: [document: nil])
+    assert_query(query, projection: %{"z.$": 1})
+    assert [{:fragment, _, _}] = query.fields
 
     query = Model |> select([r], {r.x, fragment("z.$": 1)}) |> normalize
-    assert_query(query, projection: %{"z.$": 1, x: true},
-                        fields: [field: :x, document: nil])
+    assert_query(query, projection: %{"z.$": 1, x: true})
+    assert [{:field, :x, _}, {:fragment, _, _}] = query.fields
   end
 
   test "distinct" do
@@ -191,9 +191,14 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, query: %{x: ["$ne": nil]})
   end
 
+  test "tagged values in queries" do
+    query = Model |> select([r], type(^"1", :integer)) |> normalize
+    assert [{:value, 1, _}] = query.fields
+  end
+
   test "literals" do
     query = Model |> select([], nil) |> normalize
-    assert_query(query, fields: [nil])
+    assert [{:value, nil, nil}] = query.fields
 
     query = "plain" |> select([r], r.x) |> where([r], r.x == true) |> normalize
     assert_query(query, query: %{x: true})

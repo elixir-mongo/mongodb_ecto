@@ -131,35 +131,35 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp projection([], _params, _from, _query, pacc, facc),
     do: {pacc, Enum.reverse(facc)}
-  defp projection([{:&, _, [0]} | rest], params, {coll, model, pk} = from, query, pacc, facc)
+  defp projection([{:&, _, [0]} = field | rest], params, {coll, model, pk} = from, query, pacc, facc)
       when  model != nil do
     pacc = Enum.into(model.__schema__(:fields), pacc, &{field(&1, pk), true})
-    facc = [{:model, {model, coll}} | facc]
+    facc = [field | facc]
 
     projection(rest, params, from, query, pacc, facc)
   end
-  defp projection([{:&, _, [0]} | rest], params, {_, nil, _} = from, query, _pacc, facc) do
+  defp projection([{:&, _, [0]} = field | rest], params, {_, nil, _} = from, query, _pacc, facc) do
     # Model is nil, we want empty projection, but still extract fields
-    {_, facc} = projection(rest, params, from, query, %{}, [{:document, nil} | facc])
+    {_, facc} = projection(rest, params, from, query, %{}, [field | facc])
     {%{}, facc}
   end
-  defp projection([{{:., _, [_, field]}, _, _}| rest], params, from, query, pacc, facc) do
+  defp projection([{{:., _, [_, name]}, _, _} = field| rest], params, from, query, pacc, facc) do
     {_, _, pk} = from
 
     # Projections use names as in database, fields as in models
-    pacc = Map.put(pacc, field(field, pk), true)
-    facc = [{:field, field} | facc]
+    pacc = Map.put(pacc, field(name, pk), true)
+    facc = [{:field, name, field} | facc]
     projection(rest, params, from, query, pacc, facc)
   end
   # Keyword and interpolated fragments
-  defp projection([{:fragment, _, [args]}| rest], params, from, query, pacc, facc)
+  defp projection([{:fragment, _, [args]} = field | rest], params, from, query, pacc, facc)
       when is_list(args) or tuple_size(args) == 3 do
     {_, _, pk} = from
     pacc =
       args
       |> value(params, pk, query, "select clause")
       |> Enum.into(pacc)
-    facc = [{:document, nil} | facc]
+    facc = [field | facc]
 
     projection(rest, params, from, query, pacc, facc)
   end
@@ -173,15 +173,17 @@ defmodule Mongo.Ecto.NormalizedQuery do
     error(query, "select clause")
   end
   # We skip all values and then add them when constructing return result
-  defp projection([%Tagged{value: {:^, _, [idx]}} | rest], params, from, query, pacc, facc) do
+  defp projection([%Tagged{value: {:^, _, [idx]}} = field | rest], params, from, query, pacc, facc) do
     {_, _, pk} = from
-    facc = [params |> elem(idx) |> value(params, pk, query, "select clause") | facc]
+    value = params |> elem(idx) |> value(params, pk, query, "select clause")
+    facc = [{:value, value, field} | facc]
 
     projection(rest, params, from, query, pacc, facc)
   end
-  defp projection([value | rest], params, from, query, pacc, facc) do
+  defp projection([field | rest], params, from, query, pacc, facc) do
     {_, _, pk} = from
-    facc = [value(value, params, pk, query, "select clause") | facc]
+    value = value(field, params, pk, query, "select clause")
+    facc = [{:value, value, field} | facc]
 
     projection(rest, params, from, query, pacc, facc)
   end

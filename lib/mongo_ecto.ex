@@ -374,11 +374,11 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def all(repo, query, params, opts) do
+  def all(repo, query, params, preprocess, opts) do
     case NormalizedQuery.all(query, params) do
       %ReadQuery{} = read ->
         query(repo, :all, read, opts)
-        |> Enum.map(&process_document(&1, read, id_types(repo)))
+        |> Enum.map(&process_document(&1, read, preprocess))
       %CommandQuery{} = command ->
         query(repo, :command, command, opts)
         |> Enum.map(&[Map.get(&1, "n")])
@@ -537,18 +537,16 @@ defmodule Mongo.Ecto do
   defp single_result(1, result), do: {:ok, result}
   defp single_result(_, _),      do: {:error, :stale}
 
-  defp process_document(document, %{fields: fields, pk: pk}, id_types) do
+  defp process_document(document, %{fields: fields, pk: pk}, preprocess) do
     document = Decoder.decode_document(document, pk)
 
     Enum.map(fields, fn
-      {:document, nil} ->
-        document
-      {:model, {model, coll}} ->
-        Ecto.Schema.Serializer.load!(model, coll, document, id_types)
-      {:field, field} ->
-        Map.get(document, Atom.to_string(field))
-      value ->
-        Decoder.decode_value(value, pk)
+      {:field, name, field} ->
+        preprocess.(field, Map.get(document, Atom.to_string(name)))
+      {:value, value, field} ->
+        preprocess.(field, Decoder.decode_value(value, pk))
+      field ->
+        preprocess.(field, document)
     end)
   end
 
