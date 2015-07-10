@@ -14,8 +14,8 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp deps do
     [
-      {:mongodb, github: "ericmj/mongodb"},
-      {:ecto, github: "elixir-lang/ecto"}
+      {:mongodb, github: "ericmj/mongodb", ref: "a379e577f51f8c9190ab22234a2512577e061e91"},
+      {:ecto, github: "elixir-lang/ecto", ref: "208e6881c4bf2575500170dfc4239d84c1e58ed1"}
     ]
   end
 end

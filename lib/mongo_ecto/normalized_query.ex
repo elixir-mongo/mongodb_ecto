@@ -131,7 +131,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp projection([], _params, _from, _query, pacc, facc),
     do: {pacc, Enum.reverse(facc)}
-  defp projection([{:&, _, [0]} = field | rest], params, {coll, model, pk} = from, query, pacc, facc)
+  defp projection([{:&, _, [0]} = field | rest], params, {_, model, pk} = from, query, pacc, facc)
       when  model != nil do
     pacc = Enum.into(model.__schema__(:fields), pacc, &{field(&1, pk), true})
     facc = [field | facc]
