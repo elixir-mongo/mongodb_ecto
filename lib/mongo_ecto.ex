@@ -634,6 +634,12 @@ defmodule Mongo.Ecto do
     |> ddl_result
   end
 
+  def execute_ddl(repo, {:rename, %Table{name: old}, %Table{name: new}}, opts) do
+    command = [renameCollection: namespace(repo, old), to: namespace(repo, new)]
+    command(repo, command, [database: "admin"] ++ opts)
+    |> ddl_result
+  end
+
   ## Mongo specific calls
 
   @doc """
@@ -666,17 +672,23 @@ defmodule Mongo.Ecto do
 
       Mongo.Ecto.command(Repo, drop: "collection")
 
+  ## Options
+
+    * `:database` - run command against a specific database
+      (default: repo's database)
+    * `:log` - should command queries be logged (default: true)
+
   For list of available commands plese see: http://docs.mongodb.org/manual/reference/command/
   """
   def command(repo, command, opts \\ [])
   def command(repo, command, opts) when is_atom(repo) do
-    normalized = NormalizedQuery.command(command)
+    normalized = NormalizedQuery.command(command, opts)
 
     query(repo, :command, normalized, opts)
     |> command_result
   end
   def command(conn, command, opts) when is_pid(conn) do
-    normalized = NormalizedQuery.command(command)
+    normalized = NormalizedQuery.command(command, opts)
 
     Connection.command(conn, normalized, opts)
     |> result

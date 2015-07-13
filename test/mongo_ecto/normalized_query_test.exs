@@ -63,7 +63,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, query: %{y: ["$ne": 43], x: 42}, projection: %{x: true})
 
     query = Model |> where([r], r.x > 5) |> where([r], r.x < 10) |> normalize
-    assert_query(query, query: %{x: ["$lt": 10, "$gt": 5]})
+    assert_query(query, query: %{x: ["$gt": 5, "$lt": 10]})
 
     query = Model |> where([r], not (r.x == 42)) |> normalize
     assert_query(query, query: %{x: ["$ne": 42]})
@@ -311,7 +311,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_query(query, command: %{"$set": [x: 0]})
 
     query = from(m in Model, update: [set: [x: 0]], update: [set: [y: 123]]) |> normalize(:update_all)
-    assert_query(query, command: %{"$set": [y: 123, x: 0]})
+    assert_query(query, command: %{"$set": [x: 0, y: 123]})
   end
 
   test "delete all" do

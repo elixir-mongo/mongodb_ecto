@@ -17,7 +17,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defmodule CommandQuery do
     @moduledoc false
 
-    defstruct command: nil, opts: []
+    defstruct command: nil, database: nil, opts: []
   end
 
   alias Mongo.Ecto.Encoder
@@ -105,8 +105,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, command: command}
   end
 
-  def command(command) do
-    %CommandQuery{command: command, opts: opts(:command)}
+  def command(command, opts) do
+    db = Keyword.get(opts, :database, nil)
+
+    %CommandQuery{command: command, database: db, opts: opts(:command)}
   end
 
   defp from(%Query{from: {coll, model}}) do

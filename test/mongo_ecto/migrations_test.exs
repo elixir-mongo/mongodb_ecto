@@ -30,6 +30,26 @@ defmodule Mongo.Ecto.MigrationsTest do
     end
   end
 
+  defmodule RenameMigration do
+    use Ecto.Migration
+
+    @table_current table(:posts_migration)
+    @table_new table(:new_posts_migration)
+
+    def up do
+      refute exists? @table_current
+      create @table_current
+      rename @table_current, @table_new
+      assert exists? @table_new
+      refute exists? @table_current
+    end
+
+    def down do
+      drop @table_new
+      refute exists? @table_new
+    end
+  end
+
   defmodule SQLMigration do
     use Ecto.Migration
 
@@ -58,5 +78,11 @@ defmodule Mongo.Ecto.MigrationsTest do
 
   test "raises on SQL migrations" do
     assert :ok == up(TestRepo, 20150704120000, SQLMigration, log: false)
+  end
+
+  test "rename table" do
+    assert :ok == up(TestRepo, 20150712120000, RenameMigration, log: false)
+  after
+    assert :ok == down(TestRepo, 20150712120000, RenameMigration, log: false)
   end
 end

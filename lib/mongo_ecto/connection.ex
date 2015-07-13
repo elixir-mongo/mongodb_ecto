@@ -65,10 +65,23 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def command(conn, query, opts) do
-    %CommandQuery{command: command, opts: query_opts} = query
+    %CommandQuery{command: command, database: db, opts: query_opts} = query
 
-    Mongo.find(conn, "$cmd", command, %{}, query_opts ++ opts)
+    with_database(conn, db, fn ->
+      Mongo.find(conn, "$cmd", command, %{}, query_opts ++ opts)
+    end)
     |> read_result
+  end
+
+  defp with_database(_conn, nil, fun), do: fun.()
+  defp with_database(conn, db, fun) do
+    olddb = Mongo.database(conn)
+    Mongo.database(conn, db)
+    try do
+      fun.()
+    after
+      Mongo.database(conn, olddb)
+    end
   end
 
   defp read_result({:ok, %ReadResult{docs: docs}}),
