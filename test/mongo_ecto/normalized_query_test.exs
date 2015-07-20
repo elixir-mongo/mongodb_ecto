@@ -19,8 +19,8 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
   @id_types %{binary_id: Mongo.Ecto.ObjectID}
 
   defp normalize(query, operation \\ :all) do
-    {query, params} = Ecto.Query.Planner.prepare(query, operation, @id_types)
-    query = Ecto.Query.Planner.normalize(query, operation, @id_types)
+    {query, params} = Ecto.Query.Planner.prepare(query, operation, Mongo.Ecto)
+    query = Ecto.Query.Planner.normalize(query, operation, Mongo.Ecto)
     apply(NormalizedQuery, operation, [query, params])
   end
 
@@ -28,7 +28,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     source = model.__schema__(:source)
     [pk] = model.__schema__(:primary_key)
 
-    NormalizedQuery.insert({source, model}, values, pk)
+    NormalizedQuery.insert({nil, source, model}, values, pk)
   end
 
   defmacrop assert_query(query, kw) do
@@ -324,7 +324,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "insert skips default nil values" do
     query = Model |> insert(x: nil, y: nil, z: nil)
-    assert_query(query, command: [y: nil])
+    assert_query(query, command: [y: nil, z: nil])
 
     query = Model |> insert(x: 1, y: 5, z: [])
     assert_query(query, command: [x: 1, y: 5, z: []])

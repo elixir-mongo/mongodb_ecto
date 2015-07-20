@@ -369,9 +369,23 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def id_types(_repo) do
-    %{binary_id: ObjectID}
-  end
+  def load(:binary_id, data),
+    do: Ecto.Type.load(ObjectID, data, &load/2)
+  def load(Ecto.Date, {date, _time}),
+    do: Ecto.Type.load(Ecto.Date, date, &dump/2)
+  def load(type, data),
+    do: Ecto.Type.load(type, data, &load/2)
+
+  @doc false
+  def dump(:binary_id, data),
+    do: Ecto.Type.dump(ObjectID, data, &dump/2)
+  def dump(Ecto.Date, %Ecto.Date{} = data),
+    do: Ecto.Type.dump(Ecto.DateTime, Ecto.DateTime.from_date(data), &dump/2)
+  def dump(type, data),
+    do: Ecto.Type.dump(type, data, &dump/2)
+
+  @doc false
+  def embed_id(_), do: ObjectID.generate
 
   @doc false
   def all(repo, query, params, preprocess, opts) do

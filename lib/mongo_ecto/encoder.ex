@@ -88,7 +88,7 @@ defmodule Mongo.Ecto.Encoder do
     do: %BSON.Binary{binary: value}
   defp typed_value(value, :uuid),
     do: %BSON.Binary{binary: value, subtype: :uuid}
-  defp typed_value(value, :object_id),
+  defp typed_value(value, :binary_id),
     do: %BSON.ObjectId{value: value}
 
   defp map(list, fun) do

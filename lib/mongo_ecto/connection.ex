@@ -22,53 +22,88 @@ defmodule Mongo.Ecto.Connection do
 
   ## Callbacks for adapter
 
-  def all(conn, query, opts \\ []) do
-    %ReadQuery{coll: coll, query: query, projection: projection, opts: query_opts} = query
+  def all(conn, %ReadQuery{} = query, opts \\ []) do
+    coll       = query.coll
+    projection = query.projection
+    opts       = query.opts ++ opts
+    database   = query.database
+    query      = query.query
 
-    Mongo.find(conn, coll, query, projection, query_opts ++ opts)
+    with_database(conn, database, fn ->
+      Mongo.find(conn, coll, query, projection, opts)
+    end)
     |> read_result
   end
 
-  def delete_all(conn, query, opts) do
-    %WriteQuery{coll: coll, query: query, opts: query_opts} = query
+  def delete_all(conn, %WriteQuery{} = query, opts) do
+    coll     = query.coll
+    opts     = query.opts ++ opts
+    database = query.database
+    query    = query.query
 
-    Mongo.remove(conn, coll, query, query_opts ++ opts)
+    with_database(conn, database, fn ->
+      Mongo.remove(conn, coll, query, opts)
+    end)
     |> write_result
   end
 
-  def delete(conn, query, opts) do
-    %WriteQuery{coll: coll, query: query, opts: query_opts} = query
+  def delete(conn, %WriteQuery{} = query, opts) do
+    coll     = query.coll
+    opts     = query.opts ++ opts
+    database = query.database
+    query    = query.query
 
-    Mongo.remove(conn, coll, query, query_opts ++ opts)
+    with_database(conn, database, fn ->
+      Mongo.remove(conn, coll, query, opts)
+    end)
     |> write_result
   end
 
-  def update_all(conn, query, opts) do
-    %WriteQuery{coll: coll, query: query, command: command, opts: query_opts} = query
+  def update_all(conn, %WriteQuery{} = query, opts) do
+    coll     = query.coll
+    command  = query.command
+    opts     = query.opts ++ opts
+    database = query.database
+    query    = query.query
 
-    Mongo.update(conn, coll, query, command, query_opts ++ opts)
+    with_database(conn, database, fn ->
+      Mongo.update(conn, coll, query, command, opts)
+    end)
     |> write_result
   end
 
-  def update(conn, query, opts) do
-    %WriteQuery{coll: coll, query: query, command: command, opts: query_opts} = query
+  def update(conn, %WriteQuery{} = query, opts) do
+    coll     = query.coll
+    command  = query.command
+    opts     = query.opts ++ opts
+    database = query.database
+    query    = query.query
 
-    Mongo.update(conn, coll, query, command, query_opts ++ opts)
+    with_database(conn, database, fn ->
+      Mongo.update(conn, coll, query, command, opts)
+    end)
     |> write_result
   end
 
-  def insert(conn, query, opts) do
-    %WriteQuery{coll: coll, command: command, opts: query_opts} = query
+  def insert(conn, %WriteQuery{} = query, opts) do
+    coll     = query.coll
+    command  = query.command
+    opts     = query.opts ++ opts
+    database = query.database
 
-    Mongo.insert(conn, coll, command, query_opts ++ opts)
+    with_database(conn, database, fn ->
+      Mongo.insert(conn, coll, command, opts)
+    end)
     |> write_result
   end
 
-  def command(conn, query, opts) do
-    %CommandQuery{command: command, database: db, opts: query_opts} = query
+  def command(conn, %CommandQuery{} = query, opts) do
+    command  = query.command
+    database = query.database
+    opts     = query.opts ++ opts
 
-    with_database(conn, db, fn ->
-      Mongo.find(conn, "$cmd", command, %{}, query_opts ++ opts)
+    with_database(conn, database, fn ->
+      Mongo.find(conn, "$cmd", command, %{}, opts)
     end)
     |> read_result
   end
@@ -86,8 +121,8 @@ defmodule Mongo.Ecto.Connection do
 
   defp read_result({:ok, %ReadResult{docs: docs}}),
     do: {:ok, docs}
-  defp read_result({:error, _} = error),
-    do: error
+  defp read_result(%Mongo.Error{} = error),
+    do: {:error, error}
 
   defp write_result({:ok, %WriteResult{num_inserted: n}}) when is_integer(n),
     do: {:ok, n}
@@ -95,6 +130,6 @@ defmodule Mongo.Ecto.Connection do
     do: {:ok, n}
   defp write_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n),
     do: {:ok, n}
-  defp write_result({:error, _} = error),
-    do: error
+  defp write_result(%Mongo.Error{} = error),
+    do: {:error, error}
 end

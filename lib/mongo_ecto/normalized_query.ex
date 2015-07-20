@@ -5,13 +5,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
     @moduledoc false
 
     defstruct coll: nil, pk: nil, params: {}, query: %{}, projection: %{},
-              fields: [], opts: []
+              fields: [], database: nil, opts: []
   end
 
   defmodule WriteQuery do
     @moduledoc false
 
-    defstruct coll: nil, query: %{}, command: %{}, opts: []
+    defstruct coll: nil, query: %{}, command: %{}, database: nil, opts: []
   end
 
   defmodule CommandQuery do
@@ -49,7 +49,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     opts   = opts(:find_all, original)
 
     %ReadQuery{coll: coll, pk: pk, params: params, query: query, projection: projection,
-               fields: fields, opts: opts}
+               fields: fields, database: original.prefix, opts: opts}
   end
 
   defp count(original, query, {coll, _, _}) do
@@ -58,7 +58,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
       |> put_if_not_zero(:limit, num_return(original))
       |> put_if_not_zero(:skip, num_skip(original))
 
-    %CommandQuery{command: command, opts: opts(:command)}
+    %CommandQuery{command: command, database: original.prefix, opts: opts(:command)}
   end
 
   def update_all(%Query{} = original, params) do
@@ -71,14 +71,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
     command = command(:update, original, params, from)
     opts    = opts(:update_all, original)
 
-    %WriteQuery{coll: coll, query: query, command: command, opts: opts}
+    %WriteQuery{coll: coll, query: query, command: command,
+                database: original.prefix, opts: opts}
   end
 
-  def update({coll, _model}, values, filter, pk) do
+  def update({prefix, coll, _model}, values, filter, pk) do
     command = command(:update, values, pk)
     query   = query(filter, pk)
 
-    %WriteQuery{coll: coll, query: query, command: command}
+    %WriteQuery{coll: coll, query: query, database: prefix, command: command}
   end
 
   def delete_all(%Query{} = original, params) do
@@ -90,19 +91,19 @@ defmodule Mongo.Ecto.NormalizedQuery do
     query  = query(original, params, from)
     opts   = opts(:delete_all, original)
 
-    %WriteQuery{coll: coll, query: query, opts: opts}
+    %WriteQuery{coll: coll, query: query, database: original.prefix, opts: opts}
   end
 
-  def delete({coll, _model}, filter, pk) do
+  def delete({prefix, coll, _model}, filter, pk) do
     query = query(filter, pk)
 
-    %WriteQuery{coll: coll, query: query}
+    %WriteQuery{coll: coll, query: query, database: prefix}
   end
 
-  def insert({coll, model}, document, pk) do
+  def insert({prefix, coll, model}, document, pk) do
     command = command(:insert, document, model.__struct__(), pk)
 
-    %WriteQuery{coll: coll, command: command}
+    %WriteQuery{coll: coll, command: command, database: prefix}
   end
 
   def command(command, opts) do
@@ -324,8 +325,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end)
   end
 
-  # For now we support only set & inc, we should support more in the future
-  update = [set: :"$set", inc: :"$inc"]
+  update = [set: :"$set", inc: :"$inc", push: :"$push", pull: :"$pull"]
 
   Enum.map(update, fn {key, op} ->
     def update_op(unquote(key), _query), do: unquote(op)
@@ -412,6 +412,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp pair({:fragment, _, [args]}, params, pk, query, place)
       when is_list(args) or tuple_size(args) == 3 do
     value(args, params, pk, query, place)
+  end
+  # This is for queries that uses `where: false`
+  defp pair(bool, _params, _pk, _query, _place) when is_boolean(bool) do
+    {:_id, ["$exists": bool]}
   end
   defp pair(_expr, _params, _pk, query, place) do
     error(query, place)

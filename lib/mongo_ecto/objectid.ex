@@ -10,7 +10,7 @@ defmodule Mongo.Ecto.ObjectID do
   @doc """
   The Ecto primitive type.
   """
-  def type, do: :object_id
+  def type, do: :binary_id
 
   @doc """
   Casts to valid hex-encoded binary
@@ -24,7 +24,7 @@ defmodule Mongo.Ecto.ObjectID do
   """
   def dump(<<_::24-binary>> = hex) do
     case Base.decode16(hex, case: :mixed) do
-      {:ok, value} -> {:ok, %Ecto.Query.Tagged{type: :object_id, value: value}}
+      {:ok, value} -> {:ok, %Ecto.Query.Tagged{type: :binary_id, value: value}}
       :error       -> :error
     end
   end
@@ -36,4 +36,12 @@ defmodule Mongo.Ecto.ObjectID do
   """
   def load(binary) when is_binary(binary), do: {:ok, Base.encode16(binary, case: :lower)}
   def load(_), do: :error
+
+  @doc """
+  Generates a new ObjectID
+  """
+  def generate do
+    %BSON.ObjectId{value: value} = Mongo.IdServer.new
+    Base.encode16(value, case: :lower)
+  end
 end
