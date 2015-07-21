@@ -11,7 +11,7 @@ defmodule Mongo.Ecto.JavaScript do
   @behaviour Ecto.Type
 
   defstruct BSON.JavaScript |> Map.from_struct |> Enum.to_list
-  @type t :: %BSON.JavaScript{code: String.t, scope: %{}}
+  @type t :: %__MODULE__{code: String.t, scope: %{}}
 
   @doc """
   The Ecto primitive type.

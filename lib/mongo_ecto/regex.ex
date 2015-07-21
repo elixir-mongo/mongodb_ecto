@@ -36,7 +36,7 @@ defmodule Mongo.Ecto.Regex do
   @behaviour Ecto.Type
 
   defstruct BSON.Regex |> Map.from_struct |> Enum.to_list
-  @type t :: %BSON.Regex{pattern: String.t, options: String.t}
+  @type t :: %__MODULE__{pattern: String.t, options: String.t}
 
 
   @doc """

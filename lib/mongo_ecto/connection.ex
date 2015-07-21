@@ -130,6 +130,6 @@ defmodule Mongo.Ecto.Connection do
     do: {:ok, n}
   defp write_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n),
     do: {:ok, n}
-  defp write_result(%Mongo.Error{} = error),
-    do: {:error, error}
+  defp write_result({:error, _} = error),
+    do: error
 end

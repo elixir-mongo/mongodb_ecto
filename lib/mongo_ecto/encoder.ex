@@ -39,6 +39,13 @@ defmodule Mongo.Ecto.Encoder do
     do: {:ok, regex}
   def encode(%Tagged{value: value, type: type}, _pk),
     do: {:ok, typed_value(value, type)}
+  def encode(%{__struct__: change, field: field, value: value}, pk)
+      when change in [Mongo.Ecto.ChangeMap, Mongo.Ecto.ChangeArray] do
+    case encode(value, pk) do
+      {:ok, value} -> {:ok, {field, value}}
+      :error       -> :error
+    end
+  end
   def encode(%{__struct__: _}, _pk),
     do: :error # Other structs are not supported
   def encode(map, pk) when is_map(map),
@@ -65,6 +72,7 @@ defmodule Mongo.Ecto.Encoder do
 
   defp pair(key, value, pk, fun) do
     case fun.(value) do
+      {:ok, {subkey, encoded}} -> {:ok, {"#{key}.#{subkey}", encoded}}
       {:ok, encoded} -> {:ok, {key(key, pk), encoded}}
       :error         -> :error
     end
