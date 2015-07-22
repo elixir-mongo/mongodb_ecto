@@ -14,7 +14,7 @@ alias Ecto.Integration.TestRepo
 Application.put_env(:ecto, TestRepo,
                     adapter: Mongo.Ecto,
                     url: "ecto://localhost:27017/ecto_test",
-                    size: 1)
+                    pool_size: 1)
 
 defmodule Ecto.Integration.TestRepo do
   use Ecto.Integration.Repo, otp_app: :ecto

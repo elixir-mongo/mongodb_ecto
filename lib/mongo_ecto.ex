@@ -357,7 +357,6 @@ defmodule Mongo.Ecto do
     opts = opts
       |> Keyword.put(:timeout, Keyword.get(opts, :connect_timeout, 5000))
       |> Keyword.put_new(:name, default_pool_name)
-      |> Keyword.put_new(:size, 10)
 
     pool_mod.start_link(Connection, opts)
   end
