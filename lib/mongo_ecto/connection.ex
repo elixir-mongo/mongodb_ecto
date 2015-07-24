@@ -121,6 +121,8 @@ defmodule Mongo.Ecto.Connection do
 
   defp read_result({:ok, %ReadResult{docs: docs}}),
     do: {:ok, docs}
+  defp read_result({:error, _} = error),
+    do: error
   defp read_result(%Mongo.Error{} = error),
     do: {:error, error}
 

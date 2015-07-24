@@ -250,7 +250,17 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   defp command(:update, values, pk) do
-    ["$set": values |> value(pk, "update command") |> map_unless_empty]
+    set =
+      Enum.flat_map(values |> value(pk, "update command"), fn
+        {field, %Mongo.Ecto.DiffEmbed{changes: changes}} ->
+          Enum.map(changes, fn {key, value} ->
+            {"#{field}.#{key}", value(value, pk, "update command")}
+          end)
+        kv ->
+          [kv]
+      end)
+
+    ["$set": map_unless_empty(set)]
   end
 
   defp both_nil(nil, nil), do: true

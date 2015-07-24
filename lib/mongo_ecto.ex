@@ -335,7 +335,6 @@ defmodule Mongo.Ecto do
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
   alias Mongo.Ecto.NormalizedQuery.CommandQuery
   alias Mongo.Ecto.Decoder
-  alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
 
   alias Ecto.Pool
@@ -369,22 +368,26 @@ defmodule Mongo.Ecto do
 
   @doc false
   def load(:binary_id, data),
-    do: Ecto.Type.load(ObjectID, data, &load/2)
+    do: Ecto.Type.load(Mongo.Ecto.ObjectID, data, &load/2)
   def load(Ecto.Date, {date, _time}),
     do: Ecto.Type.load(Ecto.Date, date, &dump/2)
+  def load({:embed, %{strategy: :diff} = embed}, data) when is_map(data),
+    do: Mongo.Ecto.DiffEmbed.load(embed, data, &load/2)
   def load(type, data),
     do: Ecto.Type.load(type, data, &load/2)
 
   @doc false
   def dump(:binary_id, data),
-    do: Ecto.Type.dump(ObjectID, data, &dump/2)
+    do: Ecto.Type.dump(Mongo.Ecto.ObjectID, data, &dump/2)
   def dump(Ecto.Date, %Ecto.Date{} = data),
     do: Ecto.Type.dump(Ecto.DateTime, Ecto.DateTime.from_date(data), &dump/2)
+  def dump({:embed, %{strategy: :diff} = embed}, data),
+    do: Mongo.Ecto.DiffEmbed.dump(embed, data, &dump/2)
   def dump(type, data),
     do: Ecto.Type.dump(type, data, &dump/2)
 
   @doc false
-  def embed_id(_), do: ObjectID.generate
+  def embed_id(_), do: Mongo.Ecto.ObjectID.generate
 
   @doc false
   def all(repo, query, params, preprocess, opts) do
