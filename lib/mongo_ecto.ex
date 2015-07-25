@@ -590,15 +590,6 @@ defmodule Mongo.Ecto do
   def supports_ddl_transaction?, do: false
 
   @doc false
-  def ddl_exists?(repo, %Table{name: coll}, opts) do
-    to_string(coll) in list_collections(repo, opts)
-  end
-
-  def ddl_exists?(repo, %Index{table: coll, name: name}, opts) do
-    to_string(name) in list_indexes(repo, coll, opts)
-  end
-
-  @doc false
   def execute_ddl(_repo, string, _opts) when is_binary(string) do
     raise ArgumentError, "MongoDB adapter does not support SQL statements in `execute`"
   end
@@ -651,6 +642,32 @@ defmodule Mongo.Ecto do
     command = [renameCollection: namespace(repo, old), to: namespace(repo, new)]
     command(repo, command, [database: "admin"] ++ opts)
     |> ddl_result
+  end
+
+  def execute_ddl(repo, {:rename, %Table{name: coll}, old, new}, opts) do
+    query = %WriteQuery{coll: to_string(coll),
+                        command: ["$rename": [{to_string(old), to_string(new)}]],
+                        opts: [multi: true]}
+
+    query(repo, :update, query, opts)
+    :ok
+  end
+
+  def execute_ddl(_repo, {:create_if_not_exists, %Table{options: nil}, _columns}, _opts) do
+    # We treat this as a noop as the collection will be created by mongo
+    :ok
+  end
+
+  def execute_ddl(_repo, {:create_if_not_exists, %Table{}, _columns}, _opts) do
+    raise ArgumentError, "MongoDB adapter supports options for collection only in the `create` function"
+  end
+
+  def execute_ddl(_repo, {:create_if_not_exists, %Index{}}, _opts) do
+    raise ArgumentError, "MongoDB adapter does not support `create_if_not_exists` for indexes"
+  end
+
+  def execute_ddl(_repo, {:drop_if_exists, _}, _opts) do
+    raise ArgumentError, "MongoDB adapter does not support `drop_if_exists`"
   end
 
   ## Mongo specific calls
@@ -708,9 +725,9 @@ defmodule Mongo.Ecto do
     |> command_result
   end
 
-  defp command_result([%{"ok" => 1.0} = result]),
+  defp command_result([%{"ok" => one} = result]) when one in [1, 1.0],
     do: {:ok, result}
-  defp command_result([%{"ok" => 0.0} = result]),
+  defp command_result([%{"ok" => zero} = result]) when zero in [0, 0.0],
     do: {:error, result}
 
   special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
@@ -731,24 +748,11 @@ defmodule Mongo.Ecto do
     end)
   end
 
-  defp list_indexes(repo, coll, opts) do
-    regex = %BSON.Regex{pattern: to_string(coll), options: ""}
-    query = %ReadQuery{coll: "system.indexes", query: [ns: regex]}
-    opts = Keyword.put(opts, :log, false)
-
-    query(repo, :all, query, opts)
-    |> Enum.map(&Map.fetch!(&1, "name"))
-  end
-
   defp drop_collection(repo, collection, opts) do
     command(repo, [drop: collection], opts)
   end
 
   defp ddl_result({:ok, _}), do: :ok
-  # Already exists error, raised with schema_migrations table, Mongo 3.0
-  defp ddl_result({:error, %{"code" => 48}}), do: :ok
-  # Already exists error, raised with schema_migrations table, Mongo < 3.0
-  defp ddl_result({:error, %{"errmsg" => "collection already exists"}}), do: :ok
   defp ddl_result({:error, %{"errmsg" => msg}}),
     do: raise msg
 
