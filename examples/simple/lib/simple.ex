@@ -18,7 +18,7 @@ end
 defmodule Weather do
   use Ecto.Model
 
-  @primary_key {:id, :binary_id, autogerenate: true}
+  @primary_key {:id, :binary_id, autogenerate: true}
 
   schema "weather" do
     field :city, :string
