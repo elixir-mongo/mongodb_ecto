@@ -42,12 +42,26 @@ defmodule Mongo.Ecto.MigrationsTest do
   defmodule NoErrorTableMigration do
     use Ecto.Migration
 
-    def change do
+    def up do
       create_if_not_exists table(:existing)
 
       create_if_not_exists table(:existing)
 
       create_if_not_exists table(:existing)
+    end
+
+    def down do
+      :ok
+    end
+  end
+
+  defmodule RenameModel do
+    use Ecto.Model
+
+    @primary_key {:id, :binary_id, autogenerate: true}
+    schema "rename_migration" do
+      field :to_be_renamed, :integer
+      field :was_renamed, :integer
     end
   end
 
@@ -55,13 +69,11 @@ defmodule Mongo.Ecto.MigrationsTest do
     use Ecto.Migration
 
     def up do
-      execute insert: "rename_col_migration", documents: [[to_be_renamed: 1]]
-
-      rename table(:rename_col_migration), :to_be_renamed, to: :was_renamed
+      rename table(:rename_migration), :to_be_renamed, to: :was_renamed
     end
 
     def down do
-      drop table(:rename_col_migration)
+      drop table(:rename_migration)
     end
   end
 
@@ -89,23 +101,28 @@ defmodule Mongo.Ecto.MigrationsTest do
 
   test "create and drop indexes" do
     assert :ok == up(TestRepo, 20050906120000, CreateMigration, log: false)
+    assert :ok == down(TestRepo, 20050906120000, CreateMigration, log: false)
   end
 
   test "raises on SQL migrations" do
     assert :ok == up(TestRepo, 20150704120000, SQLMigration, log: false)
+    assert :ok == down(TestRepo, 20150704120000, SQLMigration, log: false)
   end
 
   test "rename table" do
     assert :ok == up(TestRepo, 20150712120000, RenameMigration, log: false)
+    assert :ok == down(TestRepo, 20150712120000, RenameMigration, log: false)
   end
 
   test "create table if not exists does not raise on failure" do
     assert :ok == up(TestRepo, 19850423000001, NoErrorTableMigration, log: false)
+    assert :ok == down(TestRepo, 19850423000001, NoErrorTableMigration, log: false)
   end
 
   test "rename column" do
+    TestRepo.insert! %RenameModel{to_be_renamed: 1}
     assert :ok == up(TestRepo, 20150718120000, RenameColumnMigration, log: false)
-    assert 1 == TestRepo.one from p in "rename_col_migration", select: p.was_renamed
+    assert {nil, 1} == TestRepo.one from p in RenameModel, select: {p.to_be_renamed, p.was_renamed}
     :ok = down(TestRepo, 20150718120000, RenameColumnMigration, log: false)
   end
 end

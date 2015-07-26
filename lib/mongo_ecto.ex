@@ -279,6 +279,9 @@ defmodule Mongo.Ecto do
         end
       end
 
+  MongoDB adapter does not support `create_if_not_exists` and `drop_if_exists`
+  migration functions.
+
   ## MongoDB adapter features
 
   The adapter uses `mongodb` for communicating with the database and a pooling
