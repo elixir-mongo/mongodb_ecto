@@ -22,6 +22,10 @@ before_script:
   - mix deps.get
   - (cd examples/simple; mix deps.get)
 
+after_script:
+  - mix deps.get --only docs
+  - MIX_ENV=docs mix inch.report
+
 env:
   matrix:
     - MONGOVERSION=2.4.14
