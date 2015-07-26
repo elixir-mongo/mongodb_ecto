@@ -46,6 +46,8 @@ defmodule Mongo.Ecto.Encoder do
       :error       -> :error
     end
   end
+  def encode(%Mongo.Ecto.DiffEmbed{} = diff, _pk),
+    do: {:ok, diff}
   def encode(%{__struct__: _}, _pk),
     do: :error # Other structs are not supported
   def encode(map, pk) when is_map(map),
