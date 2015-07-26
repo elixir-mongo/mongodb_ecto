@@ -19,6 +19,8 @@ defmodule Mongo.Ecto.Encoder do
   def encode(value, _params, pk),
     do: encode(value, pk)
 
+  @epoch :calendar.datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})
+
   def encode(doc, pk) when is_keyword(doc),
     do: document(doc, pk)
   def encode(int, _pk) when is_integer(int),
@@ -51,7 +53,8 @@ defmodule Mongo.Ecto.Encoder do
   def encode(map, pk) when is_map(map),
     do: document(map, pk)
   def encode({{_, _, _} = date, {hour, min, sec, usec}}, _pk) do
-    seconds = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
+    seconds =
+      :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}}) - @epoch
     {:ok, %BSON.DateTime{utc: seconds * 1000 + div(usec, 1000)}}
   end
   def encode(_value, _pk) do
