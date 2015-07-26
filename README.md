@@ -1,5 +1,8 @@
 # Mongo.Ecto
 
+[![Build Status](https://travis-ci.org/michalmuskala/mongodb_ecto.svg?branch=master)](https://travis-ci.org/michalmuskala/mongodb_ecto)
+[![Inline docs](http://inch-ci.org/github/michalmuskala/mongodb_ecto.svg?branch=master)](http://inch-ci.org/github/michalmuskala/mongodb_ecto)
+
 `Mongo.Ecto` is a MongoDB adapter for Ecto.
 
 For detailed information read the documentation for the `Mongo.Ecto` module,
