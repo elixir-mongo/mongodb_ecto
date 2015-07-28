@@ -1,14 +1,13 @@
 defmodule Mongo.Ecto.Connection do
   @moduledoc false
 
-  @behaviour Ecto.Adapters.Connection
-
   alias Mongo.ReadResult
   alias Mongo.WriteResult
 
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
   alias Mongo.Ecto.NormalizedQuery.CommandQuery
+  alias Mongo.Ecto.NormalizedQuery.CountQuery
 
   ## Worker
 
@@ -23,113 +22,81 @@ defmodule Mongo.Ecto.Connection do
   ## Callbacks for adapter
 
   def all(conn, %ReadQuery{} = query, opts \\ []) do
-    coll       = query.coll
-    projection = query.projection
-    opts       = query.opts ++ opts
-    database   = query.database
-    query      = query.query
+    opts  = [projection: query.projection, sort: query.order] ++ query.opts ++ opts
+    coll  = query.coll
+    query = query.query
 
-    with_database(conn, database, fn ->
-      Mongo.find(conn, coll, query, projection, opts)
-    end)
-    |> read_result
+    Mongo.find(conn, coll, query, opts)
   end
 
   def delete_all(conn, %WriteQuery{} = query, opts) do
     coll     = query.coll
     opts     = query.opts ++ opts
-    database = query.database
     query    = query.query
 
-    with_database(conn, database, fn ->
-      Mongo.remove(conn, coll, query, opts)
-    end)
-    |> write_result
+    case Mongo.delete_many(conn, coll, query, opts) do
+      {:ok, %{deleted_count: n}} -> n
+    end
   end
 
   def delete(conn, %WriteQuery{} = query, opts) do
     coll     = query.coll
     opts     = query.opts ++ opts
-    database = query.database
     query    = query.query
 
-    with_database(conn, database, fn ->
-      Mongo.remove(conn, coll, query, opts)
-    end)
-    |> write_result
+    case Mongo.delete_one(conn, coll, query, opts) do
+      {:ok, %{deleted_count: 1}} ->
+        {:ok, []}
+      {:ok, _} ->
+        {:error, :stale}
+    end
   end
 
   def update_all(conn, %WriteQuery{} = query, opts) do
     coll     = query.coll
     command  = query.command
     opts     = query.opts ++ opts
-    database = query.database
     query    = query.query
 
-    with_database(conn, database, fn ->
-      Mongo.update(conn, coll, query, command, opts)
-    end)
-    |> write_result
+    case Mongo.update_many(conn, coll, query, command, opts) do
+      {:ok, %{modified_count: n}} -> n
+    end
   end
 
   def update(conn, %WriteQuery{} = query, opts) do
     coll     = query.coll
     command  = query.command
     opts     = query.opts ++ opts
-    database = query.database
     query    = query.query
 
-    with_database(conn, database, fn ->
-      Mongo.update(conn, coll, query, command, opts)
-    end)
-    |> write_result
+    case Mongo.update_one(conn, coll, query, command, opts) do
+      {:ok, %{modified_count: 1}} ->
+        {:ok, []}
+      {:ok, _} ->
+        {:error, :stale}
+    end
   end
 
   def insert(conn, %WriteQuery{} = query, opts) do
     coll     = query.coll
     command  = query.command
     opts     = query.opts ++ opts
-    database = query.database
 
-    with_database(conn, database, fn ->
-      Mongo.insert(conn, coll, command, opts)
-    end)
-    |> write_result
+    Mongo.insert_one(conn, coll, command, opts)
   end
 
   def command(conn, %CommandQuery{} = query, opts) do
     command  = query.command
-    database = query.database
     opts     = query.opts ++ opts
 
-    with_database(conn, database, fn ->
-      Mongo.find(conn, "$cmd", command, %{}, opts)
-    end)
-    |> read_result
+    Mongo.runCommand(conn, command, opts)
   end
 
-  defp with_database(_conn, nil, fun), do: fun.()
-  defp with_database(conn, db, fun) do
-    olddb = Mongo.database(conn)
-    Mongo.database(conn, db)
-    try do
-      fun.()
-    after
-      Mongo.database(conn, olddb)
-    end
+  def count(conn, %CountQuery{} = query, opts) do
+    coll  = query.coll
+    opts  = query.opts ++ opts
+    query = query.query
+
+    Mongo.count(conn, coll, query, opts)
   end
-
-  defp read_result({:ok, %ReadResult{docs: docs}}),
-    do: {:ok, docs}
-  defp read_result(%Mongo.Error{} = error),
-    do: {:error, error}
-
-  defp write_result({:ok, %WriteResult{num_inserted: n}}) when is_integer(n),
-    do: {:ok, n}
-  defp write_result({:ok, %WriteResult{num_removed: n}}) when is_integer(n),
-    do: {:ok, n}
-  defp write_result({:ok, %WriteResult{num_matched: n}}) when is_integer(n),
-    do: {:ok, n}
-  defp write_result({:error, _} = error),
-    do: error
 end

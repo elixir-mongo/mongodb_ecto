@@ -5,7 +5,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     @moduledoc false
 
     defstruct coll: nil, pk: nil, params: {}, query: %{}, projection: %{},
-              fields: [], database: nil, opts: []
+              order: %{}, fields: [], database: nil, opts: []
   end
 
   defmodule WriteQuery do
@@ -18,6 +18,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
     @moduledoc false
 
     defstruct command: nil, database: nil, opts: []
+  end
+
+  defmodule CountQuery do
+    @moduledoc false
+
+    defstruct coll: nil, query: %{}, database: nil, opts: []
   end
 
   alias Mongo.Ecto.Encoder
@@ -35,7 +41,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     from   = from(original)
     params = List.to_tuple(params)
-    query  = query_order(original, params, from)
+    query  = query(original, params, from)
 
     case projection(original, params, from) do
       :count ->
@@ -45,20 +51,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end
   end
 
-  defp find_all(original, query, projection, fields, params, {coll, _, pk}) do
-    opts   = opts(:find_all, original)
-
-    %ReadQuery{coll: coll, pk: pk, params: params, query: query, projection: projection,
-               fields: fields, database: original.prefix, opts: opts}
+  defp find_all(original, query, projection, fields, params, {coll, _, pk} = from) do
+    %ReadQuery{coll: coll, pk: pk, params: params, query: query, fields: fields,
+               projection: projection, order: order(original, from),
+               database: original.prefix, opts: limit_skip(original)}
   end
 
   defp count(original, query, {coll, _, _}) do
-    command =
-      [count: coll, query: query]
-      |> put_if_not_zero(:limit, num_return(original))
-      |> put_if_not_zero(:skip, num_skip(original))
-
-    %CommandQuery{command: command, database: original.prefix, opts: opts(:command)}
+    %CountQuery{coll: coll, query: query, opts: limit_skip(original),
+                database: original.prefix}
   end
 
   def update_all(%Query{} = original, params) do
@@ -69,10 +70,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     coll    = coll(from)
     query   = query(original, params, from)
     command = command(:update, original, params, from)
-    opts    = opts(:update_all, original)
 
-    %WriteQuery{coll: coll, query: query, command: command,
-                database: original.prefix, opts: opts}
+    %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
   end
 
   def update({prefix, coll, _model}, values, filter, pk) do
@@ -89,9 +88,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     from   = from(original)
     coll   = coll(from)
     query  = query(original, params, from)
-    opts   = opts(:delete_all, original)
 
-    %WriteQuery{coll: coll, query: query, database: original.prefix, opts: opts}
+    %WriteQuery{coll: coll, query: query, database: original.prefix}
   end
 
   def delete({prefix, coll, _model}, filter, pk) do
@@ -107,25 +105,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   def command(command, opts) do
-    db = Keyword.get(opts, :database, nil)
-
-    %CommandQuery{command: command, database: db, opts: opts(:command)}
+    %CommandQuery{command: command, database: Keyword.get(opts, :database, nil)}
   end
 
   defp from(%Query{from: {coll, model}}) do
     {coll, model, primary_key(model)}
   end
-
-  defp query_order(original, params, from) do
-    query = query(original, params, from)
-    order = order(original, from)
-    query_order(query, order)
-  end
-
-  defp query_order(query, order) when order == %{},
-    do: query
-  defp query_order(query, order),
-    do: ["$query": query, "$orderby": order]
 
   defp projection(%Query{select: nil}, _params, _from),
     do: {%{}, []}
@@ -191,23 +176,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     projection(rest, params, from, query, pacc, facc)
   end
 
-  defp opts(:find_all, query),
-    do: [exhaust: true, num_return: num_return(query), num_skip: num_skip(query)]
-  defp opts(:update_all, _query),
-    do: [multi: true]
-  defp opts(:delete_all, _query),
-    do: [multi: true]
-  defp opts(:command),
-    do: [num_return: -1, exhaust: true]
-
-  defp put_if_not_zero(keyword, _key, 0),
-    do: keyword
-  defp put_if_not_zero(keyword, key, value),
-    do: Keyword.put(keyword, key, value)
-
-  defp num_skip(%Query{offset: offset}), do: offset_limit(offset)
-
-  defp num_return(%Query{limit: limit}), do: offset_limit(limit)
+  defp limit_skip(%Query{limit: limit, offset: offset}) do
+    [limit: offset_limit(limit), skip: offset_limit(offset)]
+    |> Enum.reject(&is_nil(elem(&1, 1)))
+  end
 
   defp coll({coll, _model, _pk}), do: coll
 
@@ -218,6 +190,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end)
     |> :lists.flatten
     |> merge_keys(query, "where clause")
+    |> map_unless_empty
   end
 
   defp query(filter, pk) do
@@ -257,7 +230,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp both_nil(_, _), do: false
 
   defp offset_limit(nil),
-    do: 0
+    do: nil
   defp offset_limit(%Query.QueryExpr{expr: int}) when is_integer(int),
     do: int
 
