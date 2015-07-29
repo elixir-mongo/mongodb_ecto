@@ -3,7 +3,7 @@
   "dialyze": {:hex, :dialyze, "0.2.0"},
   "ecto": {:git, "git://github.com/elixir-lang/ecto.git", "9f5b5eb493bee23b6c4482f3da01e42f920ac770", [ref: "9f5b5eb493bee23b6c4482f3da01e42f920ac770"]},
   "inch_ex": {:hex, :inch_ex, "0.3.3"},
-  "mongodb": {:git, "git://github.com/ericmj/mongodb.git", "0d79b730330185c45435e244e0d6b3833ebbb8f5", []},
+  "mongodb": {:git, "https://github.com/ericmj/mongodb.git", "a4a0e54f3ea44ceadad0e50d885c36d3b65389ff", []},
   "pbkdf2": {:git, "git://github.com/basho/erlang-pbkdf2.git", "7076584f5377e98600a7e2cb81980b2992fb2f71", []},
   "poison": {:hex, :poison, "1.4.0"},
   "poolboy": {:hex, :poolboy, "1.5.1"}}

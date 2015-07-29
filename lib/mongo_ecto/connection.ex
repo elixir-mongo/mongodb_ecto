@@ -1,9 +1,6 @@
 defmodule Mongo.Ecto.Connection do
   @moduledoc false
 
-  alias Mongo.ReadResult
-  alias Mongo.WriteResult
-
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
   alias Mongo.Ecto.NormalizedQuery.CommandQuery
@@ -11,12 +8,18 @@ defmodule Mongo.Ecto.Connection do
 
   ## Worker
 
-  def connect(opts) do
-    Mongo.Connection.start_link(opts)
-  end
-
-  def disconnect(conn) do
-    Mongo.Connection.stop(conn)
+  def storage_down(opts) do
+    {:ok, conn} = Mongo.Connection.start_link(opts)
+    try do
+      case Mongo.Connection.find_one(conn, "$cmd", [dropDatabase: 1], [], []) do
+        %{"ok" => 1.0} = doc ->
+          doc
+        %{"ok" => 0.0, "errmsg" => reason, "code" => code} ->
+          raise %Mongo.Error{message: "run_command failed: #{reason}", code: code}
+      end
+    after
+      :ok = Mongo.Connection.stop(conn)
+    end
   end
 
   ## Callbacks for adapter
@@ -89,7 +92,7 @@ defmodule Mongo.Ecto.Connection do
     command  = query.command
     opts     = query.opts ++ opts
 
-    Mongo.runCommand(conn, command, opts)
+    Mongo.run_command(conn, command, opts)
   end
 
   def count(conn, %CountQuery{} = query, opts) do
