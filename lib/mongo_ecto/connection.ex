@@ -9,16 +9,15 @@ defmodule Mongo.Ecto.Connection do
   ## Worker
 
   def storage_down(opts) do
-    {:ok, conn} = Mongo.Connection.start_link(opts)
+    opts = Keyword.put(opts, :size, 1)
+
+    {:ok, _} = Mongo.Ecto.AdminPool.start_link(opts)
+
     try do
-      case Mongo.Connection.find_one(conn, "$cmd", [dropDatabase: 1], [], []) do
-        %{"ok" => 1.0} = doc ->
-          doc
-        %{"ok" => 0.0, "errmsg" => reason, "code" => code} ->
-          raise %Mongo.Error{message: "run_command failed: #{reason}", code: code}
-      end
+      Mongo.run_command(Mongo.Ecto.AdminPool, dropDatabase: 1)
+      :ok
     after
-      :ok = Mongo.Connection.stop(conn)
+      true = Mongo.Ecto.AdminPool.stop
     end
   end
 

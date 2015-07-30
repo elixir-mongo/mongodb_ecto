@@ -602,17 +602,10 @@ defmodule Mongo.Ecto do
   def truncate(repo, opts \\ []) do
     opts = Keyword.put(opts, :log, false)
 
-    list_collections(repo, opts)
-    |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
-      case drop_collection(repo, collection, opts) do
-        {:error, _} = error -> {:halt, error}
-        _                   -> {[collection], :ok}
-      end
+    Enum.map(list_collections(repo, opts), fn collection ->
+      drop_collection(repo, collection, opts)
+      collection
     end)
-    |> case do
-         {dropped, :ok} -> {:ok, dropped}
-         {dropped, {:error, reason}} -> {:error, {reason, dropped}}
-       end
   end
 
   @doc """
@@ -630,7 +623,7 @@ defmodule Mongo.Ecto do
 
   For list of available commands plese see: http://docs.mongodb.org/manual/reference/command/
   """
-  def command(repo, command, opts \\ []) when is_atom(repo) do
+  def command(repo, command, opts \\ []) do
     normalized = NormalizedQuery.command(command, opts)
 
     Connection.command(repo.__mongo_pool__, normalized, opts)
