@@ -325,7 +325,7 @@ defmodule Mongo.Ecto do
   `Mongo.Ecto` does not use Ecto pools, instead pools provided by the MongoDB
   driver are used. The default poolboy adapter accepts following options:
 
-    * `:size` - The number of connections to keep in the pool (default: 10)
+    * `:pool_size` - The number of connections to keep in the pool (default: 10)
     * `:max_overflow` - The maximum overflow of connections (default: 0)
 
   For other adapters, please see their documentation.
@@ -354,6 +354,10 @@ defmodule Mongo.Ecto do
     quote do
       defmodule Pool do
         use Mongo.Pool, name: __MODULE__, adapter: unquote(adapter)
+
+        def log(return, queue_time, query_time, fun, args) do
+          Mongo.Ecto.log(unquote(module), return, queue_time, query_time, fun, args)
+        end
       end
 
       def __mongo_pool__, do: unquote(module).Pool
@@ -653,5 +657,60 @@ defmodule Mongo.Ecto do
 
   defp namespace(repo, coll) do
     "#{repo.config[:database]}.#{coll}"
+  end
+
+  @doc false
+  def log(repo, :ok, queue_time, query_time, fun, args) do
+    log(repo, {:ok, nil}, queue_time, query_time, fun, args)
+  end
+  def log(repo, return, queue_time, query_time, fun, args) do
+    entry =
+      %Ecto.LogEntry{query: &format_log(&1, fun, args), params: [],
+                     result: return, query_time: query_time, queue_time: queue_time}
+    repo.log(entry)
+  end
+
+  defp format_log(_entry, :run_command, [command, _opts]) do
+    ["COMMAND " | inspect(command)]
+  end
+  defp format_log(_entry, :insert_one, [coll, doc, _opts]) do
+    ["INSERT", format_part("coll", coll), format_part("document", doc)]
+  end
+  defp format_log(_entry, :insert_many, [coll, docs, _opts]) do
+    ["INSERT", format_part("coll", coll), format_part("documents", docs)]
+  end
+  defp format_log(_entry, :delete_one, [coll, filter, _opts]) do
+    ["DELETE", format_part("coll", coll), format_part("filter", filter),
+     format_part("many", false)]
+  end
+  defp format_log(_entry, :delete_many, [coll, filter, _opts]) do
+    ["DELETE", format_part("coll", coll), format_part("filter", filter),
+     format_part("many", true)]
+  end
+  defp format_log(_entry, :replace_one, [coll, filter, doc, _opts]) do
+    ["REPLACE", format_part("coll", coll), format_part("filter", filter),
+     format_part("document", doc)]
+  end
+  defp format_log(_entry, :update_one, [coll, filter, update, _opts]) do
+    ["UPDATE", format_part("coll", coll), format_part("filter", filter),
+     format_part("update", update), format_part("many", false)]
+  end
+  defp format_log(_entry, :update_many, [coll, filter, update, _opts]) do
+    ["UPDATE", format_part("coll", coll), format_part("filter", filter),
+     format_part("update", update), format_part("many", true)]
+  end
+  defp format_log(_entry, :find_cursor, [coll, query, projection, _opts]) do
+    ["FIND", format_part("coll", coll), format_part("query", query),
+     format_part("projection", projection)]
+  end
+  defp format_log(_entry, :find_batch, [coll, cursor, _opts]) do
+    ["GET_MORE", format_part("coll", coll), format_part("cursor_id", cursor)]
+  end
+  defp format_log(_entry, :kill_cursors, [cursors, _opts]) do
+    ["KILL_CURSORS", format_part("cursor_ids", cursors)]
+  end
+
+  defp format_part(name, value) do
+    [" ", name, "=" | inspect(value)]
   end
 end
