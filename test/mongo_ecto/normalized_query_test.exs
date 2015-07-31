@@ -43,7 +43,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     query = Model |> from |> normalize
     assert_query(query, coll: "model", query: %{},
                  projection: %{_id: true, x: true, y: true, z: true},
-                 opts: [exhaust: true, num_return: 0, num_skip: 0])
+                 opts: [])
     assert [{:&, _, _}] = query.fields
   end
 
@@ -101,10 +101,10 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "count" do
     query = Model |> select([r], count(r.id)) |> normalize
-    assert_query(query, command: [count: "model", query: %{}])
+    assert_query(query, coll: "model", query: %{})
 
     query = Model |> select([r], count(r.id)) |> where([r], r.x > 10) |> normalize
-    assert_query(query, command: [count: "model", query: %{x: ["$gt": 10]}])
+    assert_query(query, coll: "model", query: %{x: ["$gt": 10]})
 
     assert_raise Ecto.QueryError, fn ->
       Model |> select([r], {r.id, count(r.id)}) |> normalize
@@ -117,27 +117,27 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
   test "order by" do
     query = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize
-    assert_query(query, query: ["$query": %{}, "$orderby": [x: 1]])
+    assert_query(query, query: %{}, order: [x: 1])
 
     query = Model |> order_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
-    assert_query(query, query: ["$query": %{}, "$orderby": [x: 1, y: 1]])
+    assert_query(query, query: %{}, order: [x: 1, y: 1])
 
     query = Model |> order_by([r], [asc: r.x, desc: r.y]) |> select([r], r.x) |> normalize
-    assert_query(query, query: ["$query": %{}, "$orderby": [x: 1, y: -1]])
+    assert_query(query, query: %{}, order: [x: 1, y: -1])
 
     query = Model |> order_by([r], []) |> select([r], r.x) |> normalize
-    assert_query(query, query: %{})
+    assert_query(query, query: %{}, order: %{})
   end
 
   test "limit and offset" do
     query = Model |> limit([r], 3) |> normalize
-    assert_query(query, opts: [exhaust: true, num_return: 3, num_skip: 0])
+    assert_query(query, opts: [limit: 3])
 
     query = Model |> offset([r], 5) |> normalize
-    assert_query(query, opts: [exhaust: true, num_return: 0, num_skip: 5])
+    assert_query(query, opts: [skip: 5])
 
     query = Model |> offset([r], 5) |> limit([r], 3) |> normalize
-    assert_query(query, opts: [exhaust: true, num_return: 3, num_skip: 5])
+    assert_query(query, opts: [limit: 3, skip: 5])
   end
 
   test "lock" do

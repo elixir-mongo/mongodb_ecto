@@ -11,7 +11,7 @@ defmodule Mongo.EctoTest do
   import Mongo.Ecto.Helpers
 
   test "command/3" do
-    assert {:ok, _} = Mongo.Ecto.command(TestRepo, ping: 1)
+    assert %{"ok" => 1.0} == Mongo.Ecto.command(TestRepo, ping: 1)
   end
 
   test "truncate/2" do

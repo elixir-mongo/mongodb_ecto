@@ -305,8 +305,7 @@ defmodule Mongo.Ecto do
   recompilation in order to make an effect.
 
     * `:adapter` - The adapter name, in this case, `Mongo.Ecto`
-    * `:pool` - The connection pool module, defaults to `Ecto.Adapters.Poolboy`
-    * `:timeout` - The default timeout to use on queries, defaults to `5000`
+    * `:pool` - The connection pool module, defaults to `Mongo.Pool.Poolboy`
     * `:log_level` - The level to use when logging queries (default: `:debug`)
 
   ### Connection options
@@ -323,10 +322,13 @@ defmodule Mongo.Ecto do
 
   ### Pool options
 
-  All pools should support the following options and can support other options,
-  see `Ecto.Adapters.Poolboy`.
+  `Mongo.Ecto` does not use Ecto pools, instead pools provided by the MongoDB
+  driver are used. The default poolboy adapter accepts following options:
 
-    * `:size` - The number of connections to keep in the pool (default: 10)
+    * `:pool_size` - The number of connections to keep in the pool (default: 10)
+    * `:max_overflow` - The maximum overflow of connections (default: 0)
+
+  For other adapters, please see their documentation.
   """
 
   @behaviour Ecto.Adapter
@@ -336,38 +338,37 @@ defmodule Mongo.Ecto do
   alias Mongo.Ecto.NormalizedQuery
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
-  alias Mongo.Ecto.NormalizedQuery.CommandQuery
+  alias Mongo.Ecto.NormalizedQuery.CountQuery
   alias Mongo.Ecto.Decoder
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
 
-  alias Ecto.Pool
-
   ## Adapter
 
   @doc false
-  defmacro __before_compile__(_env) do
-    :ok
+  defmacro __before_compile__(env) do
+    module = env.module
+    config = Module.get_attribute(module, :config)
+    adapter = Keyword.get(config, :pool, Mongo.Pool.Poolboy)
+
+    quote do
+      defmodule Pool do
+        use Mongo.Pool, name: __MODULE__, adapter: unquote(adapter)
+
+        def log(return, queue_time, query_time, fun, args) do
+          Mongo.Ecto.log(unquote(module), return, queue_time, query_time, fun, args)
+        end
+      end
+
+      def __mongo_pool__, do: unquote(module).Pool
+    end
   end
 
   @doc false
   def start_link(repo, opts) do
     {:ok, _} = Application.ensure_all_started(:mongodb_ecto)
 
-    {default_pool_mod, default_pool_name, _} = repo.__pool__
-    pool_mod = Keyword.get(opts, :pool, default_pool_mod)
-
-    opts = opts
-      |> Keyword.put(:timeout, Keyword.get(opts, :connect_timeout, 5000))
-      |> Keyword.put_new(:name, default_pool_name)
-
-    pool_mod.start_link(Connection, opts)
-  end
-
-  @doc false
-  def stop(repo) do
-    {pool_mod, pool, _} = repo.__pool__
-    pool_mod.stop(pool)
+    repo.__mongo_pool__.start_link(opts)
   end
 
   @doc false
@@ -393,11 +394,10 @@ defmodule Mongo.Ecto do
   def all(repo, query, params, preprocess, opts) do
     case NormalizedQuery.all(query, params) do
       %ReadQuery{} = read ->
-        query(repo, :all, read, opts)
+        Connection.all(repo.__mongo_pool__, read, opts)
         |> Enum.map(&process_document(&1, read, preprocess))
-      %CommandQuery{} = command ->
-        query(repo, :command, command, opts)
-        |> Enum.map(&[Map.get(&1, "n")])
+      %CountQuery{} = command ->
+        [[Connection.count(repo.__mongo_pool__, command, opts)]]
     end
   end
 
@@ -405,14 +405,14 @@ defmodule Mongo.Ecto do
   def update_all(repo, query, params, opts) do
     normalized = NormalizedQuery.update_all(query, params)
 
-    {query(repo, :update_all, normalized, opts), nil}
+    {Connection.update_all(repo.__mongo_pool__, normalized, opts), nil}
   end
 
   @doc false
   def delete_all(repo, query, params, opts) do
     normalized = NormalizedQuery.delete_all(query, params)
 
-    {query(repo, :delete_all, normalized, opts), nil}
+    {Connection.delete_all(repo.__mongo_pool__, normalized, opts), nil}
   end
 
   @doc false
@@ -430,25 +430,23 @@ defmodule Mongo.Ecto do
   def insert(repo, source, params, nil, [], opts) do
     normalized = NormalizedQuery.insert(source, params, nil)
 
-    query(repo, :insert, normalized, opts)
-    |> single_result([])
+    {:ok, _} = Connection.insert(repo.__mongo_pool__, normalized, opts)
+    {:ok, []}
   end
 
   def insert(repo, source, params, {pk, :binary_id, nil}, [], opts) do
-    %BSON.ObjectId{value: value} = id = Mongo.IdServer.new
-    params = Keyword.put(params, pk, id)
-
     normalized = NormalizedQuery.insert(source, params, pk)
 
-    query(repo, :insert, normalized, opts)
-    |> single_result([{pk, value}])
+    {:ok, %{inserted_id: %BSON.ObjectId{value: value}}} =
+      Connection.insert(repo.__mongo_pool__, normalized, opts)
+    {:ok, [{pk, value}]}
   end
 
   def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
     normalized = NormalizedQuery.insert(source, params, pk)
 
-    query(repo, :insert, normalized, opts)
-    |> single_result([])
+    {:ok, _} = Connection.insert(repo.__mongo_pool__, normalized, opts)
+    {:ok, []}
   end
 
   @doc false
@@ -466,8 +464,7 @@ defmodule Mongo.Ecto do
   def update(repo, source, fields, filter, {pk, :binary_id, _value}, [], opts) do
     normalized = NormalizedQuery.update(source, fields, filter, pk)
 
-    query(repo, :update, normalized, opts)
-    |> single_result([])
+    Connection.update(repo.__mongo_pool__, normalized, opts)
   end
 
   @doc false
@@ -479,79 +476,8 @@ defmodule Mongo.Ecto do
   def delete(repo, source, filter, {pk, :binary_id, _value}, opts) do
     normalized = NormalizedQuery.delete(source, filter, pk)
 
-    query(repo, :delete, normalized, opts)
-    |> single_result([])
+    Connection.delete(repo.__mongo_pool__, normalized, opts)
   end
-
-  defp query(repo, fun, query, opts) do
-    {pool_mod, pool, timeout} = repo.__pool__
-    opts    = Keyword.put_new(opts, :timeout, timeout)
-    timeout = Keyword.fetch!(opts, :timeout)
-    log?    = Keyword.get(opts, :log, true)
-
-    case Pool.run(pool_mod, pool, timeout, &query(&1, &2, fun, query, log?, opts)) do
-      {:ok, {result, entry}} ->
-        log(repo, entry)
-        result(result)
-      {:error, :noconnect} ->
-        # :noconnect can never be the reason a call fails because
-        # it is converted to {:nodedown, node}. This means the exit
-        # reason can be easily identified.
-        exit({:noconnect, {__MODULE__, :query, [repo, fun, query, opts]}})
-      {:error, :noproc} ->
-        raise ArgumentError, "repo #{inspect repo} is not started, " <>
-                             "please ensure it is part of your supervision tree"
-    end
-  end
-
-  defp query({mod, conn}, _queue_time, fun, query, false, opts) do
-    {apply(mod, fun, [conn, query, opts]), nil}
-  end
-  defp query({mod, conn}, queue_time, fun, query, true, opts) do
-    {query_time, res} = :timer.tc(mod, fun, [conn, query, opts])
-
-    entry = %Ecto.LogEntry{query: &format_query(&1, fun, query), params: [],
-                           result: res, query_time: query_time, queue_time: queue_time}
-
-    {res, entry}
-  end
-
-  defp log(_repo, nil), do: :ok
-  defp log(repo, entry), do: repo.log(entry)
-
-  defp result({:ok, result}),
-    do: result
-  defp result({:error, %{__exception__: _} = error}),
-    do: raise error
-  defp result({:error, reason}),
-    do: raise(ArgumentError, "MongoDB driver errored with #{inspect reason}")
-
-  defp format_query(_entry, :all, query) do
-    ["FIND coll=", inspect(query.coll),
-     " query=", inspect(query.query),
-     " projection=", inspect(query.projection)]
-  end
-  defp format_query(_entry, :insert, query) do
-    ["INSERT coll=", inspect(query.coll),
-     " document=", inspect(query.command)]
-  end
-  defp format_query(_entry, :command, query) do
-    ["COMMAND ", inspect(query.command)]
-  end
-  defp format_query(_entry, op, query) when op in [:delete, :delete_all] do
-    ["REMOVE coll=", inspect(query.coll),
-     " query=", inspect(query.query),
-     " opts=", inspect(query.opts)]
-  end
-  defp format_query(_entry, op, query) when op in [:update, :update_all] do
-    ["UPDATE coll=", inspect(query.coll),
-     " query=", inspect(query.query),
-     " command=", inspect(query.command),
-     " opts=", inspect(query.opts)]
-  end
-
-  defp single_result(1, result), do: {:ok, result}
-  defp single_result(_, _),      do: {:error, :stale}
 
   defp process_document(document, %{fields: fields, pk: pk}, preprocess) do
     document = Decoder.decode_document(document, pk)
@@ -576,12 +502,7 @@ defmodule Mongo.Ecto do
 
   @doc false
   def storage_down(opts) do
-    {:ok, conn} = Connection.connect(opts)
-    try do
-      command(conn, dropDatabase: 1)
-    after
-      :ok = Connection.disconnect(conn)
-    end
+    Connection.storage_down(opts)
   end
 
   ## Migration
@@ -599,18 +520,18 @@ defmodule Mongo.Ecto do
 
   def execute_ddl(repo, command, opts) when is_list(command) do
     command(repo, command, opts)
-    |> ddl_result
+    :ok
   end
 
   def execute_ddl(repo, {:create, %Table{options: nil, name: coll}, _columns}, opts) do
     command(repo, [create: coll], opts)
-    |> ddl_result
+    :ok
   end
 
   def execute_ddl(repo, {:create, %Table{options: options, name: coll}, _columns}, opts)
       when is_list(options) do
     command(repo, [create: coll] ++ options, opts)
-    |> ddl_result
+    :ok
   end
 
   def execute_ddl(_repo, {:create, %Table{options: string}, _columns}, _opts)
@@ -627,24 +548,24 @@ defmodule Mongo.Ecto do
 
     query = %WriteQuery{coll: "system.indexes", command: index}
 
-    query(repo, :insert, query, opts)
+    Connection.insert(repo.__mongo_pool__, query, opts)
     :ok
   end
 
   def execute_ddl(repo, {:drop, %Index{name: name, table: coll}}, opts) do
     command(repo, [dropIndexes: coll, index: to_string(name)], opts)
-    |> ddl_result
+    :ok
   end
 
   def execute_ddl(repo, {:drop, %Table{name: coll}}, opts) do
     command(repo, [drop: coll], opts)
-    |> ddl_result
+    :ok
   end
 
   def execute_ddl(repo, {:rename, %Table{name: old}, %Table{name: new}}, opts) do
     command = [renameCollection: namespace(repo, old), to: namespace(repo, new)]
     command(repo, command, [database: "admin"] ++ opts)
-    |> ddl_result
+    :ok
   end
 
   def execute_ddl(repo, {:rename, %Table{name: coll}, old, new}, opts) do
@@ -652,7 +573,7 @@ defmodule Mongo.Ecto do
                         command: ["$rename": [{to_string(old), to_string(new)}]],
                         opts: [multi: true]}
 
-    query(repo, :update, query, opts)
+    Connection.update(repo.__mongo_pool__, query, opts)
     :ok
   end
 
@@ -685,17 +606,10 @@ defmodule Mongo.Ecto do
   def truncate(repo, opts \\ []) do
     opts = Keyword.put(opts, :log, false)
 
-    list_collections(repo, opts)
-    |> Enum.flat_map_reduce(:ok, fn collection, :ok ->
-      case drop_collection(repo, collection, opts) do
-        {:error, _} = error -> {:halt, error}
-        _                   -> {[collection], :ok}
-      end
+    Enum.map(list_collections(repo, opts), fn collection ->
+      drop_collection(repo, collection, opts)
+      collection
     end)
-    |> case do
-         {dropped, :ok} -> {:ok, dropped}
-         {dropped, {:error, reason}} -> {:error, {reason, dropped}}
-       end
   end
 
   @doc """
@@ -713,25 +627,11 @@ defmodule Mongo.Ecto do
 
   For list of available commands plese see: http://docs.mongodb.org/manual/reference/command/
   """
-  def command(repo, command, opts \\ [])
-  def command(repo, command, opts) when is_atom(repo) do
+  def command(repo, command, opts \\ []) do
     normalized = NormalizedQuery.command(command, opts)
 
-    query(repo, :command, normalized, opts)
-    |> command_result
+    Connection.command(repo.__mongo_pool__, normalized, opts)
   end
-  def command(conn, command, opts) when is_pid(conn) do
-    normalized = NormalizedQuery.command(command, opts)
-
-    Connection.command(conn, normalized, opts)
-    |> result
-    |> command_result
-  end
-
-  defp command_result([%{"ok" => one} = result]) when one in [1, 1.0],
-    do: {:ok, result}
-  defp command_result([%{"ok" => zero} = result]) when zero in [0, 0.0],
-    do: {:error, result}
 
   special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
   migration = Ecto.Migration.SchemaMigration.__schema__(:source)
@@ -744,7 +644,7 @@ defmodule Mongo.Ecto do
     query = %ReadQuery{coll: "system.namespaces", query: @list_collections_query}
     opts = Keyword.put(opts, :log, false)
 
-    query(repo, :all, query, opts)
+    Connection.all(repo.__mongo_pool__, query, opts)
     |> Enum.map(&Map.fetch!(&1, "name"))
     |> Enum.map(fn collection ->
       collection |> String.split(".", parts: 2) |> Enum.at(1)
@@ -755,11 +655,62 @@ defmodule Mongo.Ecto do
     command(repo, [drop: collection], opts)
   end
 
-  defp ddl_result({:ok, _}), do: :ok
-  defp ddl_result({:error, %{"errmsg" => msg}}),
-    do: raise msg
-
   defp namespace(repo, coll) do
     "#{repo.config[:database]}.#{coll}"
+  end
+
+  @doc false
+  def log(repo, :ok, queue_time, query_time, fun, args) do
+    log(repo, {:ok, nil}, queue_time, query_time, fun, args)
+  end
+  def log(repo, return, queue_time, query_time, fun, args) do
+    entry =
+      %Ecto.LogEntry{query: &format_log(&1, fun, args), params: [],
+                     result: return, query_time: query_time, queue_time: queue_time}
+    repo.log(entry)
+  end
+
+  defp format_log(_entry, :run_command, [command, _opts]) do
+    ["COMMAND " | inspect(command)]
+  end
+  defp format_log(_entry, :insert_one, [coll, doc, _opts]) do
+    ["INSERT", format_part("coll", coll), format_part("document", doc)]
+  end
+  defp format_log(_entry, :insert_many, [coll, docs, _opts]) do
+    ["INSERT", format_part("coll", coll), format_part("documents", docs)]
+  end
+  defp format_log(_entry, :delete_one, [coll, filter, _opts]) do
+    ["DELETE", format_part("coll", coll), format_part("filter", filter),
+     format_part("many", false)]
+  end
+  defp format_log(_entry, :delete_many, [coll, filter, _opts]) do
+    ["DELETE", format_part("coll", coll), format_part("filter", filter),
+     format_part("many", true)]
+  end
+  defp format_log(_entry, :replace_one, [coll, filter, doc, _opts]) do
+    ["REPLACE", format_part("coll", coll), format_part("filter", filter),
+     format_part("document", doc)]
+  end
+  defp format_log(_entry, :update_one, [coll, filter, update, _opts]) do
+    ["UPDATE", format_part("coll", coll), format_part("filter", filter),
+     format_part("update", update), format_part("many", false)]
+  end
+  defp format_log(_entry, :update_many, [coll, filter, update, _opts]) do
+    ["UPDATE", format_part("coll", coll), format_part("filter", filter),
+     format_part("update", update), format_part("many", true)]
+  end
+  defp format_log(_entry, :find_cursor, [coll, query, projection, _opts]) do
+    ["FIND", format_part("coll", coll), format_part("query", query),
+     format_part("projection", projection)]
+  end
+  defp format_log(_entry, :find_batch, [coll, cursor, _opts]) do
+    ["GET_MORE", format_part("coll", coll), format_part("cursor_id", cursor)]
+  end
+  defp format_log(_entry, :kill_cursors, [cursors, _opts]) do
+    ["KILL_CURSORS", format_part("cursor_ids", cursors)]
+  end
+
+  defp format_part(name, value) do
+    [" ", name, "=" | inspect(value)]
   end
 end

@@ -109,10 +109,11 @@ defmodule Mongo.Ecto.MigrationsTest do
     assert :ok == down(TestRepo, 20150704120000, SQLMigration, log: false)
   end
 
-  test "rename table" do
-    assert :ok == up(TestRepo, 20150712120000, RenameMigration, log: false)
-    assert :ok == down(TestRepo, 20150712120000, RenameMigration, log: false)
-  end
+  # TODO add back, once we get the ability to change database from the driver
+  # test "rename table" do
+  #   assert :ok == up(TestRepo, 20150712120000, RenameMigration, log: false)
+  #   assert :ok == down(TestRepo, 20150712120000, RenameMigration, log: false)
+  # end
 
   test "create table if not exists does not raise on failure" do
     assert :ok == up(TestRepo, 19850423000001, NoErrorTableMigration, log: false)
