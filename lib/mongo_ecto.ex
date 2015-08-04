@@ -391,28 +391,24 @@ defmodule Mongo.Ecto do
   def embed_id(_), do: ObjectID.generate
 
   @doc false
-  def all(repo, query, params, preprocess, opts) do
-    case NormalizedQuery.all(query, params) do
+  def prepare(function, query) do
+    {:nocache, {function, query}}
+  end
+
+  @doc false
+  def execute(repo, _meta, {function, query}, params, preprocess, opts) do
+    case apply(NormalizedQuery, function, [query, params]) do
       %ReadQuery{} = read ->
-        Connection.all(repo.__mongo_pool__, read, opts)
-        |> Enum.map(&process_document(&1, read, preprocess))
-      %CountQuery{} = command ->
-        [[Connection.count(repo.__mongo_pool__, command, opts)]]
+        {rows, count} =
+          Connection.all(repo.__mongo_pool__, read, opts)
+          |> Enum.map_reduce(0, &{process_document(&1, read, preprocess), &2 + 1})
+        {count, rows}
+      %CountQuery{} = count ->
+        {1, [[Connection.count(repo.__mongo_pool__, count, opts)]]}
+      %WriteQuery{} = write ->
+        result = apply(Connection, function, [repo.__mongo_pool__, write, opts])
+        {result, nil}
     end
-  end
-
-  @doc false
-  def update_all(repo, query, params, opts) do
-    normalized = NormalizedQuery.update_all(query, params)
-
-    {Connection.update_all(repo.__mongo_pool__, normalized, opts), nil}
-  end
-
-  @doc false
-  def delete_all(repo, query, params, opts) do
-    normalized = NormalizedQuery.delete_all(query, params)
-
-    {Connection.delete_all(repo.__mongo_pool__, normalized, opts), nil}
   end
 
   @doc false

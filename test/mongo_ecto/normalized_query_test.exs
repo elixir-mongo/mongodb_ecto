@@ -19,7 +19,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
   @id_types %{binary_id: Mongo.Ecto.ObjectID}
 
   defp normalize(query, operation \\ :all) do
-    {query, params} = Ecto.Query.Planner.prepare(query, operation, Mongo.Ecto)
+    {query, params, _key} = Ecto.Query.Planner.prepare(query, operation, Mongo.Ecto)
     query = Ecto.Query.Planner.normalize(query, operation, Mongo.Ecto)
     apply(NormalizedQuery, operation, [query, params])
   end
