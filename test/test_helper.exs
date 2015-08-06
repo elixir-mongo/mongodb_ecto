@@ -1,6 +1,6 @@
 # System.at_exit fn _ -> Logger.flush end
 Logger.configure(level: :info)
-ExUnit.start exclude: [:uses_usec, :id_type, :read_after_writes, :sql_fragments, :decimal_type, :invalid_prefix]
+ExUnit.start exclude: [:uses_usec, :id_type, :read_after_writes, :sql_fragments, :decimal_type, :invalid_prefix, :transaction]
 
 Application.put_env(:ecto, :primary_key_type, :binary_id)
 
