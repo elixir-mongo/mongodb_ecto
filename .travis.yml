@@ -3,10 +3,11 @@ language: elixir
 cache: apt
 
 elixir:
-  - 1.0.4
+  - 1.0.5
 
 otp_release:
-  - 17.4
+  - 17.5
+  - 18
 
 before_install:
   - npm install -g mongodb-version-manager
