@@ -65,7 +65,7 @@ defmodule Mongo.Ecto do
   Ecto defaults to using `:id` type for primary keys, that is translated to
   `:integer` for SQL databases, and is not handled by MongoDB. You need to
   specify the primary key to use the `:binary_id` type, that the adapter will
-  translate it to ObjectID. Remember to place this declaration before the
+  translate to ObjectID. Remember to place this declaration before the
   `schema` call.
 
   The name of the primary key is just a convenience, as MongoDB forces us to
@@ -157,8 +157,8 @@ defmodule Mongo.Ecto do
   provide `Repo.one/1`, which returns one entry or nil, and `Repo.one!/1`
   which returns one entry or raises.
 
-  There is also support for count function in queries that uses `MongoDB`
-  `count` command. Please not that unline in SQL databases you can only select
+  There is also support for count function in queries that uses `MongoDB`'s
+  `count` command. Please not that unlike in SQL databases you can only select
   a count - there is no support for querying using a count, there is also no
   support for counting documents and selecting them at the same time.
 
@@ -171,18 +171,8 @@ defmodule Mongo.Ecto do
 
       from p in Post, where: fragment("$exists": "name"), select: p
 
-  To ease using more advanced queries, there is `Mongo.Ecto.Helpers` module
-  you could import into modules dealing with queries. Currently it defines two
-  functions:
-
-    * `javascript/2` to use inline JavaScript
-
-          from p in Post, where: ^javascript("this.visits === count", count: 10)
-
-    * `regex/2` to use regex objects
-
-          from p in Post, where: fragment(title: ^regex("elixir", "i"))
-
+  To ease of using in more advanced queries, there is `Mongo.Ecto.Helpers` module
+  you could import into modules dealing with queries.
   Please see the documentation of the `Mongo.Ecto.Helpers` module for more
   information and supported options.
 
@@ -251,6 +241,28 @@ defmodule Mongo.Ecto do
   You can find more information about defining associations and each respective
   association module in `Ecto.Schema` docs.
 
+  ## Embedded models
+
+  Ecto supports defining relations using embedding models directly inside the
+  parent model, and that fits MongoDB's design perfectly.
+
+      defmoudle Post do
+        #...
+
+        schema "posts" do
+          embeds_many :comments, Comment
+        end
+      end
+
+      defmoudle Comment do
+        embedded_schema do
+          field :body, :string
+        end
+      end
+
+  You can find more information about defining embedded models in the
+  `Ecto.Schema` docs.
+
   ## Migrations
 
   Ecto supports database migrations. You can generate a migration with:
@@ -287,12 +299,16 @@ defmodule Mongo.Ecto do
   The adapter uses `mongodb` for communicating with the database and a pooling
   library such as `poolboy` for managing connections.
 
-  The adapter has:
+  The adapter has support for:
 
-    * Support for documents with ObjectID as their primary key
-    * Support for insert, find, update and remove and count mongo functions
-    * Support for management commands with `command/2`
-    * Support for embedded objects with `:map` and `{:array, :map}` types
+    * documents with ObjectID as their primary key
+    * insert, find, update, remove and count mongo functions
+    * management commands with `command/2`
+    * embedded documents either with `:map` type, or embedded models
+    * partial updates using `change_map/2` and `change_array/2` from the
+      `Mongo.Ecto.Helpers` module
+    * queries using javascript expresssion and regexes using respectively
+      `javascript/2` and `regex/2` functions from `Mongo.Ecto.Helpers` module.
 
   ### MongoDB adapter options
 
@@ -317,7 +333,7 @@ defmodule Mongo.Ecto do
     * `:connect_timeout` - The timeout for establishing new connections (default: 5000)
     * `:w` - MongoDB's write convern (default: 1). If set to 0, some of the
       Ecto's functions may not work properely
-    * `:j`, `:fsync`, `:wtimeout` - Other MongoDV's write concern options. Pleas
+    * `:j`, `:fsync`, `:wtimeout` - Other MongoDB's write concern options. Please
       consult MongoDB's documentation
 
   ### Pool options
