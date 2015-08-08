@@ -251,12 +251,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp order_by_expr({:desc, expr}, pk, query),
     do: {field(expr, pk, query, "order clause"), -1}
 
-  defp check_query(query) do
-    check(query.distinct, nil, query, "MongoDB adapter does not support distinct clauses")
-    check(query.lock,     nil, query, "MongoDB adapter does not support locking")
-    check(query.joins,     [], query, "MongoDB adapter does not support join clauses")
-    check(query.group_bys, [], query, "MongoDB adapter does not support group_by clauses")
-    check(query.havings,   [], query, "MongoDB adapter does not support having clauses")
+  @query_empty_values %Ecto.Query{} |> Map.take([:distinct, :lock, :joins, :group_bys, :havings])
+
+  defp check_query(query, allow \\ []) do
+    @query_empty_values
+    |> Map.drop(allow)
+    |> Enum.each(fn {element, empty} ->
+      check(Map.get(query, element), empty, query,
+            "MongoDB adapter does not support #{element} clause in this query")
+    end)
   end
 
   defp check(expr, expr, _, _),
