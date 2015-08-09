@@ -5,6 +5,7 @@ defmodule Mongo.Ecto.Connection do
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
   alias Mongo.Ecto.NormalizedQuery.CommandQuery
   alias Mongo.Ecto.NormalizedQuery.CountQuery
+  alias Mongo.Ecto.NormalizedQuery.AggregateQuery
 
   ## Worker
 
@@ -99,6 +100,14 @@ defmodule Mongo.Ecto.Connection do
     opts  = query.opts ++ opts
     query = query.query
 
-    Mongo.count(conn, coll, query, opts)
+    [%{"value" => Mongo.count(conn, coll, query, opts)}]
+  end
+
+  def aggregate(conn, %AggregateQuery{} = query, opts) do
+    coll     = query.coll
+    opts     = query.opts ++ opts
+    pipeline = query.pipeline
+
+    Mongo.aggregate(conn, coll, pipeline, opts)
   end
 end

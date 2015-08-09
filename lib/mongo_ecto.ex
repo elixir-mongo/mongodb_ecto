@@ -355,6 +355,7 @@ defmodule Mongo.Ecto do
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
   alias Mongo.Ecto.NormalizedQuery.CountQuery
+  alias Mongo.Ecto.NormalizedQuery.AggregateQuery
   alias Mongo.Ecto.Decoder
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
@@ -420,7 +421,15 @@ defmodule Mongo.Ecto do
           |> Enum.map_reduce(0, &{process_document(&1, read, preprocess), &2 + 1})
         {count, rows}
       %CountQuery{} = count ->
-        {1, [[Connection.count(repo.__mongo_pool__, count, opts)]]}
+        {rows, count} =
+          Connection.count(repo.__mongo_pool__, count, opts)
+          |> Enum.map_reduce(0, &{process_document(&1, count, preprocess), &2 + 1})
+        {count, rows}
+      %AggregateQuery{} = aggregate ->
+        {rows, count} =
+          Connection.aggregate(repo.__mongo_pool__, aggregate, opts)
+          |> Enum.map_reduce(0, &{process_document(&1, aggregate, preprocess), &2 + 1})
+        {count, rows}
       %WriteQuery{} = write ->
         result = apply(Connection, function, [repo.__mongo_pool__, write, opts])
         {result, nil}

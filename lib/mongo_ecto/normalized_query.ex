@@ -23,7 +23,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defmodule CountQuery do
     @moduledoc false
 
-    defstruct coll: nil, query: %{}, database: nil, opts: []
+    defstruct coll: nil, pk: nil, fields: [], query: %{}, database: nil, opts: []
+  end
+
+  defmodule AggregateQuery do
+    @moduledoc false
+
+    defstruct coll: nil, pk: nil, fields: [], pipeline: [], database: nil, opts: []
   end
 
   alias Mongo.Ecto.Encoder
@@ -44,10 +50,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
     query  = query(original, params, from)
 
     case projection(original, params, from) do
-      :count ->
-        count(original, query, from)
-      {projection, fields} ->
+      {:count, fields} ->
+        count(original, query, fields, from)
+      {:find, projection, fields} ->
         find_all(original, query, projection, fields, params, from)
+      {:aggregate, pipeline, fields} ->
+        aggregate(original, query, pipeline, fields, params, from)
     end
   end
 
@@ -57,9 +65,26 @@ defmodule Mongo.Ecto.NormalizedQuery do
                database: original.prefix, opts: limit_skip(original)}
   end
 
-  defp count(original, query, {coll, _, _}) do
+  defp count(original, query, fields, {coll, _, pk}) do
     %CountQuery{coll: coll, query: query, opts: limit_skip(original),
-                database: original.prefix}
+                pk: pk, fields: fields, database: original.prefix}
+  end
+
+  defp aggregate(original, query, pipeline, fields, _params, {coll, _, pk}) do
+    pipeline =
+      limit_skip(original)
+      |> Enum.map(fn
+        {:limit, value} -> ["$limit": value]
+        {:skip,  value} -> ["$skip":  value]
+      end)
+      |> Kernel.++(pipeline)
+
+    if query != %{} do
+      pipeline = [["$match": query] | pipeline]
+    end
+
+    %AggregateQuery{coll: coll, pipeline: pipeline, pk: pk, fields: fields,
+                    database: original.prefix}
   end
 
   def update_all(%Query{} = original, params) do
@@ -112,13 +137,16 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {coll, model, primary_key(model)}
   end
 
+  @aggregate_ops [:min, :max]
+  @special_ops [:count | @aggregate_ops]
+
   defp projection(%Query{select: nil}, _params, _from),
-    do: {%{}, []}
+    do: {:find, %{}, []}
   defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, from),
     do: projection(fields, params, from, query, %{}, [])
 
   defp projection([], _params, _from, _query, pacc, facc),
-    do: {pacc, Enum.reverse(facc)}
+    do: {:find, pacc, Enum.reverse(facc)}
   defp projection([{:&, _, [0]} = field | rest], params, {_, model, pk} = from, query, pacc, facc)
       when  model != nil do
     pacc = Enum.into(model.__schema__(:fields), pacc, &{field(&1, pk), true})
@@ -128,8 +156,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
   defp projection([{:&, _, [0]} = field | rest], params, {_, nil, _} = from, query, _pacc, facc) do
     # Model is nil, we want empty projection, but still extract fields
-    {_, facc} = projection(rest, params, from, query, %{}, [field | facc])
-    {%{}, facc}
+    facc =
+      case projection(rest, params, from, query, %{}, [field | facc]) do
+        {:find, _, facc} ->
+          facc
+        _other ->
+          error(query, "select clause supports only one of the special functions: `count`, `min`, `max`")
+      end
+    {:find, %{}, facc}
   end
   defp projection([{{:., _, [_, name]}, _, _} = field| rest], params, from, query, pacc, facc) do
     {_, _, pk} = from
@@ -151,11 +185,17 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     projection(rest, params, from, query, pacc, facc)
   end
-  defp projection([{:count, _, _}], _params, _from, _query, pacc, _facc) when pacc == %{} do
-    :count
+  defp projection([{:count, _, _} = field], _params, _from, _query, pacc, _facc) when pacc == %{} do
+    {:count, [{:field, :value, field}]}
   end
-  defp projection([{:count, _, _}], _params, _from, query, _pacc, _facc) do
-    error(query, "select clause (only one count without other selects is allowed)")
+  defp projection([{op, _, [name]} = field], _params, from, query, pacc, _facc) when pacc == %{} and op in @aggregate_ops do
+    {_, _, pk} = from
+    name  = field(name, pk, query, "select clause")
+    field = {:field, :value, field}
+    {:aggregate, [["$group": [_id: nil, value: [{"$#{op}", "$#{name}"}]]]], [field]}
+  end
+  defp projection([{op, _, _} | _rest], _params, _from, query, _pacc, _facc) when op in @special_ops do
+    error(query, "select clause supports only one of the special functions: `count`, `min`, `max`")
   end
   defp projection([{op, _, _} | _rest], _params, _from, query, _pacc, _facc) when is_op(op) do
     error(query, "select clause")

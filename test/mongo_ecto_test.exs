@@ -48,7 +48,25 @@ defmodule Mongo.EctoTest do
     TestRepo.insert!(%Post{visits: 1})
 
     query = from p in Post, where: p.visits == 1, select: count(p.id)
-    assert [1] == TestRepo.all(query)
+    assert 1 == TestRepo.one(query)
+  end
+
+  test "min" do
+    TestRepo.insert!(%Post{visits: 5})
+    TestRepo.insert!(%Post{visits: 10})
+    TestRepo.insert!(%Post{visits: 15})
+
+    query = from p in Post, where: p.visits >= 10, select: min(p.visits)
+    assert 10 == TestRepo.one(query)
+  end
+
+  test "max" do
+    TestRepo.insert!(%Post{visits: 15})
+    TestRepo.insert!(%Post{visits: 10})
+    TestRepo.insert!(%Post{visits: 5})
+
+    query = from p in Post, offset: 1, select: max(p.visits)
+    assert 10 == TestRepo.one(query)
   end
 
   test "partial update in map" do
