@@ -412,23 +412,15 @@ defmodule Mongo.Ecto do
     {:nocache, {function, query}}
   end
 
+  @read_queries [ReadQuery, CountQuery, AggregateQuery]
+
   @doc false
   def execute(repo, _meta, {function, query}, params, preprocess, opts) do
     case apply(NormalizedQuery, function, [query, params]) do
-      %ReadQuery{} = read ->
+      %{__struct__: read} = query when read in @read_queries ->
         {rows, count} =
-          Connection.all(repo.__mongo_pool__, read, opts)
-          |> Enum.map_reduce(0, &{process_document(&1, read, preprocess), &2 + 1})
-        {count, rows}
-      %CountQuery{} = count ->
-        {rows, count} =
-          Connection.count(repo.__mongo_pool__, count, opts)
-          |> Enum.map_reduce(0, &{process_document(&1, count, preprocess), &2 + 1})
-        {count, rows}
-      %AggregateQuery{} = aggregate ->
-        {rows, count} =
-          Connection.aggregate(repo.__mongo_pool__, aggregate, opts)
-          |> Enum.map_reduce(0, &{process_document(&1, aggregate, preprocess), &2 + 1})
+          Connection.read(repo.__mongo_pool__, query, opts)
+          |> Enum.map_reduce(0, &{process_document(&1, query, preprocess), &2 + 1})
         {count, rows}
       %WriteQuery{} = write ->
         result = apply(Connection, function, [repo.__mongo_pool__, write, opts])
@@ -665,7 +657,7 @@ defmodule Mongo.Ecto do
     query = %ReadQuery{coll: "system.namespaces", query: @list_collections_query}
     opts = Keyword.put(opts, :log, false)
 
-    Connection.all(repo.__mongo_pool__, query, opts)
+    Connection.read(repo.__mongo_pool__, query, opts)
     |> Enum.map(&Map.fetch!(&1, "name"))
     |> Enum.map(fn collection ->
       collection |> String.split(".", parts: 2) |> Enum.at(1)

@@ -24,12 +24,30 @@ defmodule Mongo.Ecto.Connection do
 
   ## Callbacks for adapter
 
-  def all(conn, %ReadQuery{} = query, opts \\ []) do
+  def read(conn, query, opts \\ [])
+
+  def read(conn, %ReadQuery{} = query, opts) do
     opts  = [projection: query.projection, sort: query.order] ++ query.opts ++ opts
     coll  = query.coll
     query = query.query
 
     Mongo.find(conn, coll, query, opts)
+  end
+
+  def read(conn, %CountQuery{} = query, opts) do
+    coll  = query.coll
+    opts  = query.opts ++ opts
+    query = query.query
+
+    [%{"value" => Mongo.count(conn, coll, query, opts)}]
+  end
+
+  def read(conn, %AggregateQuery{} = query, opts) do
+    coll     = query.coll
+    opts     = query.opts ++ opts
+    pipeline = query.pipeline
+
+    Mongo.aggregate(conn, coll, pipeline, opts)
   end
 
   def delete_all(conn, %WriteQuery{} = query, opts) do
@@ -93,21 +111,5 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
 
     Mongo.run_command(conn, command, opts)
-  end
-
-  def count(conn, %CountQuery{} = query, opts) do
-    coll  = query.coll
-    opts  = query.opts ++ opts
-    query = query.query
-
-    [%{"value" => Mongo.count(conn, coll, query, opts)}]
-  end
-
-  def aggregate(conn, %AggregateQuery{} = query, opts) do
-    coll     = query.coll
-    opts     = query.opts ++ opts
-    pipeline = query.pipeline
-
-    Mongo.aggregate(conn, coll, pipeline, opts)
   end
 end
