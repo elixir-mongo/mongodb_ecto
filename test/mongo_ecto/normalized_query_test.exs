@@ -153,6 +153,44 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     end
   end
 
+  test "sum" do
+    group_stage = ["$group": [_id: nil, value: [{"$sum", "$x"}]]]
+    query = Model |> select([r], sum(r.x)) |> normalize
+    assert_query(query, coll: "model",
+                 pipeline: [group_stage])
+
+    query = Model |> select([r], sum(r.x)) |> where([r], r.x == 10) |> normalize
+    assert_query(query, coll: "model",
+                 pipeline: [["$match": %{"x": 10}], group_stage])
+
+    query = Model |> select([r], sum(r.x)) |> limit([r], 3) |> offset([r], 5) |> normalize
+    assert_query(query, coll: "model",
+                 pipeline: [["$limit": 3], ["$skip": 5], group_stage])
+
+    assert_raise Ecto.QueryError, fn ->
+      Model |> select([r], {sum(r.x), r.id}) |> normalize
+    end
+  end
+
+  test "avg" do
+    group_stage = ["$group": [_id: nil, value: [{"$avg", "$x"}]]]
+    query = Model |> select([r], avg(r.x)) |> normalize
+    assert_query(query, coll: "model",
+                 pipeline: [group_stage])
+
+    query = Model |> select([r], avg(r.x)) |> where([r], r.x == 10) |> normalize
+    assert_query(query, coll: "model",
+                 pipeline: [["$match": %{"x": 10}], group_stage])
+
+    query = Model |> select([r], avg(r.x)) |> limit([r], 3) |> offset([r], 5) |> normalize
+    assert_query(query, coll: "model",
+                 pipeline: [["$limit": 3], ["$skip": 5], group_stage])
+
+    assert_raise Ecto.QueryError, fn ->
+      Model |> select([r], {avg(r.x), r.id}) |> normalize
+    end
+  end
+
   test "order by" do
     query = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize
     assert_query(query, query: %{}, order: [x: 1])

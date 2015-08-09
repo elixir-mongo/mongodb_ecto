@@ -137,7 +137,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {coll, model, primary_key(model)}
   end
 
-  @aggregate_ops [:min, :max]
+  @aggregate_ops [:min, :max, :sum, :avg]
   @special_ops [:count | @aggregate_ops]
 
   defp projection(%Query{select: nil}, _params, _from),

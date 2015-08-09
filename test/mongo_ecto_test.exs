@@ -69,6 +69,24 @@ defmodule Mongo.EctoTest do
     assert 10 == TestRepo.one(query)
   end
 
+  test "sum" do
+    TestRepo.insert!(%Post{visits: 15})
+    TestRepo.insert!(%Post{visits: 10})
+    TestRepo.insert!(%Post{visits: 5})
+
+    query = from p in Post, limit: 2, select: sum(p.visits)
+    assert 25 == TestRepo.one(query)
+  end
+
+  test "avg" do
+    TestRepo.insert!(%Post{visits: 15})
+    TestRepo.insert!(%Post{visits: 10})
+    TestRepo.insert!(%Post{visits: 5})
+
+    query = from p in Post, select: avg(p.visits)
+    assert 10 == TestRepo.one(query)
+  end
+
   test "partial update in map" do
     post = TestRepo.insert!(%Post{meta: %{author: %{name: "michal"}, other: "value"}})
     TestRepo.update_all(Post, set: [meta: change_map("author.name", "michal")])
