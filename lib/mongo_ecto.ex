@@ -443,23 +443,34 @@ defmodule Mongo.Ecto do
   def insert(repo, source, params, nil, [], opts) do
     normalized = NormalizedQuery.insert(source, params, nil)
 
-    {:ok, _} = Connection.insert(repo.__mongo_pool__, normalized, opts)
-    {:ok, []}
+    case Connection.insert(repo.__mongo_pool__, normalized, opts) do
+      {:ok, _} ->
+        {:ok, []}
+      other ->
+        other
+    end
   end
 
   def insert(repo, source, params, {pk, :binary_id, nil}, [], opts) do
     normalized = NormalizedQuery.insert(source, params, pk)
 
-    {:ok, %{inserted_id: %BSON.ObjectId{value: value}}} =
-      Connection.insert(repo.__mongo_pool__, normalized, opts)
-    {:ok, [{pk, value}]}
+    case Connection.insert(repo.__mongo_pool__, normalized, opts) do
+      {:ok, %{inserted_id: %BSON.ObjectId{value: value}}} ->
+        {:ok, [{pk, value}]}
+      other ->
+        other
+    end
   end
 
   def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
     normalized = NormalizedQuery.insert(source, params, pk)
 
-    {:ok, _} = Connection.insert(repo.__mongo_pool__, normalized, opts)
-    {:ok, []}
+    case Connection.insert(repo.__mongo_pool__, normalized, opts) do
+      {:ok, _} ->
+        {:ok, []}
+      other ->
+        other
+    end
   end
 
   @doc false
@@ -561,7 +572,7 @@ defmodule Mongo.Ecto do
 
     query = %WriteQuery{coll: "system.indexes", command: index}
 
-    Connection.insert(repo.__mongo_pool__, query, opts)
+    {:ok, _} = Connection.insert(repo.__mongo_pool__, query, opts)
     :ok
   end
 
@@ -586,7 +597,7 @@ defmodule Mongo.Ecto do
                         command: ["$rename": [{to_string(old), to_string(new)}]],
                         opts: [multi: true]}
 
-    Connection.update(repo.__mongo_pool__, query, opts)
+    {:ok, _} = Connection.update(repo.__mongo_pool__, query, opts)
     :ok
   end
 
@@ -620,7 +631,7 @@ defmodule Mongo.Ecto do
     opts = Keyword.put(opts, :log, false)
 
     Enum.map(list_collections(repo, opts), fn collection ->
-      drop_collection(repo, collection, opts)
+      truncate_collection(repo, collection, opts)
       collection
     end)
   end
@@ -664,8 +675,9 @@ defmodule Mongo.Ecto do
     end)
   end
 
-  defp drop_collection(repo, collection, opts) do
-    command(repo, [drop: collection], opts)
+  defp truncate_collection(repo, collection, opts) do
+    query = %WriteQuery{coll: collection, query: %{}}
+    Connection.delete_all(repo.__mongo_pool__, query, opts)
   end
 
   defp namespace(repo, coll) do

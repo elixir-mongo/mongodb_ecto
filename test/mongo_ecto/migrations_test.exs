@@ -7,7 +7,7 @@ defmodule Mongo.Ecto.MigrationsTest do
   defmodule CreateMigration do
     use Ecto.Migration
 
-    @table table(:create_table_migration, options: [capped: true, size: 1024])
+    @table table(:create_table_migration, options: [autoIndexId: false])
     @index index(:create_table_migration, [:value], unique: true)
 
     def up do
@@ -44,9 +44,6 @@ defmodule Mongo.Ecto.MigrationsTest do
 
     def up do
       create_if_not_exists table(:existing)
-
-      create_if_not_exists table(:existing)
-
       create_if_not_exists table(:existing)
     end
 
@@ -56,9 +53,8 @@ defmodule Mongo.Ecto.MigrationsTest do
   end
 
   defmodule RenameModel do
-    use Ecto.Model
+    use Ecto.Integration.Model
 
-    @primary_key {:id, :binary_id, autogenerate: true}
     schema "rename_migration" do
       field :to_be_renamed, :integer
       field :was_renamed, :integer
