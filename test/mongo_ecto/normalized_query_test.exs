@@ -28,7 +28,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     source = model.__schema__(:source)
     [pk] = model.__schema__(:primary_key)
 
-    NormalizedQuery.insert({nil, source, model}, values, pk)
+    NormalizedQuery.insert(%{source: {source, nil}, model: model}, values, pk)
   end
 
   defmacrop assert_query(query, kw) do

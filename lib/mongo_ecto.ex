@@ -429,19 +429,20 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def insert(_repo, source, _params, {key, :id, _}, _returning, _opts) do
-    raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
-                         "The #{inspect key} field in #{inspect source} is tagged as such."
+  def insert(_repo, meta, _params, {key, :id, _}, _returning, _opts) do
+    raise ArgumentError,
+      "MongoDB adapter does not support :id field type in models. " <>
+      "The #{inspect key} field in #{inspect meta.model} is tagged as such."
   end
 
-  def insert(_repo, source, _params, _autogen, [_] = returning, _opts) do
+  def insert(_repo, meta, _params, _autogen, [_] = returning, _opts) do
     raise ArgumentError,
       "MongoDB adapter does not support :read_after_writes in models. " <>
-      "The following fields in #{inspect source} are tagged as such: #{inspect returning}"
+      "The following fields in #{inspect meta.model} are tagged as such: #{inspect returning}"
   end
 
-  def insert(repo, source, params, nil, [], opts) do
-    normalized = NormalizedQuery.insert(source, params, nil)
+  def insert(repo, meta, params, nil, [], opts) do
+    normalized = NormalizedQuery.insert(meta, params, nil)
 
     case Connection.insert(repo.__mongo_pool__, normalized, opts) do
       {:ok, _} ->
@@ -451,8 +452,8 @@ defmodule Mongo.Ecto do
     end
   end
 
-  def insert(repo, source, params, {pk, :binary_id, nil}, [], opts) do
-    normalized = NormalizedQuery.insert(source, params, pk)
+  def insert(repo, meta, params, {pk, :binary_id, nil}, [], opts) do
+    normalized = NormalizedQuery.insert(meta, params, pk)
 
     case Connection.insert(repo.__mongo_pool__, normalized, opts) do
       {:ok, %{inserted_id: %BSON.ObjectId{value: value}}} ->
@@ -462,8 +463,8 @@ defmodule Mongo.Ecto do
     end
   end
 
-  def insert(repo, source, params, {pk, :binary_id, _value}, [], opts) do
-    normalized = NormalizedQuery.insert(source, params, pk)
+  def insert(repo, meta, params, {pk, :binary_id, _value}, [], opts) do
+    normalized = NormalizedQuery.insert(meta, params, pk)
 
     case Connection.insert(repo.__mongo_pool__, normalized, opts) do
       {:ok, _} ->
@@ -474,31 +475,33 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def update(_repo, source, _fields, _filter, {key, :id, _}, _returning, _opts) do
-    raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
-                         "The #{inspect key} field in #{inspect source} is tagged as such."
+  def update(_repo, meta, _fields, _filter, {key, :id, _}, _returning, _opts) do
+    raise ArgumentError,
+      "MongoDB adapter does not support :id field type in models. " <>
+      "The #{inspect key} field in #{inspect meta.model} is tagged as such."
   end
 
-  def update(_repo, source, _fields, _filter, _autogen, [_|_] = returning, _opts) do
+  def update(_repo, meta, _fields, _filter, _autogen, [_|_] = returning, _opts) do
     raise ArgumentError,
       "MongoDB adapter does not support :read_after_writes in models. " <>
-      "The following fields in #{inspect source} are tagged as such: #{inspect returning}"
+      "The following fields in #{inspect meta.model} are tagged as such: #{inspect returning}"
   end
 
-  def update(repo, source, fields, filter, {pk, :binary_id, _value}, [], opts) do
-    normalized = NormalizedQuery.update(source, fields, filter, pk)
+  def update(repo, meta, fields, filter, {pk, :binary_id, _value}, [], opts) do
+    normalized = NormalizedQuery.update(meta, fields, filter, pk)
 
     Connection.update(repo.__mongo_pool__, normalized, opts)
   end
 
   @doc false
-  def delete(_repo, source, _filter, {key, :id, _}, _opts) do
-    raise ArgumentError, "MongoDB adapter does not support :id field type in models. " <>
-                         "The #{inspect key} field in #{inspect source} is tagged as such."
+  def delete(_repo, meta, _filter, {key, :id, _}, _opts) do
+    raise ArgumentError,
+      "MongoDB adapter does not support :id field type in models. " <>
+      "The #{inspect key} field in #{inspect meta.model} is tagged as such."
   end
 
-  def delete(repo, source, filter, {pk, :binary_id, _value}, opts) do
-    normalized = NormalizedQuery.delete(source, filter, pk)
+  def delete(repo, meta, filter, {pk, :binary_id, _value}, opts) do
+    normalized = NormalizedQuery.delete(meta, filter, pk)
 
     Connection.delete(repo.__mongo_pool__, normalized, opts)
   end
@@ -508,11 +511,11 @@ defmodule Mongo.Ecto do
 
     Enum.map(fields, fn
       {:field, name, field} ->
-        preprocess.(field, Map.get(document, Atom.to_string(name)))
+        preprocess.(field, Map.get(document, Atom.to_string(name)), nil)
       {:value, value, field} ->
-        preprocess.(field, Decoder.decode_value(value, pk))
+        preprocess.(field, Decoder.decode_value(value, pk), nil)
       field ->
-        preprocess.(field, document)
+        preprocess.(field, document, nil)
     end)
   end
 

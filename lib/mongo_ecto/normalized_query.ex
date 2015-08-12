@@ -99,7 +99,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
   end
 
-  def update({prefix, coll, _model}, values, filter, pk) do
+  def update(%{source: {prefix, coll}}, values, filter, pk) do
     command = command(:update, values, pk)
     query   = query(filter, pk)
 
@@ -117,13 +117,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, database: original.prefix}
   end
 
-  def delete({prefix, coll, _model}, filter, pk) do
+  def delete(%{source: {prefix, coll}}, filter, pk) do
     query = query(filter, pk)
 
     %WriteQuery{coll: coll, query: query, database: prefix}
   end
 
-  def insert({prefix, coll, model}, document, pk) do
+  def insert(%{source: {prefix, coll}, model: model}, document, pk) do
     command = command(:insert, document, model.__struct__(), pk)
 
     %WriteQuery{coll: coll, command: command, database: prefix}

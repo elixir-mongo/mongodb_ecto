@@ -16,7 +16,7 @@ defmodule Mongo.Ecto.Mixfile do
   defp deps do
     [
       {:mongodb, github: "ericmj/mongodb", ref: "97e96a8de6f549d6fc42fad5666ecb253cdc29bf"},
-      {:ecto, github: "elixir-lang/ecto", ref: "850db148aacb9c68c2e829ba45364cdceedeece8"},
+      {:ecto, github: "elixir-lang/ecto", ref: "cd20bd92f954e2ed2e849724bbf343c13c2f140d"},
       {:inch_ex, only: :docs},
       {:dialyze, "~> 0.2.0", only: :dev},
       {:excoveralls, "~> 0.3.11", only: :test}
