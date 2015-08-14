@@ -135,10 +135,10 @@ defmodule Mongo.Ecto.Connection do
   end
 
   defp constraint(msg) do
-    case String.split(msg, [".$", "  "]) do
+    case String.split(msg, [".$", " dup "]) do
       [_, name, _] ->
-        [unique: name]
-      _ ->
+        [unique: String.strip(name)]
+      other ->
         []
     end
   end
