@@ -550,13 +550,15 @@ defmodule Mongo.Ecto do
     :ok
   end
 
-  def execute_ddl(repo, {:create, %Table{options: nil, name: coll}, _columns}, opts) do
+  def execute_ddl(repo, {:create, %Table{options: nil, name: coll}, columns}, opts) do
+    warn_on_references!(columns)
     command(repo, [create: coll], opts)
     :ok
   end
 
-  def execute_ddl(repo, {:create, %Table{options: options, name: coll}, _columns}, opts)
+  def execute_ddl(repo, {:create, %Table{options: options, name: coll}, columns}, opts)
       when is_list(options) do
+    warn_on_references!(columns)
     command(repo, [create: coll] ++ options, opts)
     :ok
   end
@@ -604,8 +606,9 @@ defmodule Mongo.Ecto do
     :ok
   end
 
-  def execute_ddl(_repo, {:create_if_not_exists, %Table{options: nil}, _columns}, _opts) do
+  def execute_ddl(_repo, {:create_if_not_exists, %Table{options: nil}, columns}, _opts) do
     # We treat this as a noop as the collection will be created by mongo
+    warn_on_references!(columns)
     :ok
   end
 
@@ -619,6 +622,18 @@ defmodule Mongo.Ecto do
 
   def execute_ddl(_repo, {:drop_if_exists, _}, _opts) do
     raise ArgumentError, "MongoDB adapter does not support `drop_if_exists`"
+  end
+
+  defp warn_on_references!(columns) do
+    has_references? =
+      Enum.any?(columns, fn
+        {_, _, %Ecto.Migration.Reference{}, _} -> true
+        _other                                 -> false
+      end)
+
+    if has_references? do
+      IO.puts "[warning] MongoDB adapter does not support references, and will not enforce foreign_key constraints"
+    end
   end
 
   ## Mongo specific calls

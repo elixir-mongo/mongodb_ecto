@@ -93,6 +93,16 @@ defmodule Mongo.Ecto.MigrationsTest do
     end
   end
 
+  defmodule ReferencesMigration do
+    use Ecto.Migration
+
+    def change do
+      create table(:reference_migration) do
+        add :group_id, references(:groups)
+      end
+    end
+  end
+
   import Ecto.Migrator, only: [up: 4, down: 4]
 
   test "create and drop indexes" do
@@ -121,5 +131,14 @@ defmodule Mongo.Ecto.MigrationsTest do
     assert :ok == up(TestRepo, 20150718120000, RenameColumnMigration, log: false)
     assert {nil, 1} == TestRepo.one from p in RenameModel, select: {p.to_be_renamed, p.was_renamed}
     :ok = down(TestRepo, 20150718120000, RenameColumnMigration, log: false)
+  end
+
+  test "references raise" do
+    warning =
+      ExUnit.CaptureIO.capture_io fn ->
+        assert :ok == up(TestRepo, 20150816120000, ReferencesMigration, log: false)
+      end
+    assert warning =~ "does not support references"
+    assert :ok == down(TestRepo, 20150816120000, ReferencesMigration, log: false)
   end
 end

@@ -36,12 +36,14 @@ defmodule Ecto.Integration.Case do
   end
 end
 
-:erlang.system_flag :backtrace_depth, 50
-# Load up the repository, start it, and run migrations
 _   = Ecto.Storage.down(TestRepo)
 :ok = Ecto.Storage.up(TestRepo)
 
 {:ok, _pid} = TestRepo.start_link
 
-:ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
+# We capture_io, because of warnings on references
+ExUnit.CaptureIO.capture_io fn ->
+  :ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
+end
+
 Process.flag(:trap_exit, true)
