@@ -138,7 +138,7 @@ defmodule Mongo.Ecto.Connection do
     case String.split(msg, [".$", " dup "]) do
       [_, name, _] ->
         [unique: String.strip(name)]
-      other ->
+      _other ->
         []
     end
   end
