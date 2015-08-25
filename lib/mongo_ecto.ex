@@ -2,7 +2,7 @@ defmodule Mongo.Ecto do
   @moduledoc """
   Ecto integration with MongoDB.
 
-  This document will present a general overview of using Mongo with Ecto,
+  This document will present a general overview of using MongoDB with Ecto,
   including common pitfalls and extra functionalities.
 
   Check the [Ecto documentation](http://hexdocs.pm/ecto) for an introduction
@@ -642,9 +642,11 @@ defmodule Mongo.Ecto do
   Drops all the collections in current database.
 
   Skips system collections and `schema_migrations` collection.
-
   Especially usefull in testing.
+
+  Returns list of dropped collections.
   """
+  @spec truncate(Ecto.Repo.t, Keyword.t) :: [String.t]
   def truncate(repo, opts \\ []) do
     opts = Keyword.put(opts, :log, false)
 
@@ -669,6 +671,7 @@ defmodule Mongo.Ecto do
 
   For list of available commands plese see: http://docs.mongodb.org/manual/reference/command/
   """
+  @spec command(Ecto.Repo.t, BSON.document, Keyword.t) :: BSON.document
   def command(repo, command, opts \\ []) do
     normalized = NormalizedQuery.command(command, opts)
 
