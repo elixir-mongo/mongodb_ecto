@@ -745,11 +745,11 @@ defmodule Mongo.Ecto do
     ["UPDATE", format_part("coll", coll), format_part("filter", filter),
      format_part("update", update), format_part("many", true)]
   end
-  defp format_log(_entry, :find_cursor, [coll, query, projection, _opts]) do
+  defp format_log(_entry, :find, [coll, query, projection, _opts]) do
     ["FIND", format_part("coll", coll), format_part("query", query),
      format_part("projection", projection)]
   end
-  defp format_log(_entry, :find_batch, [coll, cursor, _opts]) do
+  defp format_log(_entry, :find_rest, [coll, cursor, _opts]) do
     ["GET_MORE", format_part("coll", coll), format_part("cursor_id", cursor)]
   end
   defp format_log(_entry, :kill_cursors, [cursors, _opts]) do
