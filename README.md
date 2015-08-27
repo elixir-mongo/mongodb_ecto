@@ -54,7 +54,7 @@ end
 Add Mongo.Ecto as a dependency in your `mix.exs` file.
 ```elixir
 def deps do
-  [{:mongodb_ecto, github: "michalmuskala/mongodb_ecto"}]
+  [{:mongodb_ecto, "~> 0.1"}]
 end
 ```
 
