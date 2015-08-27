@@ -749,6 +749,10 @@ defmodule Mongo.Ecto do
     ["FIND", format_part("coll", coll), format_part("query", query),
      format_part("projection", projection)]
   end
+  defp format_log(_entry, :find, [coll, query, projection, _opts]) do
+    ["FIND", format_part("coll", coll), format_part("query", query),
+     format_part("projection", projection)]
+  end
   defp format_log(_entry, :find_batch, [coll, cursor, _opts]) do
     ["GET_MORE", format_part("coll", coll), format_part("cursor_id", cursor)]
   end
