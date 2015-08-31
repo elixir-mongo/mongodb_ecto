@@ -43,7 +43,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   def all(%Query{} = original, params) do
-    check_query(original)
+    check_query!(original, [:limit, :offset])
 
     from   = from(original)
     params = List.to_tuple(params)
@@ -88,7 +88,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   def update_all(%Query{} = original, params) do
-    check_query(original)
+    check_query!(original)
 
     params  = List.to_tuple(params)
     from    = from(original)
@@ -107,7 +107,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   def delete_all(%Query{} = original, params) do
-    check_query(original)
+    check_query!(original)
 
     params = List.to_tuple(params)
     from   = from(original)
@@ -291,9 +291,11 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp order_by_expr({:desc, expr}, pk, query),
     do: {field(expr, pk, query, "order clause"), -1}
 
-  @query_empty_values %Ecto.Query{} |> Map.take([:distinct, :lock, :joins, :group_bys, :havings])
+  @maybe_disallowed ~w(distinct lock joins group_bys havings limit offset)a
+  @query_empty_values %Ecto.Query{} |> Map.take(@maybe_disallowed)
 
-  defp check_query(query, allow \\ []) do
+
+  defp check_query!(query, allow \\ []) do
     @query_empty_values
     |> Map.drop(allow)
     |> Enum.each(fn {element, empty} ->

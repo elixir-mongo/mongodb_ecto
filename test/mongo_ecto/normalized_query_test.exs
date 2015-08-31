@@ -388,6 +388,14 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
     query = from(m in Model, update: [set: [x: 0]], update: [set: [y: 123]]) |> normalize(:update_all)
     assert_query(query, command: %{"$set": [x: 0, y: 123]})
+
+    assert_raise Ecto.QueryError, fn ->
+      from(m in Model, limit: 5, update: [set: [x: 0]]) |> normalize(:update_all)
+    end
+
+    assert_raise Ecto.QueryError, fn ->
+      from(m in Model, offset: 5, update: [set: [x: 0]]) |> normalize(:update_all)
+    end
   end
 
   test "delete all" do
@@ -396,6 +404,14 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
     query = from(e in Model, where: e.x == 123) |> normalize(:delete_all)
     assert_query(query, query: %{x: 123})
+
+    assert_raise Ecto.QueryError, fn ->
+      from(m in Model, limit: 5) |> normalize(:delete_all)
+    end
+
+    assert_raise Ecto.QueryError, fn ->
+      from(m in Model, offset: 5) |> normalize(:delete_all)
+    end
   end
 
   test "insert skips default nil values" do
