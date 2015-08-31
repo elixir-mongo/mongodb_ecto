@@ -422,6 +422,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     case value(expr, params, pk, query, place) do
       %BSON.JavaScript{} = js ->
         {:"$where", js}
+      bool when is_boolean(bool) ->
+        boolean_query_hack_pair(bool)
       _value ->
         error(query, place)
     end
@@ -431,12 +433,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
       when is_list(args) or tuple_size(args) == 3 do
     value(args, params, pk, query, place)
   end
-  # This is for queries that uses `where: false`
   defp pair(bool, _params, _pk, _query, _place) when is_boolean(bool) do
-    {:_id, ["$exists": bool]}
+    boolean_query_hack_pair(bool)
   end
   defp pair(_expr, _params, _pk, query, place) do
     error(query, place)
+  end
+
+  defp boolean_query_hack_pair(bool) do
+    {:_id, ["$exists": bool]}
   end
 
   defp error(query, place) do

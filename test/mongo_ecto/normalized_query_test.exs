@@ -214,14 +214,6 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
     query = Model |> offset([r], 5) |> limit([r], 3) |> normalize
     assert_query(query, opts: [limit: 3, skip: 5])
-
-    value = 5
-
-    query = Model |> limit([r], ^value) |> normalize
-    assert_query(query, opts: [limit: 5])
-
-    query = Model |> offset([r], ^value) |> normalize
-    assert_query(query, opts: [skip: 5])
   end
 
   test "lock" do
@@ -374,6 +366,21 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     end
   end
 
+  test "interpolated values" do
+    query = Model
+            |> where([], ^true)
+            |> where([], ^false)
+            |> order_by([], ^:x)
+            |> limit([], ^4)
+            |> offset([], ^5)
+            |> normalize
+
+    assert_query(query,
+                 opts: [limit: 4, skip: 5],
+                 order: [x: 1],
+                 query: %{_id: ["$exists": true, "$exists": false]})
+  end
+
   # *_all
 
   test "update all" do
@@ -404,6 +411,14 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert_raise Ecto.QueryError, fn ->
       from(m in Model, offset: 5, update: [set: [x: 0]]) |> normalize(:update_all)
     end
+  end
+
+  test "update all with array ops" do
+    query = from(m in Model, update: [push: [z: 0]]) |> normalize(:update_all)
+    assert_query(query, command: %{"$push": [z: 0]})
+
+    query = from(m in Model, update: [pull: [z: 0]]) |> normalize(:update_all)
+    assert_query(query, command: %{"$pull": [z: 0]})
   end
 
   test "delete all" do
