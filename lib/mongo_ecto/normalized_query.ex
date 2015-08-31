@@ -51,7 +51,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     case projection(original, params, from) do
       {:count, fields} ->
-        count(original, query, fields, from)
+        count(original, query, fields, params, from)
       {:find, projection, fields} ->
         find_all(original, query, projection, fields, params, from)
       {:aggregate, pipeline, fields} ->
@@ -62,17 +62,17 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp find_all(original, query, projection, fields, params, {coll, _, pk} = from) do
     %ReadQuery{coll: coll, pk: pk, params: params, query: query, fields: fields,
                projection: projection, order: order(original, from),
-               database: original.prefix, opts: limit_skip(original)}
+               database: original.prefix, opts: limit_skip(original, params, from)}
   end
 
-  defp count(original, query, fields, {coll, _, pk}) do
-    %CountQuery{coll: coll, query: query, opts: limit_skip(original),
+  defp count(original, query, fields, params, {coll, _, pk} = from) do
+    %CountQuery{coll: coll, query: query, opts: limit_skip(original, params, from),
                 pk: pk, fields: fields, database: original.prefix}
   end
 
-  defp aggregate(original, query, pipeline, fields, _params, {coll, _, pk}) do
+  defp aggregate(original, query, pipeline, fields, params, {coll, _, pk} = from) do
     pipeline =
-      limit_skip(original)
+      limit_skip(original, params, from)
       |> Enum.map(fn
         {:limit, value} -> ["$limit": value]
         {:skip,  value} -> ["$skip":  value]
@@ -216,8 +216,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
     projection(rest, params, from, query, pacc, facc)
   end
 
-  defp limit_skip(%Query{limit: limit, offset: offset}) do
-    [limit: offset_limit(limit), skip: offset_limit(offset)]
+  defp limit_skip(%Query{limit: limit, offset: offset} = query, params, {_, _, pk}) do
+    [limit: offset_limit(limit, params, pk, query, "limit clause"),
+     skip: offset_limit(offset, params, pk, query, "offset clause")]
     |> Enum.reject(&is_nil(elem(&1, 1)))
   end
 
@@ -269,10 +270,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp both_nil(nil, nil), do: true
   defp both_nil(_, _), do: false
 
-  defp offset_limit(nil),
+  defp offset_limit(nil, _params, _pk, _query, _where),
     do: nil
-  defp offset_limit(%Query.QueryExpr{expr: int}) when is_integer(int),
-    do: int
+  defp offset_limit(%Query.QueryExpr{expr: expr}, params, pk, query, where),
+    do: value(expr, params, pk, query, where)
 
   defp primary_key(nil),
     do: nil
@@ -293,7 +294,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   @maybe_disallowed ~w(distinct lock joins group_bys havings limit offset)a
   @query_empty_values %Ecto.Query{} |> Map.take(@maybe_disallowed)
-
 
   defp check_query!(query, allow \\ []) do
     @query_empty_values

@@ -214,6 +214,14 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
 
     query = Model |> offset([r], 5) |> limit([r], 3) |> normalize
     assert_query(query, opts: [limit: 3, skip: 5])
+
+    value = 5
+
+    query = Model |> limit([r], ^value) |> normalize
+    assert_query(query, opts: [limit: 5])
+
+    query = Model |> offset([r], ^value) |> normalize
+    assert_query(query, opts: [skip: 5])
   end
 
   test "lock" do
