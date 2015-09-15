@@ -246,7 +246,7 @@ defmodule Mongo.Ecto do
   Ecto supports defining relations using embedding models directly inside the
   parent model, and that fits MongoDB's design perfectly.
 
-      defmoudle Post do
+      defmodule Post do
         #...
 
         schema "posts" do
@@ -254,7 +254,7 @@ defmodule Mongo.Ecto do
         end
       end
 
-      defmoudle Comment do
+      defmodule Comment do
         embedded_schema do
           field :body, :string
         end
