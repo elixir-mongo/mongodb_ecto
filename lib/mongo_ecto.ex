@@ -263,26 +263,31 @@ defmodule Mongo.Ecto do
   You can find more information about defining embedded models in the
   `Ecto.Schema` docs.
 
-  ## Migrations
+  ## Indexes and Migrations
 
-  Ecto supports database migrations. You can generate a migration with:
+  Although schema migrations make no sense for databases such as MongoDB
+  there is one field where they can be very benefitial - indexes. Because of
+  this Mongodb.Ecto supports Ecto's database migrations. You can generate a
+  migration with:
 
       $ mix ecto.gen.migration create_posts
 
   This will create a new file inside `priv/repo/migrations` with the `up` and
   `down` functions. Check `Ecto.Migration` for more information.
 
-  Keep in mind that MongoDB does not support (or need) database schemas, so
-  majority of the functionality provided by `Ecto.Migration` is not useful when
-  working with MongoDB. The usefull elements include creating indexes, capped
-  collections, executing commands or migrating data, e.g.:
+  Because MongoDB does not support (or need) database schemas majority of the
+  functionality provided by `Ecto.Migration` is not useful when working with
+  MongoDB. As we've already noted the most useful part is indexing, but there
+  are others - creating capped collections, executing administrative commands,
+  or migrating data, e.g.:
 
       defmodule SampleMigration do
         use Ecto.Migration
 
         def up do
           create table(:my_table, options: [capped: true, size: 1024])
-          create index(:my_table, [:value], unique: true)
+          create index(:my_table, [:value])
+          create unique_index(:my_table, [:unique_value])
           execute touch: "my_table", data: true, index: true
         end
 
@@ -291,7 +296,7 @@ defmodule Mongo.Ecto do
         end
       end
 
-  MongoDB adapter does not support `create_if_not_exists` and `drop_if_exists`
+  MongoDB adapter does not support `create_if_not_exists` or `drop_if_exists`
   migration functions.
 
   ## MongoDB adapter features
