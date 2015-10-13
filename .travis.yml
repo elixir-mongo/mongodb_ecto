@@ -13,7 +13,7 @@ before_install:
   - npm install -g mongodb-version-manager
 
 install:
-  - m $MONGOVERSION
+  - m use $MONGOVERSION
   - mkdir db
   - export PATH=`m path`:$PATH
   - mix local.hex --force
