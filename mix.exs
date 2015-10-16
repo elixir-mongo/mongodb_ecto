@@ -44,9 +44,9 @@ defmodule Mongo.Ecto.Mixfile do
   end
 
   defp docs do
-    [readme: "README.md",
-     source_url: "https://github.com/michalmuskala/mongodb_ecto",
+    [source_url: "https://github.com/michalmuskala/mongodb_ecto",
      source_ref: "v#{@version}",
-     main: "README"]
+     main: "extra-readme",
+     extras: ["README.md"]]
   end
 end
