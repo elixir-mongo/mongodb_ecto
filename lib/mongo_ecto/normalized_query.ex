@@ -185,8 +185,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     projection(rest, params, from, query, pacc, facc)
   end
-  defp projection([{:count, _, _} = field], _params, _from, _query, pacc, _facc) when pacc == %{} do
+  defp projection([{:count, _, [_]} = field], _params, _from, _query, pacc, _facc) when pacc == %{} do
     {:count, [{:field, :value, field}]}
+  end
+  defp projection([{:count, _, [name, :distinct]} = field], _params, from, query, _pacc, _facc) do
+    {_, _, pk} = from
+    name  = field(name, pk, query, "select clause")
+    field = {:field, :value, field}
+    {:aggregate, [["$group": [_id: "$#{name}"]], ["$group": [_id: nil, value: ["$sum": 1]]]], [field]}
   end
   defp projection([{op, _, [name]} = field], _params, from, query, pacc, _facc) when pacc == %{} and op in @aggregate_ops do
     {_, _, pk} = from
