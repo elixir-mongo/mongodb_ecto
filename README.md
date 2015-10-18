@@ -78,31 +78,39 @@ For additional information on usage please see the documentation for [Ecto](http
 
 ## Data Type Mapping
 
-	BSON             	Ecto
-	----------        	------
-    double              :float
-    string              :string
-    object              :map
-    array               {:array, subtype}
-    binary data         :binary
-    binary data (uuid)  Ecto.UUID
-    object id           :binary_id
-    boolean             :boolean
-    date                :datetime
-    regular expression  Mongo.Ecto.Regex
-    JavaScript          Mongo.Ecto.JavaScript
-    symbol              ???
-    32-bit integer      :integer
-    timestamp           BSON.Timestamp
-    64-bit integer      :integer
+|   BSON                |Ecto|
+|   ----------          |------|
+|   double              |:float|
+|   string              |:string|
+|   object              |:map|
+|   array               |{:array, subtype}|
+|   binary data         |:binary|
+|   binary data (uuid)  |Ecto.UUID|
+|   object id           |:binary_id|
+|   boolean             |:boolean|
+|   date                |:datetime|
+|   regular expression  |Mongo.Ecto.Regex|
+|   JavaScript          |Mongo.Ecto.JavaScript|
+|   symbol              |unsupported[^symbol]|
+|   32-bit integer      |:integer|
+|   timestamp           |BSON.Timestamp|
+|   64-bit integer      |:integer|
 
 Additionally special values are translated as follows:
 
-	BSON             	Ecto
-	----------        	------
-    null                nil
-    min key             :BSON_min
-    max key             :BSON_max
+|	BSON        |     	Ecto|
+|	----------  |      	------|
+|    null     |           nil|
+|    min key  |           :BSON_min|
+|    max key  |           :BSON_max|
+
+
+[symbol]:
+    Symbols are deprecated by the
+    [BSON specification](http://bsonspec.org/spec.html). They will be converted
+    to simple strings on reads. There is no possibility of persisting them to
+    the database.
+
 
 ## Supported Mongo versions
 
