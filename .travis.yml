@@ -3,11 +3,10 @@ language: elixir
 cache: apt
 
 elixir:
-  - 1.0.5
+  - 1.1
 
 otp_release:
-  - 17.5
-  - 18.0
+  - 18
 
 before_install:
   - npm install -g mongodb-version-manager
@@ -32,7 +31,7 @@ env:
   matrix:
     - MONGOVERSION=2.4.14
     - MONGOVERSION=2.6.11
-    - MONGOVERSION=3.0.5
+    - MONGOVERSION=3.0.7
 
 script:
   - mix test
