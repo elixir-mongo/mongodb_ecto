@@ -109,4 +109,12 @@ defmodule Mongo.EctoTest do
     [item] = TestRepo.get!(Tag, tag.id).items
     assert item.price == 10
   end
+
+  test "decode empty map to map" do
+    post = TestRepo.insert!(%Post{meta: %{}})
+    assert post.meta == %{}
+
+    post = TestRepo.get(Post, post.id)
+    assert post.meta == %{}
+  end
 end
