@@ -398,6 +398,8 @@ defmodule Mongo.Ecto do
     do: Ecto.Type.load(ObjectID, data, &load/2)
   def load(Ecto.Date, {date, _time}),
     do: Ecto.Type.load(Ecto.Date, date, &dump/2)
+  def load(:map, []),
+    do: {:ok, %{}}
   def load(type, data),
     do: Ecto.Type.load(type, data, &load/2)
 
