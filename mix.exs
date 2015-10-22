@@ -21,7 +21,7 @@ defmodule Mongo.Ecto.Mixfile do
   defp deps do
     [
       {:mongodb, "~> 0.1"},
-      {:ecto, "~> 1.0", github: "elixir-lang/ecto"},
+      {:ecto, "~> 1.0"},
       {:dialyze, "~> 0.2.0", only: :dev},
       {:excoveralls, "~> 0.3.11", only: :test},
       {:inch_ex, only: :docs},
