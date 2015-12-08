@@ -1,6 +1,9 @@
 language: elixir
 
-cache: apt
+cache:
+  - apt
+  - directories:
+      - ~/.mongodb
 
 elixir:
   - 1.1
