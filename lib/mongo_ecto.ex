@@ -500,6 +500,12 @@ defmodule Mongo.Ecto do
     Connection.update(repo.__mongo_pool__, normalized, opts)
   end
 
+  def update(repo, meta, fields, filter, nil, [], opts) do
+    normalized = NormalizedQuery.update(meta, fields, filter, nil)
+
+    Connection.update(repo.__mongo_pool__, normalized, opts)
+  end
+
   @doc false
   def delete(_repo, meta, _filter, {key, :id, _}, _opts) do
     raise ArgumentError,
@@ -511,6 +517,12 @@ defmodule Mongo.Ecto do
     normalized = NormalizedQuery.delete(meta, filter, pk)
 
     Connection.delete(repo.__mongo_pool__, normalized, opts)
+  end
+
+  def delete(repo, meta, fields, filter, nil, [], opts) do
+    normalized = NormalizedQuery.update(meta, fields, filter, nil)
+
+    Connection.update(repo.__mongo_pool__, normalized, opts)
   end
 
   defp process_document(document, %{fields: fields, pk: pk}, preprocess) do
