@@ -394,6 +394,19 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
+  def stop(pid, timeout) do
+    ref = Process.monitor(pid)
+    Process.exit(pid, :normal)
+    receive do
+      {:DOWN, ^ref, _, _, _} -> :ok
+    after
+      timeout -> exit(:timeout)
+    end
+    Application.stop(:mongodb_ecto)
+    :ok
+  end
+
+  @doc false
   def load(:binary_id, data),
     do: Ecto.Type.load(ObjectID, data, &load/2)
   def load(Ecto.Date, {date, _time}),

@@ -20,7 +20,6 @@ defmodule Ecto.Integration.TestRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
 end
 
-
 defmodule Ecto.Integration.Case do
   use ExUnit.CaseTemplate
 
@@ -39,11 +38,11 @@ end
 _   = Ecto.Storage.down(TestRepo)
 :ok = Ecto.Storage.up(TestRepo)
 
+{:ok, pid} = TestRepo.start_link
+:ok = TestRepo.stop(pid, :infinity)
 {:ok, _pid} = TestRepo.start_link
 
 # We capture_io, because of warnings on references
 ExUnit.CaptureIO.capture_io fn ->
   :ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
 end
-
-Process.flag(:trap_exit, true)
