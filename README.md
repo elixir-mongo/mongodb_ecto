@@ -88,7 +88,7 @@ For additional information on usage please see the documentation for [Ecto](http
 |   binary data (uuid)  |`Ecto.UUID`|
 |   object id           |`:binary_id`|
 |   boolean             |`:boolean`|
-|   date                |`:datetime`|
+|   date                |`Ecto.DateTime`|
 |   regular expression  |`Mongo.Ecto.Regex`|
 |   JavaScript          |`Mongo.Ecto.JavaScript`|
 |   symbol              |(see below)|
