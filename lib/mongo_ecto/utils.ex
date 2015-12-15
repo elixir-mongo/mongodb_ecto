@@ -7,4 +7,10 @@ defmodule Mongo.Ecto.Utils do
       unquote(doc) |> hd |> tuple_size == 2
     end
   end
+
+  defmacro is_literal(value) do
+    quote do
+      is_atom(unquote(value)) or is_number(unquote(value)) or is_binary(unquote(value))
+    end
+  end
 end
