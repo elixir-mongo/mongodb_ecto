@@ -2,7 +2,6 @@ defmodule Mongo.Ecto.Encoder do
   @moduledoc false
 
   import Mongo.Ecto.Utils
-  alias Ecto.Query.Tagged
 
   def encode(doc, params, pk) when is_keyword(doc),
     do: document(doc, params, pk)
@@ -10,8 +9,6 @@ defmodule Mongo.Ecto.Encoder do
     do: map(list, &encode(&1, params, pk))
   def encode({:^, _, [idx]}, params, pk),
     do: elem(params, idx) |> encode(params, pk)
-  def encode(%Tagged{value: value, type: type}, params, _pk),
-    do: {:ok, typed_value(value, type, params)}
   def encode(%{__struct__: _} = struct, _params, pk),
     do: encode(struct, pk) # Pass down other structs
   def encode(map, params, pk) when is_map(map),
@@ -43,8 +40,6 @@ defmodule Mongo.Ecto.Encoder do
     do: {:ok, datetime}
   def encode(%BSON.Binary{} = binary, _pk),
     do: {:ok, binary}
-  def encode(%Tagged{value: value, type: type}, _pk),
-    do: {:ok, typed_value(value, type)}
   def encode(%{__struct__: change, field: field, value: value}, pk)
       when change in [Mongo.Ecto.ChangeMap, Mongo.Ecto.ChangeArray] do
     case encode(value, pk) do
@@ -87,24 +82,6 @@ defmodule Mongo.Ecto.Encoder do
 
   defp key(pk, pk), do: :_id
   defp key(key, _), do: key
-
-  defp typed_value({:^, _, [idx]}, type, params),
-    do: typed_value(elem(params, idx), type)
-  defp typed_value(value, type, _params),
-    do: typed_value(value, type)
-
-  defp typed_value(nil, _),
-    do: nil
-  defp typed_value(value, :any),
-    do: value
-  defp typed_value(value, {:array, type}),
-    do: Enum.map(value, &typed_value(&1, type))
-  defp typed_value(value, :binary),
-    do: %BSON.Binary{binary: value}
-  defp typed_value(value, :uuid),
-    do: %BSON.Binary{binary: value, subtype: :uuid}
-  defp typed_value(value, :binary_id),
-    do: %BSON.ObjectId{value: value}
 
   defp map(list, fun) do
     return =

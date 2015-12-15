@@ -38,7 +38,7 @@ defmodule Mongo.Ecto.ObjectID do
         :error
     else
       value ->
-        {:ok, %Ecto.Query.Tagged{type: :binary_id, value: value}}
+        {:ok, %BSON.ObjectId{value: value}}
     end
   end
 

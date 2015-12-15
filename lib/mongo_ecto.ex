@@ -436,7 +436,7 @@ defmodule Mongo.Ecto do
   def dump(_type, nil),
     do: {:ok, nil}
   def dump(:binary_id, <<_::binary-12>> = binary),
-    do: {:ok, %Ecto.Query.Tagged{type: :binary_id, value: binary}}
+    do: {:ok, binary}
   def dump(:binary_id, data),
     do: ObjectID.dump(data)
   def dump(:binary, value),
