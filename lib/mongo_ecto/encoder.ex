@@ -39,6 +39,10 @@ defmodule Mongo.Ecto.Encoder do
     do: {:ok, js}
   def encode(%BSON.Regex{} = regex, _pk),
     do: {:ok, regex}
+  def encode(%BSON.DateTime{} = datetime, _pk),
+    do: {:ok, datetime}
+  def encode(%BSON.Binary{} = binary, _pk),
+    do: {:ok, binary}
   def encode(%Tagged{value: value, type: type}, _pk),
     do: {:ok, typed_value(value, type)}
   def encode(%{__struct__: change, field: field, value: value}, pk)

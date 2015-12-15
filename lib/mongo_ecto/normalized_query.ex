@@ -266,7 +266,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp command(:insert, document, struct, pk) do
     document
     |> Enum.reject(fn {key, value} -> both_nil(value, Map.get(struct, key)) end)
-    |> value(pk, "insert command") |> map_unless_empty
+    |> value(pk, "insert command")
+    |> map_unless_empty
   end
 
   defp command(:update, values, pk) do

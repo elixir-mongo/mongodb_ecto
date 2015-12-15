@@ -407,22 +407,67 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def load(:binary_id, data),
-    do: Ecto.Type.load(ObjectID, data, &load/2)
-  def load(Ecto.Date, {date, _time}),
-    do: Ecto.Type.load(Ecto.Date, date, &dump/2)
-  def load(:map, []),
-    do: {:ok, %{}}
+  def load(_type, nil),
+    do: {:ok, nil}
+  # wat
+  def load(:binary_id, <<_::binary-12>> = binary),
+    do: {:ok, ObjectID.encode(binary)}
+  def load(:binary_id, %BSON.ObjectId{value: value}),
+    do: ObjectID.load(value)
+  def load(:binary, %BSON.Binary{binary: value}),
+    do: {:ok, value}
+  def load(Ecto.UUID, %BSON.Binary{binary: value}),
+    do: {:ok, value}
+  def load(:map, keyword),
+    do: {:ok, Enum.into(keyword, %{})}
+  def load(Ecto.Date, %BSON.DateTime{} = datetime) do
+    {date, _time} = BSON.DateTime.to_datetime(datetime)
+    Ecto.Date.load(date)
+  end
+  def load(Ecto.Time, %BSON.DateTime{} = datetime) do
+    {_date, time} = BSON.DateTime.to_datetime(datetime)
+    Ecto.Time.load(time)
+  end
+  def load(Ecto.DateTime, %BSON.DateTime{} = datetime),
+    do: datetime |> BSON.DateTime.to_datetime |> Ecto.DateTime.load
   def load(type, data),
     do: Ecto.Type.load(type, data, &load/2)
 
   @doc false
+  def dump(_type, nil),
+    do: {:ok, nil}
+  def dump(:binary_id, <<_::binary-12>> = binary),
+    do: {:ok, %Ecto.Query.Tagged{type: :binary_id, value: binary}}
   def dump(:binary_id, data),
-    do: Ecto.Type.dump(ObjectID, data, &dump/2)
-  def dump(Ecto.Date, %Ecto.Date{} = data),
-    do: Ecto.Type.dump(Ecto.DateTime, Ecto.DateTime.from_date(data), &dump/2)
+    do: ObjectID.dump(data)
+  def dump(:binary, value),
+    do: {:ok, %BSON.Binary{binary: value}}
+  def dump(Ecto.UUID, value),
+    do: {:ok, %BSON.Binary{binary: value, subtype: :uuid}}
+  def dump(Ecto.Date, datetime),
+    do: from_datetime(datetime)
+  def dump(Ecto.Time, datetime),
+    do: from_datetime(datetime)
+  def dump(Ecto.DateTime, datetime),
+    do: from_datetime(datetime)
   def dump(type, data),
     do: Ecto.Type.dump(type, data, &dump/2)
+
+  @epoch :calendar.datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})
+
+  defp from_datetime(%Ecto.Date{year: year, month: month, day: day}),
+    do: from_datetime({{year, month, day}, {0, 0, 0, 0}})
+  defp from_datetime(%Ecto.Time{hour: hour, min: min, sec: sec, usec: usec}),
+    do: from_datetime({{1970, 1, 1}, {hour, min, sec, usec}})
+  defp from_datetime(%Ecto.DateTime{year: year, month: month, day: day, hour: hour, min: min, sec: sec, usec: usec}),
+    do: from_datetime({{year, month, day}, {hour, min, sec, usec}})
+  defp from_datetime({_, _, _, _} = time),
+    do: from_datetime({{1970, 1, 1}, time})
+  defp from_datetime({date, {hour, min, sec, usec}}) do
+    greg_secs = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
+    epoch_secs = greg_secs - @epoch
+    {:ok, %BSON.DateTime{utc: epoch_secs * 1000 + div(usec, 1000)}}
+  end
 
   @doc false
   def embed_id(_), do: ObjectID.generate
