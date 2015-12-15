@@ -32,7 +32,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     defstruct coll: nil, pk: nil, fields: [], pipeline: [], database: nil, opts: []
   end
 
-  alias Mongo.Ecto.Encoder
+  alias Mongo.Ecto.Conversions
   alias Ecto.Query.Tagged
   alias Ecto.Query
 
@@ -317,14 +317,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
     do: raise(Ecto.QueryError, query: query, message: message)
 
   defp value(expr, pk, place) do
-    case Encoder.encode(expr, pk) do
+    case Conversions.from_ecto_pk(expr, pk) do
       {:ok, value} -> value
       :error       -> error(place)
     end
   end
 
   defp value(expr, params, pk, query, place) do
-    case Encoder.encode(expr, params, pk) do
+    case Conversions.inject_params(expr, params, pk) do
       {:ok, value} -> value
       :error       -> error(query, place)
     end

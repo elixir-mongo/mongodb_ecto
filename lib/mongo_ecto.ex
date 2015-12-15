@@ -363,6 +363,7 @@ defmodule Mongo.Ecto do
   alias Mongo.Ecto.NormalizedQuery.AggregateQuery
   alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
+  alias Mongo.Ecto.Conversions
 
   ## Adapter
 
@@ -583,30 +584,17 @@ defmodule Mongo.Ecto do
   end
 
   defp process_document(document, %{fields: fields, pk: pk}, preprocess) do
-    document = to_ecto_pk(document, pk)
+    document = Conversions.to_ecto_pk(document, pk)
 
     Enum.map(fields, fn
       {:field, name, field} ->
         preprocess.(field, Map.get(document, Atom.to_string(name)), nil)
       {:value, value, field} ->
-        preprocess.(field, to_ecto_pk(value, pk), nil)
+        preprocess.(field, Conversions.to_ecto_pk(value, pk), nil)
       field ->
         preprocess.(field, document, nil)
     end)
   end
-
-  def to_ecto_pk(%{__struct__: _} = value, _pk),
-    do: value
-  def to_ecto_pk(map, pk) when is_map(map) do
-    Enum.into(map, %{}, fn
-      {"_id", value} -> {Atom.to_string(pk), to_ecto_pk(value, pk)}
-      {key, value}   -> {key, to_ecto_pk(value, pk)}
-    end)
-  end
-  def to_ecto_pk(list, pk) when is_list(list),
-    do: Enum.map(list, &to_ecto_pk(&1, pk))
-  def to_ecto_pk(value, _pk),
-    do: value
 
   ## Storage
 
