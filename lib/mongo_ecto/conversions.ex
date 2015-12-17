@@ -46,7 +46,7 @@ defmodule Mongo.Ecto.Conversions do
     do: map(list, &from_ecto_pk(&1, pk))
   def from_ecto_pk(value, _pk) when is_literal(value),
     do: {:ok, value}
-  def from_ecto_pk(value, _pk),
+  def from_ecto_pk(_value, _pk),
     do: :error
 
   defp document(doc, pk) do

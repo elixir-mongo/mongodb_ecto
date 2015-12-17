@@ -410,8 +410,6 @@ defmodule Mongo.Ecto do
   def load(_type, nil),
     do: {:ok, nil}
   # wat
-  def load(:binary_id, <<_::binary-12>> = binary),
-    do: {:ok, ObjectID.encode(binary)}
   def load(:binary_id, %BSON.ObjectId{value: value}),
     do: ObjectID.load(value)
   def load(:binary, %BSON.Binary{binary: value}),
@@ -436,8 +434,6 @@ defmodule Mongo.Ecto do
   @doc false
   def dump(_type, nil),
     do: {:ok, nil}
-  def dump(:binary_id, <<_::binary-12>> = binary),
-    do: {:ok, binary}
   def dump(:binary_id, data),
     do: ObjectID.dump(data)
   def dump(:binary, value),
@@ -521,8 +517,8 @@ defmodule Mongo.Ecto do
     normalized = NormalizedQuery.insert(meta, params, pk)
 
     case Connection.insert(repo.__mongo_pool__, normalized, opts) do
-      {:ok, %{inserted_id: %BSON.ObjectId{value: value}}} ->
-        {:ok, [{pk, value}]}
+      {:ok, %{inserted_id: objid}} ->
+        {:ok, [{pk, objid}]}
       other ->
         other
     end
