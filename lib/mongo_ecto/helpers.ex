@@ -20,14 +20,7 @@ defmodule Mongo.Ecto.Helpers do
   """
   @spec javascript(String.t, Keyword.t) :: Mongo.Ecto.JavaScript.t
   def javascript(code, scope \\ []) do
-    case Mongo.Ecto.Encoder.encode(scope, nil) do
-      {:ok, []} ->
-        %Mongo.Ecto.JavaScript{code: code}
-      {:ok, scope} ->
-        %Mongo.Ecto.JavaScript{code: code, scope: scope}
-      :error ->
-        raise ArgumentError, "invaid expression for JavaScript scope"
-    end
+    %Mongo.Ecto.JavaScript{code: code, scope: scope}
   end
 
   @doc """
