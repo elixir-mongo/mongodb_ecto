@@ -1,7 +1,7 @@
 defmodule Mongo.Ecto.Mixfile do
   use Mix.Project
 
-  @version "0.1.2"
+  @version "0.1.3"
 
   def project do
     [app: :mongodb_ecto,
@@ -21,7 +21,7 @@ defmodule Mongo.Ecto.Mixfile do
   defp deps do
     [
       {:mongodb, "~> 0.1"},
-      {:ecto, "~> 1.0"},
+      {:ecto, "~> 1.0.0"},
       {:dialyze, "~> 0.2.0", only: :dev},
       {:excoveralls, "~> 0.3.11", only: :test},
       {:inch_ex, ">= 0.0.0", only: :docs},
