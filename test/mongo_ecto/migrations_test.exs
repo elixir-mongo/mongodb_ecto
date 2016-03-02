@@ -53,7 +53,7 @@ defmodule Mongo.Ecto.MigrationsTest do
   end
 
   defmodule RenameModel do
-    use Ecto.Integration.Model
+    use Ecto.Integration.Schema
 
     schema "rename_migration" do
       field :to_be_renamed, :integer

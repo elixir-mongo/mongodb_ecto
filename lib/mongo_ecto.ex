@@ -394,7 +394,7 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def stop(pid, timeout) do
+  def stop(_module, pid, timeout) do
     ref = Process.monitor(pid)
     Process.exit(pid, :normal)
     receive do
@@ -451,15 +451,15 @@ defmodule Mongo.Ecto do
 
   @epoch :calendar.datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})
 
-  defp from_datetime(%Ecto.Date{year: year, month: month, day: day}),
+  def from_datetime(%Ecto.Date{year: year, month: month, day: day}),
     do: from_datetime({{year, month, day}, {0, 0, 0, 0}})
-  defp from_datetime(%Ecto.Time{hour: hour, min: min, sec: sec, usec: usec}),
+  def from_datetime(%Ecto.Time{hour: hour, min: min, sec: sec, usec: usec}),
     do: from_datetime({{1970, 1, 1}, {hour, min, sec, usec}})
-  defp from_datetime(%Ecto.DateTime{year: year, month: month, day: day, hour: hour, min: min, sec: sec, usec: usec}),
+  def from_datetime(%Ecto.DateTime{year: year, month: month, day: day, hour: hour, min: min, sec: sec, usec: usec}),
     do: from_datetime({{year, month, day}, {hour, min, sec, usec}})
-  defp from_datetime({_, _, _, _} = time),
+  def from_datetime({_, _, _, _} = time),
     do: from_datetime({{1970, 1, 1}, time})
-  defp from_datetime({date, {hour, min, sec, usec}}) do
+  def from_datetime({date, {hour, min, sec, usec}}) do
     greg_secs = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
     epoch_secs = greg_secs - @epoch
     {:ok, %BSON.DateTime{utc: epoch_secs * 1000 + div(usec, 1000)}}
