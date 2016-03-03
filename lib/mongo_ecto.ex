@@ -428,6 +428,8 @@ defmodule Mongo.Ecto do
   end
   def load(Ecto.DateTime, %BSON.DateTime{} = datetime),
     do: datetime |> BSON.DateTime.to_datetime |> Ecto.DateTime.load
+  def load(module, %BSON.DateTime{} = datetime),
+    do: datetime |> BSON.DateTime.to_datetime |> module.load
   def load(type, data),
     do: Ecto.Type.load(type, data, &load/2)
 
