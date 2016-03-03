@@ -752,13 +752,27 @@ defmodule Mongo.Ecto do
   end
 
   special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
-  migration = Ecto.Migration.SchemaMigration.__schema__(:source)
-  migration_regex = %BSON.Regex{pattern: migration, options: ""}
+  @migration Ecto.Migration.SchemaMigration.__schema__(:source)
+  migration_regex = %BSON.Regex{pattern: @migration, options: ""}
 
   @list_collections_query ["$and": [[name: ["$not": special_regex]],
                                     [name: ["$not": migration_regex]]]]
 
-  defp list_collections(repo, opts) do
+  def list_collections(repo, opts \\ []) do
+    ver = db_version(repo)
+
+    list_collections(ver, repo, opts)
+  end
+
+  defp list_collections(_ = 3, repo, opts) do
+    colls = command(repo, %{"listCollections": 1}, opts)
+
+    colls["cursor"]["firstBatch"]
+    |> Enum.map(&Map.fetch!(&1, "name"))
+    |> Enum.reject(&@migration == &1)
+  end
+
+  defp list_collections(_,repo, opts) do
     query = %ReadQuery{coll: "system.namespaces", query: @list_collections_query}
     opts = Keyword.put(opts, :log, false)
 
@@ -776,6 +790,12 @@ defmodule Mongo.Ecto do
 
   defp namespace(repo, coll) do
     "#{repo.config[:database]}.#{coll}"
+  end
+
+  defp db_version(repo) do
+    version = command(repo, %{"buildinfo": 1}, [])["versionArray"]
+
+    Enum.fetch!(version, 0)
   end
 
   @doc false
