@@ -127,7 +127,7 @@ defmodule Mongo.Ecto.Connection do
         stacktrace = System.stacktrace
         case e do
           %Mongo.Error{code: 11000, message: msg} ->
-            {:invalid, constraint(msg)}
+            {:invalid, [unique: extract_index(msg)]}
           other ->
             reraise other, stacktrace
         end
@@ -135,11 +135,17 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def constraint(msg) do
-    case String.split(msg, [".$", " dup "]) do
-      [_, name, _] ->
-        [unique: String.strip(name)]
-      _other ->
-        []
+    [unique: extract_index(msg)]
+  end
+
+  defp extract_index(msg) do
+    parts = String.split(msg, [".$", "index: ", " dup "])
+
+    case Enum.reverse(parts) do
+      [_, index | _] ->
+        String.strip(index)
+      _  ->
+        raise "failed to extract index from error message: #{inspect msg}"
     end
   end
 end
