@@ -117,4 +117,10 @@ defmodule Mongo.EctoTest do
     post = TestRepo.get(Post, post.id)
     assert post.meta == %{}
   end
+
+  test "list_collections does not include schema collection" do
+    schema_collection = Ecto.Migration.SchemaMigration.__schema__(:source)
+
+    refute schema_collection in Mongo.Ecto.list_collections(TestRepo)
+  end
 end

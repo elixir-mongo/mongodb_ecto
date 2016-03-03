@@ -105,14 +105,6 @@ defmodule Mongo.Ecto.MigrationsTest do
 
   import Ecto.Migrator, only: [up: 4, down: 4]
 
-  test "listCollections shouldn't include schema collection" do
-    TestRepo.insert! %RenameModel{to_be_renamed: 1}
-
-    assert !Enum.member?(Mongo.Ecto.list_collections(TestRepo), Ecto.Migration.SchemaMigration.__schema__(:source))
-
-    Mongo.Ecto.truncate(TestRepo)
-  end
-
   test "create and drop indexes" do
     assert :ok == up(TestRepo, 20050906120000, CreateMigration, log: false)
     assert :ok == down(TestRepo, 20050906120000, CreateMigration, log: false)

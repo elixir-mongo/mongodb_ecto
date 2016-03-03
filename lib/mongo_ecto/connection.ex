@@ -135,7 +135,7 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def constraint(msg) do
-    case String.split(msg, [".$", "index: ", " dup "]) do
+    case String.split(msg, [".$", " dup "]) do
       [_, name, _] ->
         [unique: String.strip(name)]
       _other ->

@@ -758,18 +758,16 @@ defmodule Mongo.Ecto do
   @list_collections_query ["$and": [[name: ["$not": special_regex]],
                                     [name: ["$not": migration_regex]]]]
 
+  @doc false
   def list_collections(repo, opts \\ []) do
-    ver = db_version(repo)
-
-    list_collections(ver, repo, opts)
+    list_collections(db_version(repo), repo, opts)
   end
 
-  defp list_collections(_ = 3, repo, opts) do
-    colls = command(repo, %{"listCollections": 1}, opts)
+  defp list_collections(version, repo, opts) when version > 3 do
+    colls = command(repo, %{"listCollections": 1}, opts)["cursor"]["firstBatch"]
 
-    colls["cursor"]["firstBatch"]
-    |> Enum.map(&Map.fetch!(&1, "name"))
-    |> Enum.reject(&@migration == &1)
+    all_collections = Enum.map(colls, &Map.fetch!(&1, "name"))
+    all_collections -- [@migration]
   end
 
   defp list_collections(_,repo, opts) do
