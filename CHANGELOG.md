@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.4
+
+  Support MongoDB version 3.2
+
 ## v0.1.3
 
   This version is limited to Ecto 1.0 because of known issues with 1.1
