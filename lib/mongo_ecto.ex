@@ -763,10 +763,14 @@ defmodule Mongo.Ecto do
     list_collections(db_version(repo), repo, opts)
   end
 
-  defp list_collections(version, repo, opts) when version > 3 do
+  defp list_collections(version, repo, opts) when version >= 3 do
     colls = command(repo, %{"listCollections": 1}, opts)["cursor"]["firstBatch"]
 
-    all_collections = Enum.map(colls, &Map.fetch!(&1, "name"))
+    all_collections =
+      colls
+      |> Enum.map(&Map.fetch!(&1, "name"))
+      |> Enum.reject(&String.contains?(&1, "system."))
+
     all_collections -- [@migration]
   end
 
