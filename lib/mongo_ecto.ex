@@ -169,7 +169,8 @@ defmodule Mongo.Ecto do
   For things that are not possible to express with Elixir's syntax in queries,
   you can use keyword fragments:
 
-      from p in Post, where: fragment("$exists": "name"), select: p
+      from p in Post, where: fragment(key:["$exists": true]), select: p
+
 
   To ease of using in more advanced queries, there is `Mongo.Ecto.Helpers` module
   you could import into modules dealing with queries.
