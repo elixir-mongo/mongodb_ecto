@@ -39,7 +39,7 @@ defmodule Mongo.Ecto.Connection do
     opts  = query.opts ++ opts
     query = query.query
 
-    [%{"value" => Mongo.count(conn, coll, query, opts)}]
+    [%{"value" => Mongo.count!(conn, coll, query, opts)}]
   end
 
   def read(conn, %AggregateQuery{} = query, opts) do
@@ -55,9 +55,8 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
     query    = query.query
 
-    case Mongo.delete_many(conn, coll, query, opts) do
-      {:ok, %{deleted_count: n}} -> n
-    end
+    %{deleted_count: n} = Mongo.delete_many!(conn, coll, query, opts)
+    n
   end
 
   def delete(conn, %WriteQuery{} = query, opts) do
@@ -65,13 +64,13 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
     query    = query.query
 
-    catch_constraint_errors fn ->
-      case Mongo.delete_one(conn, coll, query, opts) do
-        {:ok, %{deleted_count: 1}} ->
-          {:ok, []}
-        {:ok, _} ->
-          {:error, :stale}
-      end
+    case Mongo.delete_one(conn, coll, query, opts) do
+      {:ok, %{deleted_count: 1}} ->
+        {:ok, []}
+      {:ok, _} ->
+        {:error, :stale}
+      {:error, error} ->
+        check_constraint_errors(error)
     end
   end
 
@@ -81,9 +80,8 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
     query    = query.query
 
-    case Mongo.update_many(conn, coll, query, command, opts) do
-      {:ok, %{modified_count: n}} -> n
-    end
+    %{modified_count: n} = Mongo.update_many!(conn, coll, query, command, opts)
+    n
   end
 
   def update(conn, %WriteQuery{} = query, opts) do
@@ -92,13 +90,13 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
     query    = query.query
 
-    catch_constraint_errors fn ->
-      case Mongo.update_one(conn, coll, query, command, opts) do
-        {:ok, %{modified_count: 1}} ->
-          {:ok, []}
-        {:ok, _} ->
-          {:error, :stale}
-      end
+    case Mongo.update_one(conn, coll, query, command, opts) do
+      {:ok, %{modified_count: 1}} ->
+        {:ok, []}
+      {:ok, _} ->
+        {:error, :stale}
+      {:error, error} ->
+        check_constraint_errors(error)
     end
   end
 
@@ -107,8 +105,9 @@ defmodule Mongo.Ecto.Connection do
     command  = query.command
     opts     = query.opts ++ opts
 
-    catch_constraint_errors fn ->
-      Mongo.insert_one(conn, coll, command, opts)
+    case Mongo.insert_one(conn, coll, command, opts) do
+      {:ok, result}   -> {:ok, result}
+      {:error, error} -> check_constraint_errors(error)
     end
   end
 
@@ -116,26 +115,14 @@ defmodule Mongo.Ecto.Connection do
     command  = query.command
     opts     = query.opts ++ opts
 
-    Mongo.run_command(conn, command, opts)
+    Mongo.run_command!(conn, command, opts)
   end
 
-  defp catch_constraint_errors(fun) do
-    try do
-      fun.()
-    rescue
-      e in Mongo.Error ->
-        stacktrace = System.stacktrace
-        case e do
-          %Mongo.Error{code: 11000, message: msg} ->
-            {:invalid, [unique: extract_index(msg)]}
-          other ->
-            reraise other, stacktrace
-        end
-    end
+  defp check_constraint_errors(%Mongo.Error{code: 11000, message: msg}) do
+    {:invalid, [unique: extract_index(msg)]}
   end
-
-  def constraint(msg) do
-    [unique: extract_index(msg)]
+  defp check_constraint_errors(other) do
+    raise other
   end
 
   defp extract_index(msg) do
