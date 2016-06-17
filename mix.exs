@@ -7,11 +7,11 @@ defmodule Mongo.Ecto.Mixfile do
     [app: :mongodb_ecto,
      version: @version,
      elixir: "~> 1.0",
-     deps: deps,
+     deps: deps(),
      test_coverage: [tool: ExCoveralls],
-     description: description,
-     package: package,
-     docs: docs]
+     description: description(),
+     package: package(),
+     docs: docs()]
   end
 
   def application do

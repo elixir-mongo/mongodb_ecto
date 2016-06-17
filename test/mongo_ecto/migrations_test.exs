@@ -79,12 +79,12 @@ defmodule Mongo.Ecto.MigrationsTest do
     def up do
       assert_raise ArgumentError, ~r"does not support SQL statements", fn ->
         execute "UPDATE posts SET published_at = NULL"
-        flush
+        flush()
       end
 
       assert_raise ArgumentError, ~r"does not support SQL statements", fn ->
         create table(:create_table_migration, options: "WITH ?")
-        flush
+        flush()
       end
     end
 
