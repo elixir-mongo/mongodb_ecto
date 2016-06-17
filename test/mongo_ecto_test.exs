@@ -21,6 +21,12 @@ defmodule Mongo.EctoTest do
     assert [] == TestRepo.all(Post)
   end
 
+  test "inserting timestamps" do
+    post = TestRepo.insert!(%Post{})
+    assert post.inserted_at
+    assert post.updated_at
+  end
+
   test "javascript in query" do
     TestRepo.insert!(%Post{visits: 1})
 
