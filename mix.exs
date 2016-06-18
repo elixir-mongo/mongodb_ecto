@@ -20,8 +20,8 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp deps do
     [
-      {:mongodb, github: "ericmj/mongodb"},
-      {:ecto, "~> 1.0.0"},
+      {:mongodb, github: "ericmj/mongodb", branch: "emj-dbconn"},
+      {:ecto, github: "elixir-ecto/ecto"},
       {:dialyze, "~> 0.2.0", only: :dev},
       {:excoveralls, "~> 0.5", only: :test},
       {:inch_ex, "~> 0.5", only: :docs},

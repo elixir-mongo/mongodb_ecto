@@ -370,28 +370,52 @@ defmodule Mongo.Ecto do
 
   @doc false
   defmacro __before_compile__(env) do
-    module = env.module
-    config = Module.get_attribute(module, :config)
-    adapter = Keyword.get(config, :pool, Mongo.Pool.Poolboy)
-
+    config = Module.get_attribute(env.module, :config)
+    pool   = Keyword.get(config, :pool, DBConnection.Poolboy)
+    pool_name = pool_name(env.module, config)
+    norm_config = normalize_config(config)
     quote do
-      defmodule Pool do
-        use Mongo.Pool, name: __MODULE__, adapter: unquote(adapter)
+      @doc false
+      def __pool__, do: {unquote(pool_name), unquote(Macro.escape(norm_config))}
 
-        def log(return, queue_time, query_time, fun, args) do
-          Mongo.Ecto.log(unquote(module), return, queue_time, query_time, fun, args)
-        end
-      end
-
-      def __mongo_pool__, do: unquote(module).Pool
+      defoverridable [__pool__: 0]
     end
   end
 
-  @doc false
-  def start_link(repo, opts) do
-    {:ok, _} = Application.ensure_all_started(:mongodb_ecto)
+  @pool_timeout 5_000
+  @timeout 15_000
 
-    repo.__mongo_pool__.start_link(opts)
+  defp normalize_config(config) do
+    config
+    |> Keyword.delete(:name)
+    |> Keyword.put_new(:timeout, @timeout)
+    |> Keyword.put_new(:pool_timeout, @pool_timeout)
+  end
+
+  defp pool_name(module, config) do
+    Keyword.get(config, :pool_name, default_pool_name(module, config))
+  end
+
+  defp default_pool_name(repo, config) do
+    Module.concat(Keyword.get(config, :name, repo), Pool)
+  end
+
+  @doc false
+  def application, do: :mongodb_ecto
+
+  @doc false
+  def child_spec(repo, opts) do
+    # Check if the pool options should be overridden
+    {pool_name, pool_opts} =
+      case Keyword.fetch(opts, :pool) do
+        {:ok, pool} ->
+          {pool_name(repo, opts), opts}
+        _ ->
+          repo.__pool__
+      end
+    opts = [name: pool_name] ++ Keyword.delete(opts, :pool) ++ pool_opts
+
+    DBConnection.child_spec(Mongo.Protocol, opts)
   end
 
   @doc false
