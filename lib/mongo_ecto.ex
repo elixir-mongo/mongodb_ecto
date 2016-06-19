@@ -415,7 +415,7 @@ defmodule Mongo.Ecto do
       end
     opts = [name: pool_name] ++ Keyword.delete(opts, :pool) ++ pool_opts
 
-    DBConnection.child_spec(Mongo.Protocol, opts)
+    Mongo.child_spec(opts)
   end
 
   @doc false
