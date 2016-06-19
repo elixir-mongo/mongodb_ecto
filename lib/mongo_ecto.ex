@@ -478,7 +478,7 @@ defmodule Mongo.Ecto do
   def autogenerate(:id),
     do: raise "MongoDB adapter does not support `:id` type as primary key"
   def autogenerate(:embed_id),
-    do: Mongo.object_id
+    do: BSON.ObjectId.encode!(Mongo.object_id)
   def autogenerate(:binary_id),
     do: Mongo.object_id
 
