@@ -87,28 +87,28 @@ defmodule Mongo.EctoTest do
     assert 10 == TestRepo.one(query)
   end
 
-  test "partial update in map" do
-    post = TestRepo.insert!(%Post{meta: %{author: %{name: "michal"}, other: "value"}})
-    TestRepo.update_all(Post, set: [meta: change_map("author.name", "michal")])
+  # test "partial update in map" do
+  #   post = TestRepo.insert!(%Post{meta: %{author: %{name: "michal"}, other: "value"}})
+  #   TestRepo.update_all(Post, set: [meta: change_map("author.name", "michal")])
 
-    assert TestRepo.get!(Post, post.id).meta ==
-      %{"author" => %{"name" => "michal"}, "other" => "value"}
+  #   assert TestRepo.get!(Post, post.id).meta ==
+  #     %{"author" => %{"name" => "michal"}, "other" => "value"}
 
-    order = Ecto.Changeset.change(%Order{}, item: %Item{price: 1})
-    order = TestRepo.insert!(order)
-    TestRepo.update_all(Order, set: [item: change_map("price", 10)])
+  #   order = Ecto.Changeset.change(%Order{}, item: %Item{price: 1})
+  #   order = TestRepo.insert!(order)
+  #   TestRepo.update_all(Order, set: [item: change_map("price", 10)])
 
-    assert TestRepo.get!(Order, order.id).item.price == 10
-  end
+  #   assert TestRepo.get!(Order, order.id).item.price == 10
+  # end
 
-  test "partial update in array" do
-    tag = Ecto.Changeset.change(%Tag{}, items: [%Item{price: 1}])
-    tag = TestRepo.insert!(tag)
-    TestRepo.update_all(Tag, set: [items: change_array(0, "price", 10)])
+  # test "partial update in array" do
+  #   tag = Ecto.Changeset.change(%Tag{}, items: [%Item{price: 1}])
+  #   tag = TestRepo.insert!(tag)
+  #   TestRepo.update_all(Tag, set: [items: change_array(0, "price", 10)])
 
-    [item] = TestRepo.get!(Tag, tag.id).items
-    assert item.price == 10
-  end
+  #   [item] = TestRepo.get!(Tag, tag.id).items
+  #   assert item.price == 10
+  # end
 
   test "decode empty map to map" do
     post = TestRepo.insert!(%Post{meta: %{}})

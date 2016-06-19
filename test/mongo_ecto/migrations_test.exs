@@ -52,8 +52,8 @@ defmodule Mongo.Ecto.MigrationsTest do
     end
   end
 
-  defmodule RenameModel do
-    use Ecto.Integration.Model
+  defmodule RenameSchema do
+    use Ecto.Integration.Schema
 
     schema "rename_migration" do
       field :to_be_renamed, :integer
@@ -127,9 +127,9 @@ defmodule Mongo.Ecto.MigrationsTest do
   end
 
   test "rename column" do
-    TestRepo.insert! %RenameModel{to_be_renamed: 1}
+    TestRepo.insert! %RenameSchema{to_be_renamed: 1}
     assert :ok == up(TestRepo, 20150718120000, RenameColumnMigration, log: false)
-    assert {nil, 1} == TestRepo.one from p in RenameModel, select: {p.to_be_renamed, p.was_renamed}
+    assert {nil, 1} == TestRepo.one from p in RenameSchema, select: {p.to_be_renamed, p.was_renamed}
     :ok = down(TestRepo, 20150718120000, RenameColumnMigration, log: false)
   end
 

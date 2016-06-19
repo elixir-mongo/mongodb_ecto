@@ -79,9 +79,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
       end)
       |> Kernel.++(pipeline)
 
-    if query != %{} do
-      pipeline = [["$match": query] | pipeline]
-    end
+    pipeline =
+      if query != %{}, do: [["$match": query] | pipeline], else: pipeline
 
     %AggregateQuery{coll: coll, pipeline: pipeline, pk: pk, fields: fields,
                     database: original.prefix}
@@ -123,8 +122,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, database: prefix}
   end
 
-  def insert(%{source: {prefix, coll}, model: model}, document, pk) do
-    command = command(:insert, document, model.__struct__(), pk)
+  def insert(%{source: {prefix, coll}, schema: schema}, document) do
+    command = command(:insert, document, primary_key(schema))
 
     %WriteQuery{coll: coll, command: command, database: prefix}
   end
@@ -263,9 +262,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> merge_keys(query, "update clause")
   end
 
-  defp command(:insert, document, struct, pk) do
+  defp command(:insert, document, pk) do
     document
-    |> Enum.reject(fn {key, value} -> both_nil(value, Map.get(struct, key)) end)
     |> value(pk, "insert command")
     |> map_unless_empty
   end
@@ -284,13 +282,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp primary_key(nil),
     do: nil
-  defp primary_key(model) do
-    case model.__schema__(:primary_key) do
+  defp primary_key(schema) do
+    case schema.__schema__(:primary_key) do
       []   -> nil
       [pk] -> pk
       keys ->
         raise ArgumentError, "MongoDB adapter does not support multiple primary keys " <>
-          "and #{inspect keys} were defined in #{inspect model}."
+          "and #{inspect keys} were defined in #{inspect schema}."
     end
   end
 
