@@ -419,79 +419,68 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def stop(pid, timeout) do
-    ref = Process.monitor(pid)
-    Process.exit(pid, :normal)
-    receive do
-      {:DOWN, ^ref, _, _, _} -> :ok
-    after
-      timeout -> exit(:timeout)
+  # TODO: handle date and time
+  def loaders(:datetime,  type), do: [&load_datetime/1, type]
+  def loaders(:binary_id, type), do: [&load_objectid/1, type]
+  def loaders(:uuid,      type), do: [&load_binary/1,   type]
+  def loaders(:binary,    type), do: [&load_binary/1,   type]
+  def loaders(_base,      type), do: [type]
+
+  defp load_datetime(%BSON.DateTime{} = datetime),
+    do: {:ok, BSON.DateTime.to_datetime(datetime)}
+  defp load_datetime(_),
+    do: :error
+
+  defp load_binary(%BSON.Binary{binary: binary}),
+    do: {:ok, binary}
+  defp load_binary(_),
+    do: :error
+
+  defp load_objectid(%BSON.ObjectId{} = objectid) do
+    try do
+      {:ok, BSON.ObjectId.encode!(objectid)}
+    catch
+      ArgumentError ->
+        :error
     end
-    Application.stop(:mongodb_ecto)
-    :ok
   end
+  defp load_objectid(_), do: :error
 
   @doc false
-  def load(_type, nil),
-    do: {:ok, nil}
-  # wat
-  def load(:binary_id, %BSON.ObjectId{value: value}),
-    do: ObjectID.load(value)
-  def load(:binary, %BSON.Binary{binary: value}),
-    do: {:ok, value}
-  def load(Ecto.UUID, %BSON.Binary{binary: value}),
-    do: {:ok, value}
-  def load(:map, keyword),
-    do: {:ok, Enum.into(keyword, %{})}
-  def load(Ecto.Date, %BSON.DateTime{} = datetime) do
-    {date, _time} = BSON.DateTime.to_datetime(datetime)
-    Ecto.Date.load(date)
+  # TODO: handle date and time
+  def dumpers(:datetime,  type), do: [type, &dump_datetime/1]
+  def dumpers(:binary_id, type), do: [type, &dump_objectid/1]
+  def dumpers(:uuid,      type), do: [type, &dump_binary(&1, :uuid)]
+  def dumpers(:binary,    type), do: [type, &dump_binary(&1, :generic)]
+  def dumpers(_base,      type), do: [type]
+
+  defp dump_datetime({{_, _, _}, {_, _, _, _}} = datetime),
+    do: {:ok, BSON.DateTime.from_datetime(datetime)}
+  defp dump_datetime(_),
+    do: :error
+
+  defp dump_binary(binary, subtype) when is_binary(binary),
+    do: {:ok, %BSON.Binary{binary: binary, subtype: subtype}}
+  defp dump_binary(_, _),
+    do: :error
+
+  defp dump_objectid(<<objectid :: binary-size(24)>>) do
+    try do
+      {:ok, BSON.ObjectId.decode!(objectid)}
+    catch
+      ArgumentError ->
+        :error
+    end
   end
-  def load(Ecto.Time, %BSON.DateTime{} = datetime) do
-    {_date, time} = BSON.DateTime.to_datetime(datetime)
-    Ecto.Time.load(time)
-  end
-  def load(Ecto.DateTime, %BSON.DateTime{} = datetime),
-    do: datetime |> BSON.DateTime.to_datetime |> Ecto.DateTime.load
-  def load(type, data),
-    do: Ecto.Type.load(type, data, &load/2)
+  defp dump_objectid(_), do: :error
 
   @doc false
-  def dump(_type, nil),
-    do: {:ok, nil}
-  def dump(:binary_id, data),
-    do: ObjectID.dump(data)
-  def dump(:binary, value),
-    do: {:ok, %BSON.Binary{binary: value}}
-  def dump(Ecto.UUID, value),
-    do: {:ok, %BSON.Binary{binary: value, subtype: :uuid}}
-  def dump(Ecto.Date, datetime),
-    do: from_datetime(datetime)
-  def dump(Ecto.Time, datetime),
-    do: from_datetime(datetime)
-  def dump(Ecto.DateTime, datetime),
-    do: from_datetime(datetime)
-  def dump(type, data),
-    do: Ecto.Type.dump(type, data, &dump/2)
-
-  @epoch :calendar.datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}})
-
-  defp from_datetime(%Ecto.Date{year: year, month: month, day: day}),
-    do: from_datetime({{year, month, day}, {0, 0, 0, 0}})
-  defp from_datetime(%Ecto.Time{hour: hour, min: min, sec: sec, usec: usec}),
-    do: from_datetime({{1970, 1, 1}, {hour, min, sec, usec}})
-  defp from_datetime(%Ecto.DateTime{year: year, month: month, day: day, hour: hour, min: min, sec: sec, usec: usec}),
-    do: from_datetime({{year, month, day}, {hour, min, sec, usec}})
-  defp from_datetime({_, _, _, _} = time),
-    do: from_datetime({{1970, 1, 1}, time})
-  defp from_datetime({date, {hour, min, sec, usec}}) do
-    greg_secs = :calendar.datetime_to_gregorian_seconds({date, {hour, min, sec}})
-    epoch_secs = greg_secs - @epoch
-    {:ok, %BSON.DateTime{utc: epoch_secs * 1000 + div(usec, 1000)}}
-  end
-
-  @doc false
-  def embed_id(_), do: ObjectID.generate
+  def autogenerate(:id),
+    do: raise "MongoDB adapter does not support `:id` type as primary key"
+  def autogenerate(:embed_id),
+    do: Mongo.object_id
+  def autogenerate(:binary_id),
+    do: Mongo.object_id
 
   @doc false
   def prepare(function, query) do
