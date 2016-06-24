@@ -362,7 +362,6 @@ defmodule Mongo.Ecto do
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
   alias Mongo.Ecto.NormalizedQuery.CountQuery
   alias Mongo.Ecto.NormalizedQuery.AggregateQuery
-  alias Mongo.Ecto.ObjectID
   alias Mongo.Ecto.Connection
   alias Mongo.Ecto.Conversions
 

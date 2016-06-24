@@ -141,6 +141,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp projection(%Query{select: nil}, _params, _from),
     do: {:find, %{}, []}
+  defp projection(%Query{select: %Query.SelectExpr{fields: nil, take: take}} = query, params, from),
+    do: IO.inspect(take)
   defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, from),
     do: projection(fields, params, from, query, %{}, [])
 
