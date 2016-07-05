@@ -3,6 +3,10 @@ defmodule Mongo.Ecto.Conversions do
 
   import Mongo.Ecto.Utils
 
+  def to_ecto_pk(%Ecto.Query.Tagged{type: type, value: value}) do
+    {:ok, dumped} = Ecto.Type.adapter_dump(Mongo.Ecto, type, value)
+    dumped
+  end
   def to_ecto_pk(%{__struct__: _} = value, _pk),
     do: value
   def to_ecto_pk(map, pk) when is_map(map) do
@@ -36,6 +40,8 @@ defmodule Mongo.Ecto.Conversions do
       :error       -> :error
     end
   end
+  def from_ecto_pk(%Ecto.Query.Tagged{type: type, value: value}, _pk),
+    do: Ecto.Type.adapter_dump(Mongo.Ecto, type, value)
   def from_ecto_pk(%{__struct__: _} = value, _pk),
     do: {:ok, value}
   def from_ecto_pk(map, pk) when is_map(map),

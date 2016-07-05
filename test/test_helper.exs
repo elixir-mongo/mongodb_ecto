@@ -6,6 +6,7 @@ Application.put_env(:ecto, :primary_key_type, :binary_id)
 Application.put_env(:ecto, :async_integration_tests, false)
 
 Code.require_file "../deps/ecto/integration_test/support/repo.exs", __DIR__
+Code.require_file "../deps/ecto/integration_test/support/types.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/support/schemas.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/support/migration.exs", __DIR__
 

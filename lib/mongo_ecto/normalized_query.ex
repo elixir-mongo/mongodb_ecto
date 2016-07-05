@@ -136,26 +136,21 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {coll, model, primary_key(model)}
   end
 
+  defp from(%Query{from: %Ecto.SubQuery{}}) do
+    raise ArgumentError, "MongoDB does not support subqueries"
+  end
+
   @aggregate_ops [:min, :max, :sum, :avg]
   @special_ops [:count | @aggregate_ops]
 
   defp projection(%Query{select: nil}, _params, _from),
     do: {:find, %{}, []}
-  defp projection(%Query{select: %Query.SelectExpr{fields: nil, take: take}} = query, params, from),
-    do: IO.inspect(take)
   defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, from),
     do: projection(fields, params, from, query, %{}, [])
 
   defp projection([], _params, _from, _query, pacc, facc),
     do: {:find, pacc, Enum.reverse(facc)}
-  defp projection([{:&, _, [0]} = field | rest], params, {_, model, pk} = from, query, pacc, facc)
-      when  model != nil do
-    pacc = Enum.into(model.__schema__(:fields), pacc, &{field(&1, pk), true})
-    facc = [field | facc]
-
-    projection(rest, params, from, query, pacc, facc)
-  end
-  defp projection([{:&, _, [0]} = field | rest], params, {_, nil, _} = from, query, _pacc, facc) do
+  defp projection([{:&, _, [0, nil, _]} = field | rest], params, {_, nil, _} = from, query, _pacc, facc) do
     # Model is nil, we want empty projection, but still extract fields
     facc =
       case projection(rest, params, from, query, %{}, [field | facc]) do
@@ -165,6 +160,18 @@ defmodule Mongo.Ecto.NormalizedQuery do
           error(query, "select clause supports only one of the special functions: `count`, `min`, `max`")
       end
     {:find, %{}, facc}
+  end
+  defp projection([{:&, _, [0, nil, _]} = field | rest], params, {_, model, pk} = from, query, pacc, facc) do
+    pacc = Enum.into(model.__schema__(:fields), pacc, &{field(&1, pk), true})
+    facc = [field | facc]
+
+    projection(rest, params, from, query, pacc, facc)
+  end
+  defp projection([{:&, _, [0, fields, _]} = field | rest], params, {_, model, pk} = from, query, pacc, facc) do
+    pacc = Enum.into(fields, pacc, &{field(&1, pk), true})
+    facc = [field | facc]
+
+    projection(rest, params, from, query, pacc, facc)
   end
   defp projection([{{:., _, [_, name]}, _, _} = field| rest], params, from, query, pacc, facc) do
     {_, _, pk} = from
@@ -206,21 +213,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
   defp projection([{op, _, _} | _rest], _params, _from, query, _pacc, _facc) when is_op(op) do
     error(query, "select clause")
-  end
-  # We skip all values and then add them when constructing return result
-  defp projection([%Tagged{value: {:^, _, [idx]}} = field | rest], params, from, query, pacc, facc) do
-    {_, _, pk} = from
-    value = params |> elem(idx) |> value(params, pk, query, "select clause")
-    facc = [{:value, value, field} | facc]
-
-    projection(rest, params, from, query, pacc, facc)
-  end
-  defp projection([field | rest], params, from, query, pacc, facc) do
-    {_, _, pk} = from
-    value = value(field, params, pk, query, "select clause")
-    facc = [{:value, value, field} | facc]
-
-    projection(rest, params, from, query, pacc, facc)
   end
 
   defp limit_skip(%Query{limit: limit, offset: offset} = query, params, {_, _, pk}) do
