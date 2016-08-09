@@ -419,11 +419,27 @@ defmodule Mongo.Ecto do
 
   @doc false
   # TODO: handle date and time
+  def loaders(Ecto.Time,  type), do: [&load_time/1, type]
+  def loaders(Ecto.Date,  type), do: [&load_date/1, type]
   def loaders(:datetime,  type), do: [&load_datetime/1, type]
   def loaders(:binary_id, type), do: [&load_objectid/1, type]
   def loaders(:uuid,      type), do: [&load_binary/1,   type]
   def loaders(:binary,    type), do: [&load_binary/1,   type]
   def loaders(_base,      type), do: [type]
+
+  defp load_time(%BSON.DateTime{} = time) do
+    {{_, _, _}, time} = BSON.DateTime.to_datetime(time)
+    {:ok, time}
+  end
+  defp load_time(_),
+    do: :error
+
+  defp load_date(%BSON.DateTime{} = date) do
+    {date, {_, _, _, _}} = BSON.DateTime.to_datetime(date)
+    {:ok, date}
+  end
+  defp load_date(_),
+    do: :error
 
   defp load_datetime(%BSON.DateTime{} = datetime),
     do: {:ok, BSON.DateTime.to_datetime(datetime)}
@@ -447,11 +463,23 @@ defmodule Mongo.Ecto do
 
   @doc false
   # TODO: handle date and time
+  def dumpers(:time,      type), do: [type, &dump_time/1]
+  def dumpers(:date,      type), do: [type, &dump_date/1]
   def dumpers(:datetime,  type), do: [type, &dump_datetime/1]
   def dumpers(:binary_id, type), do: [type, &dump_objectid/1]
   def dumpers(:uuid,      type), do: [type, &dump_binary(&1, :uuid)]
   def dumpers(:binary,    type), do: [type, &dump_binary(&1, :generic)]
   def dumpers(_base,      type), do: [type]
+
+  defp dump_time({_, _, _, _} = time),
+    do: {:ok, BSON.DateTime.from_datetime({0, 0, 0}, time)}
+  defp dump_time(_),
+    do: :error
+
+  defp dump_date({_, _, _} = date),
+    do: {:ok, BSON.DateTime.from_datetime({date, {0, 0, 0, 0}})}
+  defp dump_date(_),
+    do: :error
 
   defp dump_datetime({{_, _, _}, {_, _, _, _}} = datetime),
     do: {:ok, BSON.DateTime.from_datetime(datetime)}
