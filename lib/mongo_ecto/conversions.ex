@@ -88,8 +88,13 @@ defmodule Mongo.Ecto.Conversions do
       end)
 
     case return do
-      {values,  :ok}    -> {:ok, values}
+      {values,  :ok}    -> {:ok, fix(values, list)}
       {_values, :error} -> :error
     end
   end
+
+  defp fix(values, map) when is_map(map),
+    do: Enum.into values, %{}
+  defp fix(values, _list),
+    do: values
 end

@@ -90,7 +90,7 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
     query    = query.query
 
-    case query(repo, :update, [coll, query, command], opts) do
+    case query(repo, :update_one, [coll, query, command], opts) do
       {:ok, %{modified_count: 1}} ->
         {:ok, []}
       {:ok, _} ->
