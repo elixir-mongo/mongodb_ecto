@@ -42,6 +42,8 @@ defmodule Mongo.Ecto.Conversions do
   end
   def from_ecto_pk(%Ecto.Query.Tagged{type: type, value: value}, _pk),
     do: Ecto.Type.adapter_dump(Mongo.Ecto, type, value)
+  def from_ecto_pk(%Mongo.Ecto.Regex{} = regex, _pk),
+    do: Mongo.Ecto.Regex.dump(regex)
   def from_ecto_pk(%{__struct__: _} = value, _pk),
     do: {:ok, value}
   def from_ecto_pk(map, pk) when is_map(map),

@@ -472,7 +472,7 @@ defmodule Mongo.Ecto do
   def dumpers(_base,      type), do: [type]
 
   defp dump_time({_, _, _, _} = time),
-    do: {:ok, BSON.DateTime.from_datetime({0, 0, 0}, time)}
+    do: {:ok, BSON.DateTime.from_datetime({{0, 0, 0}, time})}
   defp dump_time(_),
     do: :error
 
