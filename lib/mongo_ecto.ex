@@ -418,7 +418,6 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  # TODO: handle date and time
   def loaders(Ecto.Time,  type), do: [&load_time/1, type]
   def loaders(Ecto.Date,  type), do: [&load_date/1, type]
   def loaders(:datetime,  type), do: [&load_datetime/1, type]
@@ -462,7 +461,6 @@ defmodule Mongo.Ecto do
   defp load_objectid(_), do: :error
 
   @doc false
-  # TODO: handle date and time
   def dumpers(:time,      type), do: [type, &dump_time/1]
   def dumpers(:date,      type), do: [type, &dump_date/1]
   def dumpers(:datetime,  type), do: [type, &dump_datetime/1]
