@@ -80,8 +80,12 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
     query    = query.query
 
-    %{modified_count: n} = query(repo, :update, [coll, query, command], opts)
-    n
+    case query(repo, :update_many, [coll, query, command], opts) do
+      {:ok, %Mongo.UpdateResult{modified_count: m}} ->
+        m
+      {:error, error} ->
+        check_constraint_errors(error)
+    end
   end
 
   def update(repo, %WriteQuery{} = query, opts) do
@@ -108,6 +112,25 @@ defmodule Mongo.Ecto.Connection do
     case query(repo, :insert_one, [coll, command], opts) do
       {:ok, result}   -> {:ok, result}
       {:error, error} -> check_constraint_errors(error)
+    end
+  end
+
+  def insert_all(repo, %WriteQuery{} = query, opts) do
+    coll     = query.coll
+    command  = query.command
+    opts     = query.opts ++ opts
+
+    case query(repo, :insert_many, [coll, command], opts) do
+      {:ok, %{inserted_ids: ids}} ->
+        case opts[:returning] do
+          false -> {Enum.count(ids), nil}
+          _ ->
+          # TODO fetch resylts
+          {Enum.count(ids), []}
+
+        end
+      {:error, error} ->
+        check_constraint_errors(error)
     end
   end
 

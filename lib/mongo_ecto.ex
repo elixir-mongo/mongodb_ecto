@@ -546,6 +546,17 @@ defmodule Mongo.Ecto do
     end
   end
 
+  def insert_all(repo, meta, fields, params, returning, opts) do
+    normalized = NormalizedQuery.insert(meta, params)
+
+    case Connection.insert_all(repo, normalized, opts) do
+      {:ok, _} ->
+        {:ok, []}
+      other ->
+        other
+    end
+  end
+
   @doc false
   def update(_repo, meta, _fields, _filter, {key, :id, _}, _returning, _opts) do
     raise ArgumentError,
