@@ -14,7 +14,7 @@
   "jsx": {:hex, :jsx, "2.6.2", "213721e058da0587a4bce3cc8a00ff6684ced229c8f9223245c6ff2c88fbaa5a", [:mix, :rebar], []},
   "metrics": {:hex, :metrics, "1.0.1", "25f094dea2cda98213cecc3aeff09e940299d950904393b2a29d191c346a8486", [:rebar3], []},
   "mimerl": {:hex, :mimerl, "1.0.2", "993f9b0e084083405ed8252b99460c4f0563e41729ab42d9074fd5e52439be88", [:rebar3], []},
-  "mongodb": {:git, "https://github.com/ankhers/mongodb.git", "ee51679b193ac498182e91517544d14bdd382179", [branch: "fix_ets_lookup"]},
+  "mongodb": {:git, "https://github.com/ericmj/mongodb.git", "312984a1f8fae6148daa67887005140307be698e", [branch: "emj-dbconn"]},
   "pbkdf2": {:git, "git://github.com/basho/erlang-pbkdf2.git", "7076584f5377e98600a7e2cb81980b2992fb2f71", []},
   "poison": {:hex, :poison, "2.1.0", "f583218ced822675e484648fa26c933d621373f01c6c76bd00005d7bd4b82e27", [:mix], []},
   "poolboy": {:hex, :poolboy, "1.5.1", "6b46163901cfd0a1b43d692657ed9d7e599853b3b21b95ae5ae0a777cf9b6ca8", [:rebar], []},
