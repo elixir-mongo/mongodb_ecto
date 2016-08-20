@@ -122,13 +122,7 @@ defmodule Mongo.Ecto.Connection do
 
     case query(repo, :insert_many, [coll, command], opts) do
       {:ok, %{inserted_ids: ids}} ->
-        case opts[:returning] do
-          false -> {Enum.count(ids), nil}
-          _ ->
-          # TODO fetch resylts
-          {Enum.count(ids), []}
-
-        end
+        {Enum.count(ids), nil}
       {:error, error} ->
         check_constraint_errors(error)
     end
