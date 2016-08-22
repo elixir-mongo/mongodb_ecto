@@ -383,6 +383,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp pair({:==, _, [left, right]}, params, pk, query, place) do
     {field(left, pk, query, place), value(right, params, pk, query, place)}
   end
+  defp pair({:in, _, [left, {:^, _, [0, 0]}]}, params, pk, query, place) do
+    {field(left, pk, query, place), ["$in": []]}
+  end
   defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query, place) do
     args =
       ix..ix+len-1
