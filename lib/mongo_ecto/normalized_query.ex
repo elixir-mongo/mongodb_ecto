@@ -98,9 +98,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
   end
 
-  def update(%{source: {prefix, coll}}, values, filter, pk) do
-    command = command(:update, values, pk)
-    query   = query(filter, pk)
+  def update(%{source: {prefix, coll}, schema: schema}, fields, filter) do
+    command = command(:update, fields, primary_key(schema))
+    query   = query(filter, primary_key(schema))
 
     %WriteQuery{coll: coll, query: query, database: prefix, command: command}
   end
@@ -116,8 +116,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, database: original.prefix}
   end
 
-  def delete(%{source: {prefix, coll}}, filter, pk) do
-    query = query(filter, pk)
+  def delete(%{source: {prefix, coll}, schema: schema}, filter) do
+    query = query(filter, primary_key(schema))
 
     %WriteQuery{coll: coll, query: query, database: prefix}
   end

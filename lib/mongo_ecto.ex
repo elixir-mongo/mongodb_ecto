@@ -558,6 +558,11 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
+  def update(repo, meta, fields, filters, returning, opts) do
+    normalized = NormalizedQuery.update(meta, fields, filters)
+
+    Connection.update(repo, normalized, opts)
+  end
   def update(_repo, meta, _fields, _filter, {key, :id, _}, _returning, _opts) do
     raise ArgumentError,
       "MongoDB adapter does not support :id field type in models. " <>
@@ -583,22 +588,10 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def delete(_repo, meta, _filter, {key, :id, _}, _opts) do
-    raise ArgumentError,
-      "MongoDB adapter does not support :id field type in models. " <>
-      "The #{inspect key} field in #{inspect meta.model} is tagged as such."
-  end
-
-  def delete(repo, meta, filter, {pk, :binary_id, _value}, opts) do
-    normalized = NormalizedQuery.delete(meta, filter, pk)
+  def delete(repo, meta, filter, opts) do
+    normalized = NormalizedQuery.delete(meta, filter)
 
     Connection.delete(repo, normalized, opts)
-  end
-
-  def delete(repo, meta, fields, filter, nil, [], opts) do
-    normalized = NormalizedQuery.update(meta, fields, filter, nil)
-
-    Connection.update(repo, normalized, opts)
   end
 
   defp process_document(document, %{fields: fields, pk: pk}, preprocess) do
