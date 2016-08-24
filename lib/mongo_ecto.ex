@@ -465,6 +465,8 @@ defmodule Mongo.Ecto do
     epoch_secs = greg_secs - @epoch
     {:ok, %BSON.DateTime{utc: epoch_secs * 1000 + div(usec, 1000)}}
   end
+  defp from_datetime(_),
+    do: :error
 
   @doc false
   def embed_id(_), do: ObjectID.generate
