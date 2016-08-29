@@ -418,6 +418,14 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
+  def ensure_all_started(repo, type) do
+    {_, opts} = repo.__pool__
+    with {:ok, pool} <- DBConnection.ensure_all_started(opts, type),
+         {:ok, mongo} <- Application.ensure_all_started(:mongodb, type),
+      do: {:ok, pool ++ [mongo]}
+  end
+
+  @doc false
   def loaders(Ecto.Time,  type), do: [&load_time/1, type]
   def loaders(Ecto.Date,  type), do: [&load_date/1, type]
   def loaders(:datetime,  type), do: [&load_datetime/1, type]
@@ -560,29 +568,6 @@ defmodule Mongo.Ecto do
   @doc false
   def update(repo, meta, fields, filters, returning, opts) do
     normalized = NormalizedQuery.update(meta, fields, filters)
-
-    Connection.update(repo, normalized, opts)
-  end
-  def update(_repo, meta, _fields, _filter, {key, :id, _}, _returning, _opts) do
-    raise ArgumentError,
-      "MongoDB adapter does not support :id field type in models. " <>
-      "The #{inspect key} field in #{inspect meta.model} is tagged as such."
-  end
-
-  def update(_repo, meta, _fields, _filter, _autogen, [_|_] = returning, _opts) do
-    raise ArgumentError,
-      "MongoDB adapter does not support :read_after_writes in models. " <>
-      "The following fields in #{inspect meta.model} are tagged as such: #{inspect returning}"
-  end
-
-  def update(repo, meta, fields, filter, {pk, :binary_id, _value}, [], opts) do
-    normalized = NormalizedQuery.update(meta, fields, filter, pk)
-
-    Connection.update(repo, normalized, opts)
-  end
-
-  def update(repo, meta, fields, filter, nil, [], opts) do
-    normalized = NormalizedQuery.update(meta, fields, filter, nil)
 
     Connection.update(repo, normalized, opts)
   end
