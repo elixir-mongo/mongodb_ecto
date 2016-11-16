@@ -20,8 +20,16 @@ Application.put_env(:ecto, TestRepo,
                     adapter: Mongo.Ecto,
                     url: "ecto://localhost:27017/ecto_test",
                     pool_size: 1)
+Application.put_env(:ecto, Ecto.Integration.PoolRepo,
+  adapter: Mongo.Ecto,
+  url: "ecto://localhost:27017/ecto_test",
+  pool_size: 5)
 
 defmodule Ecto.Integration.TestRepo do
+  use Ecto.Integration.Repo, otp_app: :ecto
+end
+
+defmodule Ecto.Integration.PoolRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
 end
 
@@ -29,6 +37,7 @@ defmodule Ecto.Integration.Case do
   use ExUnit.CaseTemplate
 
   alias Ecto.Integration.TestRepo
+  alias Ecto.Integration.PoolRepo
 
   setup_all do
     :ok
@@ -46,6 +55,7 @@ _   = Mongo.Ecto.storage_down(TestRepo.config)
 {:ok, pid} = TestRepo.start_link
 :ok = TestRepo.stop(pid, :infinity)
 {:ok, _pid} = TestRepo.start_link
+{:ok, _pid} = Ecto.Integration.PoolRepo.start_link
 
 # We capture_io, because of warnings on references
 ExUnit.CaptureIO.capture_io fn ->
