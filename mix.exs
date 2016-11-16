@@ -15,14 +15,13 @@ defmodule Mongo.Ecto.Mixfile do
   end
 
   def application do
-    [applications: [:ecto, :mongodb]]
+    [applications: [:ecto, :mongodb, :logger]]
   end
 
   defp deps do
     [
       {:mongodb, "~> 0.2.0"},
-      # {:ecto, github: "elixir-ecto/ecto"},
-      {:ecto, github: "ankhers/ecto", branch: "mongo_test_corrections"},
+      {:ecto, "~> 2.0"},
       {:dialyze, "~> 0.2.0", only: :dev},
       {:excoveralls, "~> 0.5", only: :test},
       {:inch_ex, "~> 0.5", only: :docs},
