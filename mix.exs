@@ -15,7 +15,7 @@ defmodule Mongo.Ecto.Mixfile do
   end
 
   def application do
-    [applications: [:ecto, :mongodb]]
+    [applications: [:ecto, :mongodb, :logger]]
   end
 
   defp deps do

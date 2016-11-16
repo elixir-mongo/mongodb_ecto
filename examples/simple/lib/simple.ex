@@ -16,7 +16,7 @@ defmodule Simple.Repo do
 end
 
 defmodule Weather do
-  use Ecto.Model
+  use Ecto.Schema
 
   @primary_key {:id, :binary_id, autogenerate: true}
 
@@ -37,5 +37,19 @@ defmodule Simple do
           where: w.prcp > 0.0 or is_nil(w.prcp),
          select: w
     Simple.Repo.all(query)
+  end
+
+  def sample_insert do
+    %Weather{}
+    |> Ecto.Changeset.change(%{})
+    |> Simple.Repo.insert()
+  end
+
+  def sample_update do
+    {:ok, weather} = sample_insert()
+
+    weather
+    |> Ecto.Changeset.change(%{city: "NYC"})
+    |> Simple.Repo.update
   end
 end

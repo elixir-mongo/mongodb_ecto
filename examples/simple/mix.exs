@@ -9,7 +9,7 @@ defmodule Simple.Mixfile do
 
   def application do
     [mod: {Simple.App, []},
-     applications: [:mongodb_ecto, :ecto]]
+     applications: [:mongodb_ecto, :ecto, :logger]]
   end
 
   defp deps do
