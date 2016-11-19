@@ -426,8 +426,7 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def loaders(Ecto.Time,  type), do: [&load_time/1, type]
-  def loaders(Ecto.Date,  type), do: [&load_date/1, type]
+  def loaders(:time,      type), do: [&load_time/1, type]
   def loaders(:date,      type), do: [&load_date/1, type]
   def loaders(:datetime,  type), do: [&load_datetime/1, type]
   def loaders(:binary_id, type), do: [&load_objectid/1, type]
@@ -436,7 +435,7 @@ defmodule Mongo.Ecto do
   def loaders(_base,      type), do: [type]
 
   defp load_time(%BSON.DateTime{} = time) do
-    {{_, _, _}, time} = BSON.DateTime.to_datetime(time)
+    {{_,_,_}, time} = BSON.DateTime.to_datetime(time)
     {:ok, time}
   end
   defp load_time(_),
@@ -446,8 +445,6 @@ defmodule Mongo.Ecto do
     {date, {_, _, _, _}} = BSON.DateTime.to_datetime(date)
     {:ok, date}
   end
-  defp load_date(%Ecto.Date{} = date),
-    do: Ecto.Date.to_erl(date)
   defp load_date(_),
     do: :error
 
