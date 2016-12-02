@@ -12,7 +12,7 @@ otp_release:
   - 18.1
 
 before_install:
-  - npm install -g mongodb-version-manager
+  - npm install -g mongodb-version-manager@1.0.6
 
 install:
   - m use $MONGOVERSION
