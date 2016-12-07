@@ -78,13 +78,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
         {:skip,  value} -> ["$skip":  value]
       end)
       |> Kernel.++(pipeline)
+      |> (fn pipeline -> if query != %{}, do: [["$match": query] | pipeline], else: pipeline end).()
 
-    if query != %{} do
-      pipeline = [["$match": query] | pipeline]
-    end
-
-    %AggregateQuery{coll: coll, pipeline: pipeline, pk: pk, fields: fields,
-                    database: original.prefix}
+      %AggregateQuery{coll: coll, pipeline: pipeline, pk: pk, fields: fields,
+                      database: original.prefix}
   end
 
   def update_all(%Query{} = original, params) do
