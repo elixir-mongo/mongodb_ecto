@@ -770,12 +770,12 @@ defmodule Mongo.Ecto do
 
   @doc false
   def transaction(_, _, _) do
-    :ok
+    raise "transactions are not supported"
   end
 
   @doc false
   def rollback(_, _) do
-    :ok
+    raise "transactions are not supported"
   end
 
   defp list_collections(version, repo, opts) when version >= 3 do
