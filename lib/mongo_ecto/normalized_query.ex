@@ -78,13 +78,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
         {:skip,  value} -> ["$skip":  value]
       end)
       |> Kernel.++(pipeline)
-
-    if query != %{} do
-      pipeline = [["$match": query] | pipeline]
-    end
+      |> aggregate_pipeline(query)
 
     %AggregateQuery{coll: coll, pipeline: pipeline, pk: pk, fields: fields,
-                    database: original.prefix}
+                      database: original.prefix}
   end
 
   def update_all(%Query{} = original, params) do
@@ -135,6 +132,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp from(%Query{from: {coll, model}}) do
     {coll, model, primary_key(model)}
+  end
+
+  defp aggregate_pipeline(pipeline, query) do
+    if query != %{} do
+      [["$match": query] | pipeline]
+    else
+      pipeline
+    end
   end
 
   @aggregate_ops [:min, :max, :sum, :avg]
