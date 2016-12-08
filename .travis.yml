@@ -7,7 +7,6 @@ cache:
 
 elixir:
   - 1.1
-  - 1.2
   - 1.3
 
 otp_release:
@@ -21,10 +20,20 @@ before_install:
   - m use $MONGOVERSION
   - mkdir db
 
+install:
+  - mix local.rebar --force
+  - mix local.hex --force
+  - mix deps.get
+  - (cd examples/simple; mix deps.get)
+
 before_script:
   - sudo service mongodb stop
   - export PATH=$(m path):$PATH
   - mongod --fork --logpath mongo.log --dbpath db
+
+script:
+  - mix test
+  - (cd examples/simple; mix test)
 
 after_script:
   - mix deps.get --only docs
@@ -37,10 +46,6 @@ env:
     - MONGOVERSION=2.6.11
     - MONGOVERSION=3.0.7
     - MONGOVERSION=3.2.3
-
-script:
-  - mix test
-  - (cd examples/simple; mix test)
 
 notifications:
   recipients:
