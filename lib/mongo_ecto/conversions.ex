@@ -50,9 +50,13 @@ defmodule Mongo.Ecto.Conversions do
     do: :error
 
   defp document(doc, pk) do
-    map(doc, fn {key, value} ->
-      pair(key, value, pk, &from_ecto_pk(&1, pk))
-    end)
+    if is_map(doc) && map_size(doc) == 0 do
+      {:ok, %{}}
+    else
+      map(doc, fn {key, value} ->
+        pair(key, value, pk, &from_ecto_pk(&1, pk))
+      end)
+    end
   end
 
   defp document(doc, params, pk) do
