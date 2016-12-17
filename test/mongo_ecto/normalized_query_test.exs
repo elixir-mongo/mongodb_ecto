@@ -80,13 +80,11 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert [{:field, :x, _}, {:field, :y, _}] = query.fields
 
     query = Model |> select([r], [r, r.x]) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m:
-               true})
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m: true})
     assert [{:&, _, _}, {:field, :x, _}] = query.fields
 
     query = Model |> select([r], [r]) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m:
-               true})
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m: true})
     assert [{:&, _, _}] = query.fields
 
     query = Model |> select([r], {1}) |> normalize
@@ -98,8 +96,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert [{:field, :id, _}] = query.fields
 
     query = from(r in Model) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m:
-               true})
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m: true})
     assert [{:&, _, _}] = query.fields
   end
 
