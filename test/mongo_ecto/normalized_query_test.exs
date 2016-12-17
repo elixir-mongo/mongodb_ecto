@@ -10,6 +10,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     use Ecto.Model
 
     schema "model" do
+      field :m, :map
       field :x, :integer
       field :y, :integer, default: 5
       field :z, {:array, :integer}
@@ -42,7 +43,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
   test "bare model" do
     query = Model |> from |> normalize
     assert_query(query, coll: "model", query: %{},
-                 projection: %{_id: true, x: true, y: true, z: true},
+                 projection: %{_id: true, x: true, y: true, z: true, m: true},
                  opts: [])
     assert [{:&, _, _}] = query.fields
   end
@@ -79,11 +80,13 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert [{:field, :x, _}, {:field, :y, _}] = query.fields
 
     query = Model |> select([r], [r, r.x]) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true})
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m:
+               true})
     assert [{:&, _, _}, {:field, :x, _}] = query.fields
 
     query = Model |> select([r], [r]) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true})
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m:
+               true})
     assert [{:&, _, _}] = query.fields
 
     query = Model |> select([r], {1}) |> normalize
@@ -95,7 +98,8 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     assert [{:field, :id, _}] = query.fields
 
     query = from(r in Model) |> normalize
-    assert_query(query, projection: %{_id: true, x: true, y: true, z: true})
+    assert_query(query, projection: %{_id: true, x: true, y: true, z: true, m:
+               true})
     assert [{:&, _, _}] = query.fields
   end
 
@@ -441,7 +445,7 @@ defmodule Mongo.Ecto.NormalizedQueryTest do
     query = Model |> insert(x: nil, y: nil, z: nil)
     assert_query(query, command: [y: nil, z: nil])
 
-    query = Model |> insert(x: 1, y: 5, z: [])
-    assert_query(query, command: [x: 1, y: 5, z: []])
+    query = Model |> insert(x: 1, y: 5, z: [], m: %{})
+    assert_query(query, command: [x: 1, y: 5, z: [], m: %{}])
   end
 end
