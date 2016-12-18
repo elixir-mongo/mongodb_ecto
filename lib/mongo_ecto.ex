@@ -766,6 +766,18 @@ defmodule Mongo.Ecto do
     list_collections(db_version(repo), repo, opts)
   end
 
+  # The two functions, just to stop compiler warnings
+
+  @doc false
+  def transaction(_, _, _) do
+    raise "transactions are not supported"
+  end
+
+  @doc false
+  def rollback(_, _) do
+    raise "transactions are not supported"
+  end
+
   defp list_collections(version, repo, opts) when version >= 3 do
     colls = command(repo, %{"listCollections": 1}, opts)["cursor"]["firstBatch"]
 
