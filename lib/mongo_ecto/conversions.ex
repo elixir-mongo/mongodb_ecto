@@ -24,6 +24,10 @@ defmodule Mongo.Ecto.Conversions do
     do: document(doc, params, pk)
   def inject_params(list, params, pk) when is_list(list),
     do: map(list, &inject_params(&1, params, pk))
+  def inject_params(%Ecto.Query.Tagged{tag: tag, type: type, value: {:^, _, [idx]} = value}, params, pk) do
+    ## If we need to cast the values of the return, they should go here
+    elem(params, idx) |> inject_params(params, pk)
+  end
   def inject_params({:^, _, [idx]}, params, pk),
     do: elem(params, idx) |> inject_params(params, pk)
   def inject_params(%{__struct__: _} = struct, _params, pk),
@@ -40,6 +44,9 @@ defmodule Mongo.Ecto.Conversions do
       :error       -> :error
     end
   end
+  
+  def from_ecto_pk(%Ecto.Query.Tagged{tag: :binary_id, value: value}, _pk),
+    do: {:ok, BSON.Decoder.decode(value)}
   def from_ecto_pk(%Ecto.Query.Tagged{type: type, value: value}, _pk),
     do: Ecto.Type.adapter_dump(Mongo.Ecto, type, value)
   def from_ecto_pk(%Mongo.Ecto.Regex{} = regex, _pk),
