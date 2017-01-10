@@ -237,8 +237,11 @@ defmodule Mongo.Ecto.Connection do
     ["REPLACE", format_part("coll", coll), format_part("filter", filter),
      format_part("document", doc)]
   end
-  defp format_query(%Query{action: :find_rest, extra: coll}, [cursor]) do
+  defp format_query(%Query{action: :get_more, extra: coll}, [cursor]) do
     ["GET_MORE", format_part("coll", coll), format_part("cursor_id", cursor)]
+  end
+  defp format_query(%Query{action: :get_more, extra: coll}, []) do
+    ["GET_MORE", format_part("coll", coll), format_part("cursor_id", "")]
   end
   defp format_query(%Query{action: :kill_cursors, extra: coll}, [cursors]) do
     ["KILL_CURSORS", format_part("cursor_ids", cursors)]
