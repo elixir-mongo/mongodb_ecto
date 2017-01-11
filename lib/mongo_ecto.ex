@@ -422,7 +422,7 @@ defmodule Mongo.Ecto do
     {_, opts} = repo.__pool__
     with {:ok, pool} <- DBConnection.ensure_all_started(opts, type),
          {:ok, mongo} <- Application.ensure_all_started(:mongodb, type),
-      do: {:ok, pool ++ [mongo]}
+      do: {:ok, pool ++ mongo}
   end
 
   @doc false
