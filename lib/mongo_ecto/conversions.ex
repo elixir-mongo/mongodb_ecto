@@ -44,7 +44,7 @@ defmodule Mongo.Ecto.Conversions do
       :error       -> :error
     end
   end
-  
+
   def from_ecto_pk(%Ecto.Query.Tagged{tag: :binary_id, value: value}, _pk),
     do: {:ok, BSON.Decoder.decode(value)}
   def from_ecto_pk(%Ecto.Query.Tagged{type: type, value: value}, _pk),
@@ -70,6 +70,8 @@ defmodule Mongo.Ecto.Conversions do
   def from_ecto_pk(_value, _pk),
     do: :error
 
+  defp document(doc, _pk) when is_map(doc) and map_size(doc) == 0,
+    do: {:ok, %{}}
   defp document(doc, pk) do
     map(doc, fn {key, value} ->
       pair(key, value, pk, &from_ecto_pk(&1, pk))
@@ -103,13 +105,8 @@ defmodule Mongo.Ecto.Conversions do
       end)
 
     case return do
-      {values,  :ok}    -> {:ok, fix(values, list)}
+      {values,  :ok}    -> {:ok, values}
       {_values, :error} -> :error
     end
   end
-
-  defp fix(values, map) when is_map(map),
-    do: Enum.into values, %{}
-  defp fix(values, _list),
-    do: values
 end
