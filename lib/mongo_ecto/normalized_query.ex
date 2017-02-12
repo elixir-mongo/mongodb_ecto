@@ -98,9 +98,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
   end
 
-  def update(%{source: {prefix, coll}}, values, filter, pk) do
-    command = command(:update, values, pk)
-    query   = query(filter, pk)
+  def update(%{source: {prefix, coll}, schema: schema}, fields, filter) do
+    command = command(:update, fields, primary_key(schema))
+    query   = query(filter, primary_key(schema))
 
     %WriteQuery{coll: coll, query: query, database: prefix, command: command}
   end
@@ -116,8 +116,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, database: original.prefix}
   end
 
-  def delete(%{source: {prefix, coll}}, filter, pk) do
-    query = query(filter, pk)
+  def delete(%{source: {prefix, coll}, schema: schema}, filter) do
+    query = query(filter, primary_key(schema))
 
     %WriteQuery{coll: coll, query: query, database: prefix}
   end
@@ -382,6 +382,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
   defp pair({:==, _, [left, right]}, params, pk, query, place) do
     {field(left, pk, query, place), value(right, params, pk, query, place)}
+  end
+  defp pair({:in, _, [left, {:^, _, [0, 0]}]}, params, pk, query, place) do
+    {field(left, pk, query, place), ["$in": []]}
   end
   defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query, place) do
     args =

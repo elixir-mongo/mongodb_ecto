@@ -1,6 +1,9 @@
 # System.at_exit fn _ -> Logger.flush end
 Logger.configure(level: :info)
-ExUnit.start exclude: [:uses_usec, :id_type, :read_after_writes, :sql_fragments, :decimal_type, :invalid_prefix, :transaction, :foreign_key_constraint]
+ExUnit.start exclude: [:uses_usec, :id_type, :read_after_writes,
+                       :sql_fragments, :decimal_type, :invalid_prefix,
+                       :transaction, :foreign_key_constraint, :composite_pk,
+                       :join, :returning]
 
 Application.put_env(:ecto, :primary_key_type, :binary_id)
 Application.put_env(:ecto, :async_integration_tests, false)
@@ -17,8 +20,16 @@ Application.put_env(:ecto, TestRepo,
                     adapter: Mongo.Ecto,
                     url: "ecto://localhost:27017/ecto_test",
                     pool_size: 1)
+Application.put_env(:ecto, Ecto.Integration.PoolRepo,
+  adapter: Mongo.Ecto,
+  url: "ecto://localhost:27017/ecto_test",
+  pool_size: 5)
 
 defmodule Ecto.Integration.TestRepo do
+  use Ecto.Integration.Repo, otp_app: :ecto
+end
+
+defmodule Ecto.Integration.PoolRepo do
   use Ecto.Integration.Repo, otp_app: :ecto
 end
 
@@ -26,6 +37,7 @@ defmodule Ecto.Integration.Case do
   use ExUnit.CaseTemplate
 
   alias Ecto.Integration.TestRepo
+  alias Ecto.Integration.PoolRepo
 
   setup_all do
     :ok
@@ -43,6 +55,7 @@ _   = Mongo.Ecto.storage_down(TestRepo.config)
 {:ok, pid} = TestRepo.start_link
 :ok = TestRepo.stop(pid, :infinity)
 {:ok, _pid} = TestRepo.start_link
+{:ok, _pid} = Ecto.Integration.PoolRepo.start_link
 
 # We capture_io, because of warnings on references
 ExUnit.CaptureIO.capture_io fn ->

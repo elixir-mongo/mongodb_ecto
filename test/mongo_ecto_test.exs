@@ -21,6 +21,8 @@ defmodule Mongo.EctoTest do
     assert [] == TestRepo.all(Post)
   end
 
+  # TODO: The ecto library requires that we pass a keyword list to the where
+  #       clause. Fix this once I understand more how this works.
   test "javascript in query" do
     TestRepo.insert!(%Post{visits: 1})
 

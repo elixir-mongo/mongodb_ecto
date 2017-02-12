@@ -24,6 +24,10 @@ defmodule Mongo.Ecto.Conversions do
     do: document(doc, params, pk)
   def inject_params(list, params, pk) when is_list(list),
     do: map(list, &inject_params(&1, params, pk))
+  def inject_params(%Ecto.Query.Tagged{tag: tag, type: type, value: {:^, _, [idx]} = value}, params, pk) do
+    ## If we need to cast the values of the return, they should go here
+    elem(params, idx) |> inject_params(params, pk)
+  end
   def inject_params({:^, _, [idx]}, params, pk),
     do: elem(params, idx) |> inject_params(params, pk)
   def inject_params(%{__struct__: _} = struct, _params, pk),
@@ -40,8 +44,13 @@ defmodule Mongo.Ecto.Conversions do
       :error       -> :error
     end
   end
+
+  def from_ecto_pk(%Ecto.Query.Tagged{tag: :binary_id, value: value}, _pk),
+    do: {:ok, BSON.Decoder.decode(value)}
   def from_ecto_pk(%Ecto.Query.Tagged{type: type, value: value}, _pk),
     do: Ecto.Type.adapter_dump(Mongo.Ecto, type, value)
+  def from_ecto_pk(%Mongo.Ecto.Regex{} = regex, _pk),
+    do: Mongo.Ecto.Regex.dump(regex)
   def from_ecto_pk(%{__struct__: _} = value, _pk),
     do: {:ok, value}
   def from_ecto_pk(map, pk) when is_map(map),
@@ -52,9 +61,17 @@ defmodule Mongo.Ecto.Conversions do
     do: map(list, &from_ecto_pk(&1, pk))
   def from_ecto_pk(value, _pk) when is_literal(value),
     do: {:ok, value}
+  def from_ecto_pk({{_,_,_},{_,_,_,_}} = value, _pk),
+    do: Ecto.Type.adapter_dump(Mongo.Ecto, :datetime, value)
+  def from_ecto_pk({_,_,_} = value, _pk),
+    do: Ecto.Type.adapter_dump(Mongo.Ecto, :date, value)
+  def from_ecto_pk({_,_,_,_} = value, _pk),
+    do: Ecto.Type.adapter_dump(Mongo.Ecto, :time, value)
   def from_ecto_pk(_value, _pk),
     do: :error
 
+  defp document(doc, _pk) when is_map(doc) and map_size(doc) == 0,
+    do: {:ok, %{}}
   defp document(doc, pk) do
     map(doc, fn {key, value} ->
       pair(key, value, pk, &from_ecto_pk(&1, pk))

@@ -6,18 +6,25 @@ defmodule Mongo.Ecto.Connection do
   alias Mongo.Ecto.NormalizedQuery.CommandQuery
   alias Mongo.Ecto.NormalizedQuery.CountQuery
   alias Mongo.Ecto.NormalizedQuery.AggregateQuery
+  alias Mongo.Query
 
   ## Worker
 
   def storage_down(opts) do
     opts = Keyword.put(opts, :pool, DBConnection.Connection)
 
+    {:ok, pid} = case Application.ensure_started(:mongodb)  do
+      :ok -> {:ok, nil}
+      {:error, reason} -> Mongo.App.start(nil, nil)
+      pid -> pid
+    end
     {:ok, conn} = Mongo.start_link(opts)
 
     try do
       Mongo.command!(conn, dropDatabase: 1)
       :ok
     after
+      if pid, do: Supervisor.stop(pid)
       GenServer.stop(conn)
     end
   end
@@ -27,7 +34,8 @@ defmodule Mongo.Ecto.Connection do
   def read(repo, query, opts \\ [])
 
   def read(repo, %ReadQuery{} = query, opts) do
-    opts  = [projection: query.projection, sort: query.order] ++ query.opts ++ opts
+    projection = Map.put_new(query.projection, :_id, false)
+    opts  = [projection: projection, sort: query.order] ++ query.opts ++ opts
     coll  = query.coll
     query = query.query
 
@@ -80,8 +88,12 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
     query    = query.query
 
-    %{modified_count: n} = query(repo, :update, [coll, query, command], opts)
-    n
+    case query(repo, :update_many, [coll, query, command], opts) do
+      {:ok, %Mongo.UpdateResult{modified_count: m}} ->
+        m
+      {:error, error} ->
+        check_constraint_errors(error)
+    end
   end
 
   def update(repo, %WriteQuery{} = query, opts) do
@@ -90,7 +102,7 @@ defmodule Mongo.Ecto.Connection do
     opts     = query.opts ++ opts
     query    = query.query
 
-    case query(repo, :update, [coll, query, command], opts) do
+    case query(repo, :update_one, [coll, query, command], opts) do
       {:ok, %{modified_count: 1}} ->
         {:ok, []}
       {:ok, _} ->
@@ -111,6 +123,19 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
+  def insert_all(repo, %WriteQuery{} = query, opts) do
+    coll     = query.coll
+    command  = query.command
+    opts     = query.opts ++ opts
+
+    case query(repo, :insert_many, [coll, command], opts) do
+      {:ok, %{inserted_ids: ids}} ->
+        {Enum.count(ids), nil}
+      {:error, error} ->
+        check_constraint_errors(error)
+    end
+  end
+
   def command(repo, %CommandQuery{} = query, opts) do
     command  = query.command
     opts     = query.opts ++ opts
@@ -126,17 +151,21 @@ defmodule Mongo.Ecto.Connection do
 
   defp with_log(repo, opts) do
     case Keyword.pop(opts, :log, true) do
-      {true, opts}  -> [log: &log(repo, &1)] ++ opts
+      {true, opts}  -> [log: &log(repo, &1, opts)] ++ opts
       {false, opts} -> opts
     end
   end
 
-  defp log(repo, entry) do
+  defp log(repo, entry, opts) do
     %{connection_time: query_time, decode_time: decode_time,
-      pool_time: queue_time, result: result, query: query, params: params} = entry
+      pool_time: queue_time, result: result,
+      query: query, params: params} = entry
+    source = Keyword.get(opts, :source)
+
     repo.__log__(%Ecto.LogEntry{query_time: query_time, decode_time: decode_time,
                                 queue_time: queue_time, result: log_result(result),
-                                params: [], query: &format_query(&1, query, params)})
+                                params: [], query: format_query(query, params),
+                                source: source})
   end
 
   defp log_result({:ok, _query, res}), do: {:ok, res}
@@ -160,47 +189,65 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
-  alias Mongo.Query
-
-  # TODO: fix logging
-  defp format_query(_entry, %Query{action: :command}, [command]) do
+  defp format_query(%Query{action: :command}, [command]) do
     ["COMMAND " | inspect(command)]
   end
-  defp format_query(_entry, :insert_one, [coll, doc, _opts]) do
-    ["INSERT", format_part("coll", coll), format_part("document", doc)]
+  defp format_query(%Query{action: :find, extra: coll}, [query, projection]) do
+    ["FIND",
+     format_part("coll", coll),
+     format_part("query", query),
+     format_part("projection", projection)]
   end
-  defp format_query(_entry, :insert_many, [coll, docs, _opts]) do
-    ["INSERT", format_part("coll", coll), format_part("documents", docs)]
+  defp format_query(%Query{action: :insert_one, extra: coll}, [doc]) do
+    ["INSERT",
+     format_part("coll", coll),
+     format_part("document", doc)]
   end
-  defp format_query(_entry, :delete_one, [coll, filter, _opts]) do
-    ["DELETE", format_part("coll", coll), format_part("filter", filter),
-     format_part("many", false)]
-  end
-  defp format_query(_entry, :delete_many, [coll, filter, _opts]) do
-    ["DELETE", format_part("coll", coll), format_part("filter", filter),
+  defp format_query(%Query{action: :insert_many, extra: coll}, docs) do
+    ["INSERT",
+     format_part("coll", coll),
+     format_part("documents", docs),
      format_part("many", true)]
   end
-  defp format_query(_entry, :replace_one, [coll, filter, doc, _opts]) do
+  defp format_query(%Query{action: :update_one, extra: coll}, [filter, update]) do
+    ["UPDATE",
+     format_part("coll", coll),
+     format_part("filter", filter),
+     format_part("update", update)]
+  end
+  defp format_query(%Query{action: :update_many, extra: coll}, [filter, update]) do
+    ["UPDATE",
+     format_part("coll", coll),
+     format_part("filter", filter),
+     format_part("update", update),
+     format_part("many", true)]
+  end
+  defp format_query(%Query{action: :delete_one, extra: coll}, [filter]) do
+    ["DELETE",
+     format_part("coll", coll),
+     format_part("filter", filter)]
+  end
+  defp format_query(%Query{action: :delete_many, extra: coll}, [filter]) do
+    ["DELETE",
+     format_part("coll", coll),
+     format_part("filter", filter),
+     format_part("many", true)]
+  end
+  defp format_query(%Query{action: :replace_one, extra: coll}, [filter, doc]) do
     ["REPLACE", format_part("coll", coll), format_part("filter", filter),
      format_part("document", doc)]
   end
-  defp format_query(_entry, :update_one, [coll, filter, update, _opts]) do
-    ["UPDATE", format_part("coll", coll), format_part("filter", filter),
-     format_part("update", update), format_part("many", false)]
-  end
-  defp format_query(_entry, :update_many, [coll, filter, update, _opts]) do
-    ["UPDATE", format_part("coll", coll), format_part("filter", filter),
-     format_part("update", update), format_part("many", true)]
-  end
-  defp format_query(_entry, :find, [coll, query, projection, _opts]) do
-    ["FIND", format_part("coll", coll), format_part("query", query),
-     format_part("projection", projection)]
-  end
-  defp format_query(_entry, :find_rest, [coll, cursor, _opts]) do
+  defp format_query(%Query{action: :get_more, extra: coll}, [cursor]) do
     ["GET_MORE", format_part("coll", coll), format_part("cursor_id", cursor)]
   end
-  defp format_query(_entry, :kill_cursors, [cursors, _opts]) do
+  defp format_query(%Query{action: :get_more, extra: coll}, []) do
+    ["GET_MORE", format_part("coll", coll), format_part("cursor_id", "")]
+  end
+  defp format_query(%Query{action: :kill_cursors, extra: coll}, [cursors]) do
     ["KILL_CURSORS", format_part("cursor_ids", cursors)]
+  end
+  defp format_query(%Query{action: :kill_cursors, extra: coll}, []) do
+    ["KILL_CURSORS", format_part("cursor_ids", "")]
   end
 
   defp format_part(name, value) do

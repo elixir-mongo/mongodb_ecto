@@ -6,10 +6,10 @@ cache:
       - ~/.mongodb
 
 elixir:
-  - 1.1
+  - 1.2.6
 
 otp_release:
-  - 18.1
+  - 18.2
 
 before_install:
   - npm install -g mongodb-version-manager

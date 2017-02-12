@@ -6,7 +6,7 @@ defmodule Mongo.Ecto.Mixfile do
   def project do
     [app: :mongodb_ecto,
      version: @version,
-     elixir: "~> 1.0",
+     elixir: "~> 1.2",
      deps: deps(),
      test_coverage: [tool: ExCoveralls],
      description: description(),
@@ -15,13 +15,13 @@ defmodule Mongo.Ecto.Mixfile do
   end
 
   def application do
-    [applications: [:ecto, :mongodb]]
+    [applications: [:ecto, :mongodb, :logger]]
   end
 
   defp deps do
     [
-      {:mongodb, github: "ericmj/mongodb", branch: "emj-dbconn"},
-      {:ecto, github: "elixir-ecto/ecto"},
+      {:mongodb, "~> 0.2.0"},
+      {:ecto, "~> 2.0.0"},
       {:dialyze, "~> 0.2.0", only: :dev},
       {:excoveralls, "~> 0.5", only: :test},
       {:inch_ex, "~> 0.5", only: :docs},
