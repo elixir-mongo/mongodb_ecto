@@ -5,25 +5,6 @@ defmodule Mongo.Ecto.Helpers do
   """
 
   @doc """
-  Allows using inline JavaScript in queries in where clauses and inserting it
-  as a value to the database.
-
-  The second argument acts as a context for the function. All values will be
-  converted to valid BSON types.
-
-  Raises ArgumentError if any of the values cannot be converted.
-
-  ## Usage in queries
-
-      from p in Post,
-        where: ^javascript("this.value === value", value: 1)
-  """
-  @spec javascript(String.t, Keyword.t) :: Mongo.Ecto.JavaScript.t
-  def javascript(code, scope \\ []) do
-    %Mongo.Ecto.JavaScript{code: code, scope: scope}
-  end
-
-  @doc """
   Creates proper regex object that can be passed to the database.
 
   ## Usage in queries

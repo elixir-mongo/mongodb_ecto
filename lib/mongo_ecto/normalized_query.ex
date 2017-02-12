@@ -422,8 +422,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
   defp pair({:^, _, _} = expr, params, pk, query, place) do
     case value(expr, params, pk, query, place) do
-      %BSON.JavaScript{} = js ->
-        {:"$where", js}
       bool when is_boolean(bool) ->
         boolean_query_hack_pair(bool)
       _value ->
