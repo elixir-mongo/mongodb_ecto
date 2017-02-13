@@ -70,8 +70,6 @@ defmodule Mongo.Ecto.Conversions do
   def from_ecto_pk(_value, _pk),
     do: :error
 
-  defp document(doc, _pk) when is_map(doc) and map_size(doc) == 0,
-    do: {:ok, %{}}
   defp document(doc, pk) do
     map(doc, fn {key, value} ->
       pair(key, value, pk, &from_ecto_pk(&1, pk))
@@ -95,6 +93,9 @@ defmodule Mongo.Ecto.Conversions do
   defp key(pk, pk), do: :_id
   defp key(key, _), do: key
 
+  defp map(map, _fun) when is_map(map) and map_size(map) == 0 do
+    {:ok, %{}}
+  end
   defp map(list, fun) do
     return =
       Enum.flat_map_reduce(list, :ok, fn elem, :ok ->
