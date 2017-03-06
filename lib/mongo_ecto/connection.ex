@@ -190,7 +190,7 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def format_constraint_error(index) do
-    %Mongo.Error{message: "ERROR (#{11000}): could not create unique index \"#{index}\" due to duplicated entry"}
+    %Mongo.Error{message: "ERROR (11000): could not create unique index \"#{index}\" due to duplicated entry"}
   end
 
   defp format_query(%Query{action: :command}, [command]) do
