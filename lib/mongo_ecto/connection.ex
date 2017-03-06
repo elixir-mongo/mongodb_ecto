@@ -171,21 +171,26 @@ defmodule Mongo.Ecto.Connection do
   defp log_result({:ok, _query, res}), do: {:ok, res}
   defp log_result(other), do: other
 
-  defp check_constraint_errors(%Mongo.Error{code: code, message: msg} = error) do
-    msg =
-      ~r/(?<coll>[\w_]+\.[\w_]+)\.\$(?<index>[\w_]+).+\"(?<value>.+)\"/
-      |> Regex.named_captures(msg)
-      |> Map.merge(%{"code" => code})
-      |> constraint_error_template
-    raise %Mongo.Error{message: msg}
+  defp check_constraint_errors(%Mongo.Error{code: 11000, message: msg}) do
+    {:invalid, [unique: extract_index(msg)]}
   end
-  defp check_constraint_errors(other), do: raise other
+  defp check_constraint_errors(other) do
+    raise other
+  end
 
-  defp constraint_error_template(%{"coll" => coll, "index" => index, "value" => value, "code" => code}) do
-    "ERROR (#{code}): could not create unique index \"#{index}\"\n\n"
-     <> "collection: #{coll}\n"
-     <> "constraint: #{index}\n"
-     <> "duplicated value: #{value}\n"
+  defp extract_index(msg) do
+    parts = String.split(msg, [".$", "index: ", " dup "])
+
+    case Enum.reverse(parts) do
+      [_, index | _] ->
+        String.strip(index)
+      _  ->
+        raise "failed to extract index from error message: #{inspect msg}"
+    end
+  end
+
+  def format_constraint_error(index) do
+    %Mongo.Error{message: "ERROR (#{11000}): could not create unique index \"#{index}\" due to duplicated entry"}
   end
 
   defp format_query(%Query{action: :command}, [command]) do
