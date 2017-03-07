@@ -650,8 +650,10 @@ defmodule Mongo.Ecto do
 
     query = %WriteQuery{coll: "system.indexes", command: index}
 
-    {:ok, _} = Connection.insert(repo, query, opts)
-    :ok
+    case Connection.insert(repo, query, opts) do
+      {:ok, _} -> :ok
+      {:invalid, [unique: index]} -> raise Connection.format_constraint_error(index)
+    end
   end
 
   def execute_ddl(repo, {:drop, %Index{name: name, table: coll}}, opts) do
