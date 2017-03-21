@@ -47,6 +47,6 @@ env:
     - MONGOVERSION=3.0.12
     - MONGOVERSION=3.2.10
 
-# notifications:
-#   recipients:
-#     - michal@muskala.eu
+notifications:
+  recipients:
+    - michal@muskala.eu
