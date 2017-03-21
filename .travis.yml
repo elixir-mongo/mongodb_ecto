@@ -6,40 +6,46 @@ cache:
       - ~/.mongodb
 
 elixir:
-  - 1.2.6
+  - 1.2
+  - 1.3
 
 otp_release:
-  - 18.2
+  - 18.1
 
 before_install:
-  - npm install -g mongodb-version-manager
-
-install:
+  - . $HOME/.nvm/nvm.sh
+  - nvm install stable
+  - nvm use stable
+  - npm install -g mongodb-version-manager@1.0.6
   - m use $MONGOVERSION
   - mkdir db
-  - export PATH=`m path`:$PATH
-  - mix local.hex --force
 
-before_script:
-  - mongod --fork --logpath mongo.log --dbpath db
+install:
+  - mix local.rebar --force
+  - mix local.hex --force
   - mix deps.get
   - (cd examples/simple; mix deps.get)
 
+before_script:
+  - sudo service mongodb stop
+  - export PATH=$(m path):$PATH
+  - mongod --fork --logpath mongo.log --dbpath db
+
+script:
+  - mix test
+  - (cd examples/simple; mix test)
+
 after_script:
   - mix deps.get --only docs
-  - MIX_ENV=docs mix inch.report
+  - mix inch.report
   - MIX_ENV=test mix coveralls.travis
 
 env:
   matrix:
     - MONGOVERSION=2.4.14
-    - MONGOVERSION=2.6.11
-    - MONGOVERSION=3.0.7
-    - MONGOVERSION=3.2.3
-
-script:
-  - mix test
-  - (cd examples/simple; mix test)
+    - MONGOVERSION=2.6.12
+    - MONGOVERSION=3.0.12
+    - MONGOVERSION=3.2.10
 
 notifications:
   recipients:
