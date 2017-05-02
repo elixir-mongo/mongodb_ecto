@@ -426,13 +426,14 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def loaders(:time,      type), do: [&load_time/1, type]
-  def loaders(:date,      type), do: [&load_date/1, type]
-  def loaders(:datetime,  type), do: [&load_datetime/1, type]
-  def loaders(:binary_id, type), do: [&load_objectid/1, type]
-  def loaders(:uuid,      type), do: [&load_binary/1,   type]
-  def loaders(:binary,    type), do: [&load_binary/1,   type]
-  def loaders(_base,      type), do: [type]
+  def loaders(:time,            type), do: [&load_time/1, type]
+  def loaders(:date,            type), do: [&load_date/1, type]
+  def loaders(:utc_datetime,    type), do: [&load_datetime/1, type]
+  def loaders(:naive_datetime,  type), do: [&load_datetime/1, type]
+  def loaders(:binary_id,       type), do: [&load_objectid/1, type]
+  def loaders(:uuid,            type), do: [&load_binary/1,   type]
+  def loaders(:binary,          type), do: [&load_binary/1,   type]
+  def loaders(_base,            type), do: [type]
 
   defp load_time(%BSON.DateTime{} = time) do
     {{_,_,_}, time} = BSON.DateTime.to_datetime(time)
@@ -469,13 +470,14 @@ defmodule Mongo.Ecto do
   defp load_objectid(_), do: :error
 
   @doc false
-  def dumpers(:time,      type), do: [type, &dump_time/1]
-  def dumpers(:date,      type), do: [type, &dump_date/1]
-  def dumpers(:datetime,  type), do: [type, &dump_datetime/1]
-  def dumpers(:binary_id, type), do: [type, &dump_objectid/1]
-  def dumpers(:uuid,      type), do: [type, &dump_binary(&1, :uuid)]
-  def dumpers(:binary,    type), do: [type, &dump_binary(&1, :generic)]
-  def dumpers(_base,      type), do: [type]
+  def dumpers(:time,            type), do: [type, &dump_time/1]
+  def dumpers(:date,            type), do: [type, &dump_date/1]
+  def dumpers(:utc_datetime,    type), do: [type, &dump_datetime/1]
+  def dumpers(:naive_datetime,  type), do: [type, &dump_datetime/1]
+  def dumpers(:binary_id,       type), do: [type, &dump_objectid/1]
+  def dumpers(:uuid,            type), do: [type, &dump_binary(&1, :uuid)]
+  def dumpers(:binary,          type), do: [type, &dump_binary(&1, :generic)]
+  def dumpers(_base,            type), do: [type]
 
   defp dump_time({_, _, _, _} = time),
     do: {:ok, BSON.DateTime.from_datetime({{0, 0, 0}, time})}
@@ -537,13 +539,13 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def insert(_repo, meta, _params, [_|_] = returning, _opts) do
+  def insert(_repo, meta, _params, _on_conflict, [_|_] = returning, _opts) do
     raise ArgumentError,
       "MongoDB adapter does not support :read_after_writes in models. " <>
       "The following fields in #{inspect meta.schema} are tagged as such: #{inspect returning}"
   end
 
-  def insert(repo, meta, params, [], opts) do
+  def insert(repo, meta, params, _, [], opts) do
     normalized = NormalizedQuery.insert(meta, params)
 
     case Connection.insert(repo, normalized, opts) do
@@ -554,7 +556,7 @@ defmodule Mongo.Ecto do
     end
   end
 
-  def insert_all(repo, meta, fields, params, returning, opts) do
+  def insert_all(repo, meta, fields, params, _, returning, opts) do
     normalized = NormalizedQuery.insert(meta, params)
 
     case Connection.insert_all(repo, normalized, opts) do
