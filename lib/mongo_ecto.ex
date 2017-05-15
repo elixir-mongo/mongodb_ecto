@@ -712,6 +712,12 @@ defmodule Mongo.Ecto do
       IO.puts "[warning] MongoDB adapter does not support references, and will not enforce foreign_key constraints"
     end
   end
+  
+  #
+  # Transaction callbacks
+  #
+
+  def in_transaction?(_repo), do: false
 
   ## Mongo specific calls
 
