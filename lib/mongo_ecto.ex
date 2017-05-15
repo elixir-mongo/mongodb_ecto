@@ -376,6 +376,8 @@ defmodule Mongo.Ecto do
     quote do
       @doc false
       def __pool__, do: {unquote(pool_name), unquote(Macro.escape(norm_config))}
+      
+      def in_transaction?, do: false
 
       defoverridable [__pool__: 0]
     end
