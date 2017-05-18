@@ -351,19 +351,34 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     assert_fields query, query: %{foo: 123.0}
   end
 
-  test "tagged type" do
-    # query = Schema |> select([], type(^"601d74e4-a8d3-4b6e-8365-eddb4c893327", Ecto.UUID)) |> normalize
+  # test "tagged type" do
+  #   # query = Schema |> select([], type(^"601d74e4-a8d3-4b6e-8365-eddb4c893327", Ecto.UUID)) |> normalize
 
-    # query = Schema |> select([], type(^1, Custom.Permalink)) |> normalize
+  #   # query = Schema |> select([], type(^1, Custom.Permalink)) |> normalize
 
-    # query = Schema |> select([], type(^[1,2,3], {:array, Custom.Permalink})) |> normalize
+  #   # query = Schema |> select([], type(^[1,2,3], {:array, Custom.Permalink})) |> normalize
+  # end
+
+  test "nested expressions" do
+    z = 123
+    query = from(r in Schema, [])
+            |> where([r], r.x > 0 and (r.y > ^(-z)) or true) |> normalize
+    assert_fields query, query:
+      %{"$or": [["$and": [[x: ["$gt": 0]], [y: ["$gt": -123]]]], true]}
   end
 
-  # test "nested expressions" do
-  #   z = 123
-  #   query = from(r in Schema, []) |> select([r], r.x > 0 and (r.y > ^(-z)) or true) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT ((m0."x" > 0) AND (m0."y" > $1)) OR TRUE FROM "schema" AS m0}
-  # end
+  test "bool ops" do
+    query = Schema |> where([], true and false) |> normalize
+    assert_fields query, query: %{"$and": [true, false]}
+
+    query = Schema |> where([], true or false) |> normalize
+    assert_fields query, query: %{"$or": [true, false]}
+
+    query = Schema |> where([r], not (r.x > 0) and not (r.x < 5)) |> normalize
+    assert_fields query, query:
+      %{"$and": [["$not": [x: ["$gt": 0]]], ["$not": [x: ["$lt": 5]]]]}
+  end
+
 
   # test "in expression" do
   #   query = Schema |> select([e], 1 in []) |> normalize
@@ -394,27 +409,17 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   #   assert SQL.all(query) == ~s{SELECT 1 = ANY(foo) FROM "schema" AS m0}
   # end
 
-  # test "having" do
-  #   query = Schema |> having([p], p.x == p.x) |> select([], true) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT TRUE FROM "schema" AS m0 HAVING (m0."x" = m0."x")}
+  test "having" do
+    assert_raise Ecto.QueryError, fn ->
+      Schema |> having([p], p.x == p.x) |> normalize
+    end
+  end
 
-  #   query = Schema |> having([p], p.x == p.x) |> having([p], p.y == p.y) |> select([], true) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT TRUE FROM "schema" AS m0 HAVING (m0."x" = m0."x") AND (m0."y" = m0."y")}
-  # end
-
-  # test "group by" do
-  #   query = Schema |> group_by([r], r.x) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "schema" AS m0 GROUP BY m0."x"}
-
-  #   query = Schema |> group_by([r], 2) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "schema" AS m0 GROUP BY 2}
-
-  #   query = Schema |> group_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "schema" AS m0 GROUP BY m0."x", m0."y"}
-
-  #   query = Schema |> group_by([r], []) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0."x" FROM "schema" AS m0}
-  # end
+  test "group by" do
+    assert_raise Ecto.QueryError, fn ->
+      Schema |> group_by([r], r.x) |> select([r], r.x) |> normalize
+    end
+  end
 
   # test "arrays and sigils" do
   #   query = Schema |> select([], fragment("?", [1, 2, 3])) |> normalize
@@ -424,31 +429,20 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   #   assert SQL.all(query) == ~s{SELECT ARRAY['abc','def'] FROM "schema" AS m0}
   # end
 
-  # test "interpolated values" do
-  #   query = "schema"
-  #           |> select([m], {m.id, ^true})
-  #           |> join(:inner, [], Schema2, ^true)
-  #           |> join(:inner, [], Schema2, ^false)
-  #           |> where([], fragment("?", ^true))
-  #           |> where([], fragment("?", ^false))
-  #           |> having([], fragment("?", ^true))
-  #           |> having([], fragment("?", ^false))
-  #           |> group_by([], fragment("?", ^1))
-  #           |> group_by([], fragment("?", ^2))
-  #           |> order_by([], fragment("?", ^3))
-  #           |> order_by([], ^:x)
-  #           |> limit([], ^4)
-  #           |> offset([], ^5)
-  #           |> normalize
+  test "interpolated values" do
+    query = Schema
+            |> where([], ^true)
+            |> where([], ^false)
+            |> order_by([], ^:x)
+            |> limit([], ^4)
+            |> offset([], ^5)
+            |> normalize
 
-  #   result =
-  #     "SELECT m0.\"id\", $1 FROM \"schema\" AS m0 INNER JOIN \"schema2\" AS m1 ON $2 " <>
-  #     "INNER JOIN \"schema2\" AS m2 ON $3 WHERE ($4) AND ($5) " <>
-  #     "GROUP BY $6, $7 HAVING ($8) AND ($9) " <>
-  #     "ORDER BY $10, m0.\"x\" LIMIT $11 OFFSET $12"
-
-  #   assert SQL.all(query) == String.rstrip(result)
-  # end
+    assert_fields query,
+      opts: [limit: 4, skip: 5],
+      order: [x: 1],
+      query: %{_id: ["$exists": true, "$exists": false]}
+  end
 
   # test "fragments and types" do
   #   query =

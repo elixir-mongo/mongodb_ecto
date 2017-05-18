@@ -293,45 +293,6 @@
 #     assert_query(query, query: %{x: 123.0})
 #   end
 
-#   test "nested expressions" do
-#     z = 123
-#     query = from(r in Schema, [])
-#                       |> where([r], r.x > 0 and (r.y > ^(-z)) or true) |> normalize
-#     assert_query(query, query:
-#                  %{"$or": [["$and": [[x: ["$gt": 0]], [y: ["$gt": -123]]]], true]})
-#   end
-
-#   test "binary ops" do
-#     query = Schema |> where([r], r.x == 2) |> normalize
-#     assert_query(query, query: %{x: 2})
-
-#     query = Schema |> where([r], r.x != 2) |> normalize
-#     assert_query(query, query: %{x: ["$ne": 2]})
-
-#     query = Schema |> where([r], r.x <= 2) |> normalize
-#     assert_query(query, query: %{x: ["$lte": 2]})
-
-#     query = Schema |> where([r], r.x >= 2) |> normalize
-#     assert_query(query, query: %{x: ["$gte": 2]})
-
-#     query = Schema |> where([r], r.x < 2) |> normalize
-#     assert_query(query, query: %{x: ["$lt": 2]})
-
-#     query = Schema |> where([r], r.x > 2) |> normalize
-#     assert_query(query, query: %{x: ["$gt": 2]})
-#   end
-
-#   test "bool ops" do
-#     query = Schema |> where([], true and false) |> normalize
-#     assert_query(query, query: %{"$and": [true, false]})
-
-#     query = Schema |> where([], true or false) |> normalize
-#     assert_query(query, query: %{"$or": [true, false]})
-
-#     query = Schema |> where([r], not (r.x > 0) and not (r.x < 5)) |> normalize
-#     assert_query(query, query:
-#                  %{"$and": [["$not": [x: ["$gt": 0]]], ["$not": [x: ["$lt": 5]]]]})
-#   end
 
 #   test "in expression" do
 #     query = Schema |> where([e], e.x in []) |> normalize
@@ -355,32 +316,7 @@
 #     end
 #   end
 
-#   test "having" do
-#     assert_raise Ecto.QueryError, fn ->
-#       Schema |> having([p], p.x == p.x) |> normalize
-#     end
-#   end
 
-#   test "group by" do
-#     assert_raise Ecto.QueryError, fn ->
-#       Schema |> group_by([r], r.x) |> select([r], r.x) |> normalize
-#     end
-#   end
-
-#   test "interpolated values" do
-#     query = Schema
-#             |> where([], ^true)
-#             |> where([], ^false)
-#             |> order_by([], ^:x)
-#             |> limit([], ^4)
-#             |> offset([], ^5)
-#             |> normalize
-
-#     assert_query(query,
-#                  opts: [limit: 4, skip: 5],
-#                  order: [x: 1],
-#                  query: %{_id: ["$exists": true, "$exists": false]})
-#   end
 
 #   # *_all
 
