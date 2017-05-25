@@ -225,7 +225,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp query(%Query{wheres: wheres} = query, params, {_coll, _model, pk}) do
     wheres
-    |> Enum.map(fn %Query.QueryExpr{expr: expr} ->
+    |> Enum.map(fn %Query.BooleanExpr{expr: expr} ->
       pair(expr, params, pk, query, "where clause")
     end)
     |> :lists.flatten
