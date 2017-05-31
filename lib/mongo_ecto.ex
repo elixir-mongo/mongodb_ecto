@@ -437,22 +437,22 @@ defmodule Mongo.Ecto do
   def loaders(:binary,          type), do: [&load_binary/1,   type]
   def loaders(_base,            type), do: [type]
 
-  defp load_time(%BSON.DateTime{} = time) do
-    {{_,_,_}, time} = BSON.DateTime.to_datetime(time)
-    {:ok, time}
-  end
+  defp load_time(time),
+    do: Time.to_erl(time)
   defp load_time(_),
     do: :error
 
-  defp load_date(%BSON.DateTime{} = date) do
-    {date, {_, _, _, _}} = BSON.DateTime.to_datetime(date)
-    {:ok, date}
-  end
+  defp load_date(date),
+    do: Date.from_erl(date)
   defp load_date(_),
     do: :error
 
-  defp load_datetime(%BSON.DateTime{} = datetime),
-    do: {:ok, BSON.DateTime.to_datetime(datetime)}
+  defp load_datetime(datetime) do
+      naive = DateTime.to_naive(datetime)
+      {date, {h, m, s}} = NaiveDateTime.to_erl(naive)
+      {x, _} = naive.microsecond
+    {:ok, {date, {h, m, s, x}}}
+  end
   defp load_datetime(_),
     do: :error
 
@@ -472,28 +472,45 @@ defmodule Mongo.Ecto do
   defp load_objectid(_), do: :error
 
   @doc false
-  def dumpers(:time,            type), do: [type, &dump_time/1]
-  def dumpers(:date,            type), do: [type, &dump_date/1]
-  def dumpers(:utc_datetime,    type), do: [type, &dump_datetime/1]
-  def dumpers(:naive_datetime,  type), do: [type, &dump_datetime/1]
-  def dumpers(:binary_id,       type), do: [type, &dump_objectid/1]
-  def dumpers(:uuid,            type), do: [type, &dump_binary(&1, :uuid)]
-  def dumpers(:binary,          type), do: [type, &dump_binary(&1, :generic)]
-  def dumpers(_base,            type), do: [type]
+  def dumpers(:time,           type), do: [type, &dump_time/1]
+  def dumpers(:date,           type), do: [type, &dump_date/1]
+  def dumpers(:utc_datetime,   type), do: [type, &dump_utc_datetime/1]
+  def dumpers(:naive_datetime, type), do: [type, &dump_naive_datetime/1]
+  def dumpers(:binary_id,      type), do: [type, &dump_objectid/1]
+  def dumpers(:uuid,           type), do: [type, &dump_binary(&1, :uuid)]
+  def dumpers(:binary,         type), do: [type, &dump_binary(&1, :generic)]
+  def dumpers(_base,           type), do: [type]
 
-  defp dump_time({_, _, _, _} = time),
-    do: {:ok, BSON.DateTime.from_datetime({{0, 0, 0}, time})}
+  defp dump_time({h, m, s, _} = time),
+    do: Time.from_erl({h, m, s})
   defp dump_time(_),
     do: :error
 
   defp dump_date({_, _, _} = date),
-    do: {:ok, BSON.DateTime.from_datetime({date, {0, 0, 0, 0}})}
+    do: Date.from_erl!(date)
   defp dump_date(_),
     do: :error
 
-  defp dump_datetime({{_, _, _}, {_, _, _, _}} = datetime),
-    do: {:ok, BSON.DateTime.from_datetime(datetime)}
-  defp dump_datetime(_),
+  defp dump_utc_datetime({{_, _, _} = date, {h, m, s, ms}} = v) do
+    datetime =
+    {date, {h, m, s}}
+    |> NaiveDateTime.from_erl!({ms, 6})
+    |> DateTime.from_naive!("Etc/UTC")
+
+    {:ok, datetime}
+  end
+  defp dump_utc_datetime(_),
+    do: :error
+
+  defp dump_naive_datetime({{_, _, _} = date, {h, m, s, ms}} = v) do
+    datetime =
+      {date, {h, m, s}}
+      |> NaiveDateTime.from_erl!({ms, 6})
+      |> DateTime.from_naive!("Etc/UTC")
+
+    {:ok, datetime}
+  end
+  defp dump_naive_datetime(_),
     do: :error
 
   defp dump_binary(binary, subtype) when is_binary(binary),

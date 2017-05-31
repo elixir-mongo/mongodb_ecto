@@ -62,7 +62,7 @@ defmodule Mongo.Ecto.Conversions do
   def from_ecto_pk(value, _pk) when is_literal(value),
     do: {:ok, value}
   def from_ecto_pk({{_,_,_},{_,_,_,_}} = value, _pk),
-    do: Ecto.Type.adapter_dump(Mongo.Ecto, :datetime, value)
+    do: Ecto.Type.adapter_dump(Mongo.Ecto, :naive_datetime, value)
   def from_ecto_pk({_,_,_} = value, _pk),
     do: Ecto.Type.adapter_dump(Mongo.Ecto, :date, value)
   def from_ecto_pk({_,_,_,_} = value, _pk),
