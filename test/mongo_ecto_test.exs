@@ -21,6 +21,20 @@ defmodule Mongo.EctoTest do
     assert [] == TestRepo.all(Post)
   end
 
+  test "inserting timestamps" do
+    post = TestRepo.insert!(%Post{})
+    assert post.inserted_at
+    assert post.updated_at
+  end
+
+  # test "javascript in query" do
+  #   TestRepo.insert!(%Post{visits: 1})
+  #
+  #   # js = javascript("this.visits == count", count: 1)
+  #
+  #   assert [%Post{}] = TestRepo.all(from p in Post, where: ^js)
+  # end
+
   test "regex in query" do
     p1 = TestRepo.insert!(%Post{title: "some text"})
     p2 = TestRepo.insert!(%Post{title: "other text"})

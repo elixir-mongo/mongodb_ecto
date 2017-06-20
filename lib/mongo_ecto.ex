@@ -499,7 +499,7 @@ defmodule Mongo.Ecto do
 
     {:ok, datetime}
   end
-  defp dump_utc_datetime(_),
+  defp from_datetime(_),
     do: :error
 
   defp dump_naive_datetime({{_, _, _} = date, {h, m, s, ms}} = v) do
