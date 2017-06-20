@@ -441,7 +441,7 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     assert_fields query,
       opts: [limit: 4, skip: 5],
       order: [x: 1],
-      query: %{_id: ["$exists": true, "$exists": false]}
+      query: %{_id: ["$exists": false]}
   end
 
   # test "fragments and types" do
