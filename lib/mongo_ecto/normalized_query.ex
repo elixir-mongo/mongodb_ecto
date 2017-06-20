@@ -78,12 +78,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
         {:skip,  value} -> ["$skip":  value]
       end)
       |> Kernel.++(pipeline)
-
-    pipeline =
-      if query != %{}, do: [["$match": query] | pipeline], else: pipeline
+      |> aggregate_pipeline(query)
 
     %AggregateQuery{coll: coll, pipeline: pipeline, pk: pk, fields: fields,
-                    database: original.prefix}
+                      database: original.prefix}
   end
 
   def update_all(%Query{} = original, params) do
@@ -136,8 +134,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {coll, model, primary_key(model)}
   end
 
-  defp from(%Query{from: %Ecto.SubQuery{}}) do
-    raise ArgumentError, "MongoDB does not support subqueries"
+  defp aggregate_pipeline(pipeline, query) do
+    if query != %{} do
+      [["$match": query] | pipeline]
+    else
+      pipeline
+    end
   end
 
   @aggregate_ops [:min, :max, :sum, :avg]
