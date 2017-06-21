@@ -21,8 +21,7 @@ defmodule Mongo.Ecto.Mixfile do
   defp deps do
     [
       {:mongodb, "~> 0.2.0"},
-      # {:ecto, "~> 2.0.0", github: "elixir-ecto/ecto", ref: "v2.0.6"},
-      {:ecto, "~> 2.0"}, # should match phoenix_ecto
+      {:ecto, "~> 2.0"}, # should match phoenix_ecto@v3.0.1
       {:dialyze, "~> 0.2.0", only: :dev},
       {:inch_ex, "~> 0.5", only: :docs},
       {:earmark, "~> 1.0", only: :docs},
