@@ -801,4 +801,34 @@ defmodule Mongo.Ecto do
 
     Enum.fetch!(version, 0)
   end
+
+  @doc """
+  Ecto supports transactions but mongodb does not (easily)
+  https://hexdocs.pm/ecto/Ecto.Adapter.Transaction.html
+  https://docs.mongodb.com/manual/tutorial/perform-two-phase-commits/
+
+  This is a placeholder to communicate, and to remove warnings
+  """
+  def in_transaction?(_repo) do
+    false
+  end
+
+  @doc """
+  Ecto supports transactions but mongodb does not (easily)
+
+  This is a placeholder to communicate, and to remove warnings
+  """
+  def rollback(_repo, _value) do
+    # should throw error
+    false
+  end
+
+  @doc """
+  Ecto supports transactions but mongodb does not (easily)
+
+  This is a placeholder to communicate, and to remove warnings
+  """
+  def transaction(repo, options, function) do
+    false
+  end
 end
