@@ -491,27 +491,51 @@ defmodule Mongo.Ecto do
   defp dump_date(_),
     do: :error
 
-  defp dump_utc_datetime({{_, _, _} = date, {h, m, s, ms}} = v) do
+  defp dump_utc_datetime({{_, _, _} = date, {h, m, s, ms}}) do
     datetime =
-    {date, {h, m, s}}
-    |> NaiveDateTime.from_erl!({ms, 6})
-    |> DateTime.from_naive!("Etc/UTC")
+      {date, {h, m, s}}
+      |> NaiveDateTime.from_erl!({ms, 6})
+      |> datetime_from_naive!("Etc/UTC")
 
     {:ok, datetime}
   end
   defp dump_utc_datetime(_),
     do: :error
 
-  defp dump_naive_datetime({{_, _, _} = date, {h, m, s, ms}} = v) do
+  defp dump_naive_datetime({{_, _, _} = date, {h, m, s, ms}}) do
     datetime =
       {date, {h, m, s}}
       |> NaiveDateTime.from_erl!({ms, 6})
-      |> DateTime.from_naive!("Etc/UTC")
+      |> datetime_from_naive!("Etc/UTC")
 
     {:ok, datetime}
   end
   defp dump_naive_datetime(_),
     do: :error
+
+  @doc """
+  Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
+  Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
+  """
+  defp datetime_from_naive(%NaiveDateTime{hour: hour, minute: minute, second: second, microsecond: microsecond,
+                                year: year, month: month, day: day}, "Etc/UTC") do
+    {:ok, %DateTime{year: year, month: month, day: day,
+                    hour: hour, minute: minute, second: second, microsecond: microsecond,
+                    std_offset: 0, utc_offset: 0, zone_abbr: "UTC", time_zone: "Etc/UTC"}}
+  end
+
+  @doc """
+  Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
+  Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
+  """
+  defp datetime_from_naive!(naive_datetime, time_zone) do
+    case datetime_from_naive(naive_datetime, time_zone) do
+      {:ok, datetime} ->
+        datetime
+      {:error, reason} ->
+        raise ArgumentError, "cannot parse #{inspect naive_datetime} to datetime, reason: #{inspect reason}"
+    end
+  end
 
   defp dump_binary(binary, subtype) when is_binary(binary),
     do: {:ok, %BSON.Binary{binary: binary, subtype: subtype}}
