@@ -437,15 +437,11 @@ defmodule Mongo.Ecto do
   def loaders(:binary,          type), do: [&load_binary/1,   type]
   def loaders(_base,            type), do: [type]
 
-  defp load_time(time),
-    do: Time.to_erl(time)
-  defp load_time(_),
-    do: :error
+  defp load_time(time), do: Time.to_erl(time)
+  defp load_time(_), do: :error
 
-  defp load_date(date),
-    do: Date.from_erl(date)
-  defp load_date(_),
-    do: :error
+  defp load_date(date), do: {:ok, date |> DateTime.to_date() |> Date.to_erl()}
+  defp load_date(date), do: :error
 
   defp load_datetime(datetime) do
       naive = DateTime.to_naive(datetime)
@@ -453,13 +449,10 @@ defmodule Mongo.Ecto do
       {x, _} = naive.microsecond
     {:ok, {date, {h, m, s, x}}}
   end
-  defp load_datetime(_),
-    do: :error
+  defp load_datetime(_), do: :error
 
-  defp load_binary(%BSON.Binary{binary: binary}),
-    do: {:ok, binary}
-  defp load_binary(_),
-    do: :error
+  defp load_binary(%BSON.Binary{binary: binary}), do: {:ok, binary}
+  defp load_binary(_), do: :error
 
   defp load_objectid(%BSON.ObjectId{} = objectid) do
     try do
@@ -486,8 +479,13 @@ defmodule Mongo.Ecto do
   defp dump_time(_),
     do: :error
 
-  defp dump_date({_, _, _} = date),
-    do: Date.from_erl!(date)
+  defp dump_date({_, _, _} = date) do
+    dt = {date, {0, 0, 0}}
+    |> NaiveDateTime.from_erl!()
+    |> datetime_from_naive!("Etc/UTC")
+
+    {:ok, dt}
+  end
   defp dump_date(_),
     do: :error
 
