@@ -13,18 +13,13 @@ defmodule Mongo.Ecto.Connection do
   def storage_down(opts) do
     opts = Keyword.put(opts, :pool, DBConnection.Connection)
 
-    {:ok, pid} = case Application.ensure_started(:mongodb)  do
-      :ok -> {:ok, nil}
-      {:error, reason} -> Mongo.App.start(nil, nil)
-      pid -> pid
-    end
+    {:ok, _apps} = Application.ensure_all_started(:mongodb)
     {:ok, conn} = Mongo.start_link(opts)
 
     try do
       Mongo.command!(conn, dropDatabase: 1)
       :ok
     after
-      if pid, do: Supervisor.stop(pid)
       GenServer.stop(conn)
     end
   end
