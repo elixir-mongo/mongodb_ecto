@@ -367,7 +367,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end)
 
   defp mapped_pair_or_value({op, _, _} = tuple, params, pk, query, place) when is_op(op) do
-    [pair(tuple, params, pk, query, place)]
+    List.wrap(pair(tuple, params, pk, query, place))
   end
   defp mapped_pair_or_value(value, params, pk, query, place) do
     value(value, params, pk, query, place)

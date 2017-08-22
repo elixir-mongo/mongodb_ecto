@@ -26,7 +26,7 @@ defmodule Mongo.EctoTest do
     p2 = TestRepo.insert!(%Post{title: "other text"})
 
     assert [p1] == TestRepo.all(from p in Post, where: fragment(title: ["$regex": "some"]))
-    assert [p2] == TestRepo.all(from p in Post, where: fragment(title: ^regex("other")))
+    assert [p2] == TestRepo.all(from p in Post, where: fragment(title: ^regex("other")) and fragment(title: ^regex("text")))
   end
 
   test "retrieve whole document" do
