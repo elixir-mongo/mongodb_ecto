@@ -253,6 +253,9 @@ defmodule Mongo.Ecto.Connection do
   defp format_query(%Query{action: :kill_cursors, extra: coll}, []) do
     ["KILL_CURSORS", format_part("cursor_ids", "")]
   end
+  defp format_query(%Query{action: :wire_version, extra: coll}, []) do
+    ["WIRE_VERSION", format_part("cursor_ids", "")]
+  end
 
   defp format_part(name, value) do
     [" ", name, "=" | inspect(value)]
