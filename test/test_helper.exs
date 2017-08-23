@@ -3,7 +3,11 @@ Logger.configure(level: :info)
 ExUnit.start exclude: [:uses_usec, :id_type, :read_after_writes,
                        :sql_fragments, :decimal_type, :invalid_prefix,
                        :transaction, :foreign_key_constraint, :composite_pk,
-                       :join, :returning]
+                       :join, :returning,
+
+                       # TODO: Turn these back on
+                       :with_conflict_target, :without_conflict_target
+                      ]
 
 Application.put_env(:ecto, :primary_key_type, :binary_id)
 Application.put_env(:ecto, :async_integration_tests, false)
