@@ -129,7 +129,7 @@ $ mix test
 
 ## License
 
-Copyright 2015 Michał Muskała
+Copyright 2015-2017 Michał Muskała, 2017 Justin Wood
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
