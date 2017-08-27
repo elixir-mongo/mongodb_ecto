@@ -242,13 +242,13 @@ defmodule Mongo.Ecto.Connection do
   defp format_query(%Query{action: :get_more, extra: coll}, []) do
     ["GET_MORE", format_part("coll", coll), format_part("cursor_id", "")]
   end
-  defp format_query(%Query{action: :kill_cursors, extra: coll}, [cursors]) do
+  defp format_query(%Query{action: :kill_cursors, extra: _coll}, [cursors]) do
     ["KILL_CURSORS", format_part("cursor_ids", cursors)]
   end
-  defp format_query(%Query{action: :kill_cursors, extra: coll}, []) do
+  defp format_query(%Query{action: :kill_cursors, extra: _coll}, []) do
     ["KILL_CURSORS", format_part("cursor_ids", "")]
   end
-  defp format_query(%Query{action: :wire_version, extra: coll}, []) do
+  defp format_query(%Query{action: :wire_version, extra: _coll}, []) do
     ["WIRE_VERSION", format_part("cursor_ids", "")]
   end
 

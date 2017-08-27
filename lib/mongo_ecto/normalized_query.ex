@@ -167,7 +167,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     projection(rest, params, from, query, pacc, facc)
   end
-  defp projection([{:&, _, [0, fields, _]} = field | rest], params, {_, model, pk} = from, query, pacc, facc) do
+  defp projection([{:&, _, [0, fields, _]} = field | rest], params, {_, _model, pk} = from, query, pacc, facc) do
     pacc = Enum.into(fields, pacc, &{field(&1, pk), true})
     facc = [field | facc]
 
@@ -383,7 +383,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp pair({:==, _, [left, right]}, params, pk, query, place) do
     {field(left, pk, query, place), value(right, params, pk, query, place)}
   end
-  defp pair({:in, _, [left, {:^, _, [0, 0]}]}, params, pk, query, place) do
+  defp pair({:in, _, [left, {:^, _, [0, 0]}]}, _params, pk, query, place) do
     {field(left, pk, query, place), ["$in": []]}
   end
   defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query, place) do
