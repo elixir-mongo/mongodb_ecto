@@ -20,7 +20,7 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp deps do
     [
-      {:mongodb, "~> 0.4.0", github: "ankhers/mongodb", branch: "reboot_replica_sets"},
+      {:mongodb, "~> 0.4.2"},
       {:ecto, "~> 2.1.0"},
       {:dialyze, "~> 0.2.0", only: :dev},
       {:inch_ex, "~> 0.5", only: :docs},
