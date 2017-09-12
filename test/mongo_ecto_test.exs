@@ -43,6 +43,42 @@ defmodule Mongo.EctoTest do
     assert 1 == TestRepo.one(query)
   end
 
+  test "or_where" do
+    TestRepo.insert!(%Post{visits: 5})
+    TestRepo.insert!(%Post{visits: 10})
+    TestRepo.insert!(%Post{visits: 15})
+
+    ## Passes
+    q1 =
+      from p in Post,
+      where: p.visits == 10 or p.visits > 10,
+      select: p
+    assert 2 == length(TestRepo.all(q1))
+
+    ## Fails
+    q2 =
+      from p in Post,
+      where: p.visits == 10,
+      or_where: p.visits > 10,
+      select: p
+    assert 2 == length(TestRepo.all(q2))
+
+    ## Passes
+    q3 =
+      from p in Post,
+      where: fragment(visits: 10) or fragment(visits: ["$gt": 10]),
+      select: p
+      assert 2 == length(TestRepo.all(q3))
+
+    ## Fails
+    q4 =
+      from p in Post,
+      where: fragment([visits: 10]),
+      or_where: fragment([visits: ["$gt": 10]]),
+      select: p
+    assert 2 == length(TestRepo.all(q4))
+  end
+
   test "min" do
     TestRepo.insert!(%Post{visits: 5})
     TestRepo.insert!(%Post{visits: 10})
