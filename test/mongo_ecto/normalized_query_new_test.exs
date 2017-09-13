@@ -245,6 +245,16 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     assert_fields query, query: %{x: ["$ne": 42]}
   end
 
+  # Not sure what the `or_where` Query Format should be? 
+  test "or_where" do
+    query = Schema |> or_where([r], r.x == 42) |> or_where([r], r.y != 43)
+                   |> select([r], r.x) |> normalize
+    assert_fields query, query: %{"$or": [ [y: ["$ne": 43]], [x: 42]]}
+
+    query = Schema |> or_where([r], r.x == 5) |> or_where([r], r.x == 10) |> normalize
+    assert_fields query, query: %{"$or": [ [x: 5], [x: 10] ] }
+  end
+
   test "order by" do
     query = Schema |> order_by([r], r.x) |> select([r], r.x) |> normalize
     assert_fields query, query: %{}, order: [x: 1]
