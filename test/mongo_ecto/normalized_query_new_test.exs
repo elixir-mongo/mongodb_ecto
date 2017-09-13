@@ -248,7 +248,6 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     assert_fields query, query: %{x: ["$ne": 42]}
   end
 
-  # Not sure what the `or_where` Query Format should be?
   test "or_where" do
     query = Schema |> or_where([r], r.x == 42) |> or_where([r], r.y != 43)
                    |> select([r], r.x) |> normalize
