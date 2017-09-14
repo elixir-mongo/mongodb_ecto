@@ -77,6 +77,13 @@ defmodule Mongo.EctoTest do
       or_where: fragment([visits: ["$gt": 10]]),
       select: p
     assert 2 == length(TestRepo.all(q4))
+
+    ## Fails
+    q5 =
+      from p in Post,
+      or_where: fragment([visits: ["$gt": 10]]),
+      select: p
+    assert 1 == length(TestRepo.all(q5))
   end
 
   test "min" do

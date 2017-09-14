@@ -249,6 +249,9 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   end
 
   test "or_where" do
+    query = Schema |> or_where([r], r.x == 5) |> normalize
+    assert_fields query, query: %{x: 5}
+
     query = Schema |> or_where([r], r.x == 42) |> or_where([r], r.y != 43)
                    |> select([r], r.x) |> normalize
     assert_fields query, query: %{"$or": [ [y: ["$ne": 43]], [x: 42]]}
