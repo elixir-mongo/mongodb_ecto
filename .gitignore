@@ -5,3 +5,4 @@ erl_crash.dump
 examples/simple/mix.lock
 /db
 /doc
+.tool-versions
