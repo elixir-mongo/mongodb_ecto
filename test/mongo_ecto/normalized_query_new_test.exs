@@ -241,8 +241,23 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     query = Schema |> where([r], r.x > 5) |> where([r], r.x < 10) |> normalize
     assert_fields query, query: %{x: ["$gt": 5, "$lt": 10]}
 
+    query = Schema |> where([r], r.x == 5 or r.x == 10) |> normalize
+    assert_fields query, query: %{"$or": [[x: 5], [x: 10]]}
+
     query = Schema |> where([r], not (r.x == 42)) |> normalize
     assert_fields query, query: %{x: ["$ne": 42]}
+  end
+
+  test "or_where" do
+    query = Schema |> or_where([r], r.x == 5) |> normalize
+    assert_fields query, query: %{x: 5}
+
+    query = Schema |> or_where([r], r.x == 42) |> or_where([r], r.y != 43)
+                   |> select([r], r.x) |> normalize
+    assert_fields query, query: %{"$or": [ [y: ["$ne": 43]], [x: 42]]}
+
+    query = Schema |> or_where([r], r.x == 5) |> or_where([r], r.x == 10) |> normalize
+    assert_fields query, query: %{"$or": [ [x: 5], [x: 10] ] }
   end
 
   test "order by" do
