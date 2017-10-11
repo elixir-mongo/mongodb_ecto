@@ -579,6 +579,21 @@ defmodule Mongo.Ecto do
     end
   end
 
+  # This can be backed by a normal mongo stream, we just have to get it to play nicely with
+  #  ecto's batch/preload functionality ( hence the map(&{nil, [&1]}) )
+  @doc false
+  def stream(repo, meta, {:nocache, {function, query}}, params, process, opts) do
+    stream_or_stub = case apply(NormalizedQuery, function, [query, params]) do
+      %{__struct__: read} = query when read in @read_queries ->
+        Connection.read(repo, query, opts)
+        |> Stream.map(&process_document(&1, query, process))
+      %WriteQuery{} = write ->
+        apply(Connection, function, [repo, write, opts])
+        [ nil ]
+    end
+    |> Stream.map(&{nil, [&1]})
+  end
+
   @doc false
   def insert(_repo, meta, _params, _on_conflict, [_|_] = returning, _opts) do
     raise ArgumentError,
