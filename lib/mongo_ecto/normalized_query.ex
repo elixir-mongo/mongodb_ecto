@@ -5,31 +5,31 @@ defmodule Mongo.Ecto.NormalizedQuery do
     @moduledoc false
 
     defstruct coll: nil, pk: nil, params: {}, query: %{}, projection: %{},
-              order: %{}, fields: [], database: nil, opts: []
+              order: %{}, fields: [], opts: []
   end
 
   defmodule WriteQuery do
     @moduledoc false
 
-    defstruct coll: nil, query: %{}, command: %{}, database: nil, opts: []
+    defstruct coll: nil, query: %{}, command: %{}, opts: []
   end
 
   defmodule CommandQuery do
     @moduledoc false
 
-    defstruct command: nil, database: nil, opts: []
+    defstruct command: nil, opts: []
   end
 
   defmodule CountQuery do
     @moduledoc false
 
-    defstruct coll: nil, pk: nil, fields: [], query: %{}, database: nil, opts: []
+    defstruct coll: nil, pk: nil, fields: [], query: %{}, opts: []
   end
 
   defmodule AggregateQuery do
     @moduledoc false
 
-    defstruct coll: nil, pk: nil, fields: [], pipeline: [], database: nil, opts: []
+    defstruct coll: nil, pk: nil, fields: [], pipeline: [], opts: []
   end
 
   alias Mongo.Ecto.Conversions
@@ -62,12 +62,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp find_all(original, query, projection, fields, params, {coll, _, pk} = from) do
     %ReadQuery{coll: coll, pk: pk, params: params, query: query, fields: fields,
                projection: projection, order: order(original, from),
-               database: original.prefix, opts: limit_skip(original, params, from)}
+               opts: select_database(original.prefix) ++ limit_skip(original, params, from)}
   end
 
   defp count(original, query, fields, params, {coll, _, pk} = from) do
     %CountQuery{coll: coll, query: query, opts: limit_skip(original, params, from),
-                pk: pk, fields: fields, database: original.prefix}
+                pk: pk, fields: fields, opts: select_database(original.prefix)}
   end
 
   defp aggregate(original, query, pipeline, fields, params, {coll, _, pk} = from) do
@@ -83,7 +83,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
       if query != %{}, do: [["$match": query] | pipeline], else: pipeline
 
     %AggregateQuery{coll: coll, pipeline: pipeline, pk: pk, fields: fields,
-                    database: original.prefix}
+                    opts: select_database(original.prefix)}
   end
 
   def update_all(%Query{} = original, params) do
@@ -95,14 +95,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
     query   = query(original, params, from)
     command = command(:update, original, params, from)
 
-    %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
+    %WriteQuery{coll: coll, query: query, command: command, opts: select_database(original.prefix)}
   end
 
   def update(%{source: {prefix, coll}, schema: schema}, fields, filter) do
     command = command(:update, fields, primary_key(schema))
     query   = query(filter, primary_key(schema))
 
-    %WriteQuery{coll: coll, query: query, database: prefix, command: command}
+    %WriteQuery{coll: coll, query: query, command: command, opts: select_database(prefix)}
   end
 
   def delete_all(%Query{} = original, params) do
@@ -113,23 +113,23 @@ defmodule Mongo.Ecto.NormalizedQuery do
     coll   = coll(from)
     query  = query(original, params, from)
 
-    %WriteQuery{coll: coll, query: query, database: original.prefix}
+    %WriteQuery{coll: coll, query: query, opts: select_database(original.prefix)}
   end
 
   def delete(%{source: {prefix, coll}, schema: schema}, filter) do
     query = query(filter, primary_key(schema))
 
-    %WriteQuery{coll: coll, query: query, database: prefix}
+    %WriteQuery{coll: coll, query: query, opts: select_database(prefix)}
   end
 
   def insert(%{source: {prefix, coll}, schema: schema}, document) do
     command = command(:insert, document, primary_key(schema))
 
-    %WriteQuery{coll: coll, command: command, database: prefix}
+    %WriteQuery{coll: coll, command: command, opts: select_database(prefix)}
   end
 
   def command(command, opts) do
-    %CommandQuery{command: command, database: Keyword.get(opts, :database, nil)}
+    %CommandQuery{command: command, opts: select_database(Keyword.get(opts, :database))}
   end
 
   defp from(%Query{from: {coll, model}}) do
@@ -273,6 +273,11 @@ defmodule Mongo.Ecto.NormalizedQuery do
     do: nil
   defp offset_limit(%Query.QueryExpr{expr: expr}, params, pk, query, where),
     do: value(expr, params, pk, query, where)
+
+  defp select_database(nil),
+    do: []
+  defp select_database(db_prefix),
+    do: [database: to_string(db_prefix)]
 
   defp primary_key(nil),
     do: nil

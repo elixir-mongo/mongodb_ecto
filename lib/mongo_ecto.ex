@@ -666,16 +666,16 @@ defmodule Mongo.Ecto do
     :ok
   end
 
-  def execute_ddl(repo, {:create, %Table{options: nil, name: coll}, columns}, opts) do
+  def execute_ddl(repo, {:create, %Table{options: nil, name: coll, prefix: p}, columns}, opts) do
     warn_on_references!(columns)
-    command(repo, [create: coll], opts)
+    command(repo, [create: coll], db_opt(p) ++ opts)
     :ok
   end
 
-  def execute_ddl(repo, {:create, %Table{options: options, name: coll}, columns}, opts)
+  def execute_ddl(repo, {:create, %Table{options: options, name: coll, prefix: p}, columns}, opts)
       when is_list(options) do
     warn_on_references!(columns)
-    command(repo, [create: coll] ++ options, opts)
+    command(repo, [create: coll] ++ options, db_opt(p) ++ opts)
     :ok
   end
 
@@ -689,38 +689,40 @@ defmodule Mongo.Ecto do
              unique: command.unique,
              background: command.concurrently,
              key: Enum.map(command.columns, &{&1, 1}),
-             ns: namespace(repo, command.table)]
+             ns: namespace(repo, command.table, command.prefix)]
 
+    # TODO: move this into normalized query for consistent coverage
     query = %WriteQuery{coll: "system.indexes", command: index}
 
-    case Connection.insert(repo, query, opts) do
+    case Connection.insert(repo, query, db_opt(command.prefix) ++ opts) do
       {:ok, _} -> :ok
       {:invalid, [unique: index]} -> raise Connection.format_constraint_error(index)
     end
   end
 
-  def execute_ddl(repo, {:drop, %Index{name: name, table: coll}}, opts) do
-    command(repo, [dropIndexes: coll, index: to_string(name)], opts)
+  def execute_ddl(repo, {:drop, %Index{name: name, table: coll, prefix: p}}, opts) do
+    command(repo, [dropIndexes: coll, index: to_string(name)], db_opt(p) ++ opts)
     :ok
   end
 
-  def execute_ddl(repo, {:drop, %Table{name: coll}}, opts) do
-    command(repo, [drop: coll], opts)
+  def execute_ddl(repo, {:drop, %Table{name: coll, prefix: p}}, opts) do
+    command(repo, [drop: coll], db_opt(p) ++ opts)
     :ok
   end
 
-  def execute_ddl(repo, {:rename, %Table{name: old}, %Table{name: new}}, opts) do
-    command = [renameCollection: namespace(repo, old), to: namespace(repo, new)]
-    command(repo, command, [database: "admin"] ++ opts)
+  def execute_ddl(repo, {:rename, %Table{name: old, prefix: pold}, %Table{name: new, prefix: pnew}}, opts) do
+    command = [renameCollection: namespace(repo, old, pold), to: namespace(repo, new, pnew)]
+    command(repo, command, db_opt("admin") ++ opts)
     :ok
   end
 
-  def execute_ddl(repo, {:rename, %Table{name: coll}, old, new}, opts) do
+  def execute_ddl(repo, {:rename, %Table{name: coll, prefix: p}, old, new}, opts) do
+    # TODO: move this into normalized query for consistent coverage
     query = %WriteQuery{coll: to_string(coll),
                         command: ["$rename": [{to_string(old), to_string(new)}]],
                         opts: [multi: true]}
 
-    {:ok, _} = Connection.update(repo, query, opts)
+    {:ok, _} = Connection.update(repo, query, db_opt(p) ++ opts)
     :ok
   end
 
@@ -826,6 +828,7 @@ defmodule Mongo.Ecto do
   end
 
   defp list_collections(_,repo, opts) do
+    # TODO: move this into normalized query for consistent coverage
     query = %ReadQuery{coll: "system.namespaces", query: @list_collections_query}
     opts = Keyword.put(opts, :log, false)
 
@@ -837,13 +840,19 @@ defmodule Mongo.Ecto do
   end
 
   defp truncate_collection(repo, collection, opts) do
+    # TODO: move this into normalized query for consistent coverage
     query = %WriteQuery{coll: collection, query: %{}}
     Connection.delete_all(repo, query, opts)
   end
 
-  defp namespace(repo, coll) do
-    "#{repo.config[:database]}.#{coll}"
-  end
+  defp namespace(repo, coll, nil), do: "#{repo.config[:database]}.#{coll}"
+  defp namespace(repo, coll, prefix), do: "#{normalize_dbname(prefix)}.#{coll}"
+
+  defp normalize_dbname(nil), do: nil
+  defp normalize_dbname(other), do: to_string(other) # sometimes we get atoms here, which can be problematic
+
+  defp db_opt(nil), do: []
+  defp db_opt(prefix), do: [database: normalize_dbname(prefix)]
 
   defp db_version(repo) do
     version = command(repo, %{"buildinfo": 1}, [])["versionArray"]
