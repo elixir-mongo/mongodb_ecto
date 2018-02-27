@@ -14,19 +14,22 @@ defmodule Mongo.Ecto.Integration.StreamTest do
   import Ecto.Query
 
   test "stream empty" do
-    assert [] == TestRepo.stream(Post)
-      |> Enum.to_list()
+    assert [] ==
+             TestRepo.stream(Post)
+             |> Enum.to_list()
 
-    assert [] == TestRepo.stream(from p in Post)
-      |> Enum.to_list()
+    assert [] ==
+             TestRepo.stream(from(p in Post))
+             |> Enum.to_list()
   end
 
   test "stream without schema" do
     %Post{} = TestRepo.insert!(%Post{title: "title1"})
     %Post{} = TestRepo.insert!(%Post{title: "title2"})
 
-    assert ["title1", "title2"] == TestRepo.stream(from(p in "posts", order_by: p.title, select: p.title))
-      |> Enum.to_list()
+    assert ["title1", "title2"] ==
+             TestRepo.stream(from(p in "posts", order_by: p.title, select: p.title))
+             |> Enum.to_list()
   end
 
   test "stream with assoc" do
@@ -51,17 +54,17 @@ defmodule Mongo.Ecto.Integration.StreamTest do
     %Comment{id: cid3} = TestRepo.insert!(%Comment{text: "3", post_id: p2.id})
     %Comment{id: cid4} = TestRepo.insert!(%Comment{text: "4", post_id: p2.id})
 
-    assert [p1, p2, p3] = from(p in Post, preload: [:comments], select: p)
-        |> TestRepo.stream([max_rows: 2])
-        |> sort_by_id()
+    assert [p1, p2, p3] =
+             from(p in Post, preload: [:comments], select: p)
+             |> TestRepo.stream(max_rows: 2)
+             |> sort_by_id()
+
     assert [%Comment{id: ^cid1}, %Comment{id: ^cid2}] = p1.comments |> sort_by_id
     assert [%Comment{id: ^cid3}, %Comment{id: ^cid4}] = p2.comments |> sort_by_id
     assert [] == p3.comments
   end
 
   defp sort_by_id(values) do
-    Enum.sort_by(values, &(&1.id))
+    Enum.sort_by(values, & &1.id)
   end
-
-
 end

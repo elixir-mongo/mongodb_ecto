@@ -4,14 +4,16 @@ defmodule Mongo.Ecto.Mixfile do
   @version "0.1.4"
 
   def project do
-    [app: :mongodb_ecto,
-     version: @version,
-     elixir: "~> 1.3",
-     deps: deps(),
-     test_coverage: [tool: ExCoveralls],
-     description: description(),
-     package: package(),
-     docs: docs()]
+    [
+      app: :mongodb_ecto,
+      version: @version,
+      elixir: "~> 1.3",
+      deps: deps(),
+      test_coverage: [tool: ExCoveralls],
+      description: description(),
+      package: package(),
+      docs: docs()
+    ]
   end
 
   def application do
@@ -36,16 +38,20 @@ defmodule Mongo.Ecto.Mixfile do
   end
 
   defp package do
-    [maintainers: ["Michał Muskała", "Justin Wood"],
-     licenses: ["Apache 2.0"],
-     links: %{"GitHub" => "https://github.com/michalmuskala/mongodb_ecto"},
-     files: ~w(mix.exs README.md CHANGELOG.md lib)]
+    [
+      maintainers: ["Michał Muskała", "Justin Wood"],
+      licenses: ["Apache 2.0"],
+      links: %{"GitHub" => "https://github.com/michalmuskala/mongodb_ecto"},
+      files: ~w(mix.exs README.md CHANGELOG.md lib)
+    ]
   end
 
   defp docs do
-    [source_url: "https://github.com/michalmuskala/mongodb_ecto",
-     source_ref: "v#{@version}",
-     main: "readme",
-     extras: ["README.md"]]
+    [
+      source_url: "https://github.com/michalmuskala/mongodb_ecto",
+      source_ref: "v#{@version}",
+      main: "readme",
+      extras: ["README.md"]
+    ]
   end
 end
