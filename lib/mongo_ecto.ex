@@ -442,10 +442,8 @@ defmodule Mongo.Ecto do
   def loaders(_base, type), do: [type]
 
   defp load_time(time), do: Time.to_erl(time)
-  defp load_time(_), do: :error
 
   defp load_date(date), do: {:ok, date |> DateTime.to_date() |> Date.to_erl()}
-  defp load_date(date), do: :error
 
   defp load_datetime(datetime) do
     naive = DateTime.to_naive(datetime)
@@ -453,8 +451,6 @@ defmodule Mongo.Ecto do
     {x, _} = naive.microsecond
     {:ok, {date, {h, m, s, x}}}
   end
-
-  defp load_datetime(_), do: :error
 
   defp load_binary(%BSON.Binary{binary: binary}), do: {:ok, binary}
   defp load_binary(_), do: :error
