@@ -476,7 +476,7 @@ defmodule Mongo.Ecto do
   def dumpers(:binary, type), do: [type, &dump_binary(&1, :generic)]
   def dumpers(_base, type), do: [type]
 
-  defp dump_time({h, m, s, _} = time), do: Time.from_erl({h, m, s})
+  defp dump_time({h, m, s, _}), do: Time.from_erl({h, m, s})
   defp dump_time(_), do: :error
 
   defp dump_date({_, _, _} = date) do
@@ -512,10 +512,8 @@ defmodule Mongo.Ecto do
 
   defp dump_naive_datetime(_), do: :error
 
-  @doc """
-  Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
-  Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
-  """
+  # Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
+  # Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
   defp datetime_from_naive(
          %NaiveDateTime{
            hour: hour,
@@ -544,10 +542,9 @@ defmodule Mongo.Ecto do
      }}
   end
 
-  @doc """
-  Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
-  Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
-  """
+
+  # Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
+  # Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
   defp datetime_from_naive!(naive_datetime, time_zone) do
     case datetime_from_naive(naive_datetime, time_zone) do
       {:ok, datetime} ->
@@ -606,18 +603,17 @@ defmodule Mongo.Ecto do
   # This can be backed by a normal mongo stream, we just have to get it to play nicely with
   #  ecto's batch/preload functionality ( hence the map(&{nil, [&1]}) )
   @doc false
-  def stream(repo, meta, {:nocache, {function, query}}, params, process, opts) do
-    stream_or_stub =
-      case apply(NormalizedQuery, function, [query, params]) do
-        %{__struct__: read} = query when read in @read_queries ->
-          Connection.read(repo, query, opts)
-          |> Stream.map(&process_document(&1, query, process))
+  def stream(repo, _meta, {:nocache, {function, query}}, params, process, opts) do
+    case apply(NormalizedQuery, function, [query, params]) do
+      %{__struct__: read} = query when read in @read_queries ->
+        Connection.read(repo, query, opts)
+        |> Stream.map(&process_document(&1, query, process))
 
-        %WriteQuery{} = write ->
-          apply(Connection, function, [repo, write, opts])
-          [nil]
-      end
-      |> Stream.map(&{nil, [&1]})
+      %WriteQuery{} = write ->
+        apply(Connection, function, [repo, write, opts])
+        [nil]
+    end
+    |> Stream.map(&{nil, [&1]})
   end
 
   @doc false
@@ -641,7 +637,7 @@ defmodule Mongo.Ecto do
     end
   end
 
-  def insert_all(repo, meta, fields, params, _, returning, opts) do
+  def insert_all(repo, meta, _fields, params, _, _returning, opts) do
     normalized = NormalizedQuery.insert(meta, params)
 
     case Connection.insert_all(repo, normalized, opts) do
@@ -654,7 +650,7 @@ defmodule Mongo.Ecto do
   end
 
   @doc false
-  def update(repo, meta, fields, filters, returning, opts) do
+  def update(repo, meta, fields, filters, _returning, opts) do
     normalized = NormalizedQuery.update(meta, fields, filters)
 
     Connection.update(repo, normalized, opts)
