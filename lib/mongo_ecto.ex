@@ -6,7 +6,7 @@ defmodule Mongo.Ecto do
   including common pitfalls and extra functionalities.
 
   Check the [Ecto documentation](http://hexdocs.pm/ecto) for an introduction
-  or [examples/simple](https://github.com/michalmuskala/mongodb_ecto/tree/master/examples/simple)
+  or [examples/simple](https://github.com/ankhers/mongodb_ecto/tree/master/examples/simple)
   for a sample application using Ecto and MongoDB.
 
   ## Repositories
