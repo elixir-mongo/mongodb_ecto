@@ -98,7 +98,7 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
 
     assert [{:&, _, _}] = query.fields
 
-    query = from p in "posts", select: p |> normalize()
+    query = from(p in "posts", select: p) |> normalize()
 
     assert_fields query,
       coll: "posts",
@@ -395,10 +395,9 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     z = 123
 
     query =
-      from r in Schema,
-           []
-           |> where([r], (r.x > 0 and r.y > ^(-z)) or true)
-           |> normalize
+      from(r in Schema, [])
+      |> where([r], (r.x > 0 and r.y > ^(-z)) or true)
+      |> normalize
 
     assert_fields query, query: %{"$or": [["$and": [[x: ["$gt": 0]], [y: ["$gt": -123]]]], true]}
   end
