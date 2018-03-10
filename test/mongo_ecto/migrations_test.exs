@@ -56,8 +56,8 @@ defmodule Mongo.Ecto.MigrationsTest do
     use Ecto.Integration.Schema
 
     schema "rename_migration" do
-      field(:to_be_renamed, :integer)
-      field(:was_renamed, :integer)
+      field :to_be_renamed, :integer
+      field :was_renamed, :integer
     end
   end
 
@@ -131,7 +131,7 @@ defmodule Mongo.Ecto.MigrationsTest do
     assert :ok == up(TestRepo, 20_150_718_120_000, RenameColumnMigration, log: false)
 
     assert {nil, 1} ==
-             TestRepo.one(from(p in RenameSchema, select: {p.to_be_renamed, p.was_renamed}))
+             TestRepo.one(from p in RenameSchema, select: {p.to_be_renamed, p.was_renamed})
 
     :ok = down(TestRepo, 20_150_718_120_000, RenameColumnMigration, log: false)
   end

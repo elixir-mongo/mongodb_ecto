@@ -21,10 +21,10 @@ defmodule Weather do
   @primary_key {:id, :binary_id, autogenerate: true}
 
   schema "weather" do
-    field(:city, :string)
-    field(:temp_lo, :integer)
-    field(:temp_hi, :integer)
-    field(:prcp, :float, default: 0.0)
+    field :city, :string
+    field :temp_lo, :integer
+    field :temp_hi, :integer
+    field :prcp, :float, default: 0.0
     timestamps
   end
 end
@@ -34,11 +34,9 @@ defmodule Simple do
 
   def sample_query do
     query =
-      from(
-        w in Weather,
+      from w in Weather,
         where: w.prcp > 0.0 or is_nil(w.prcp),
         select: w
-      )
 
     Simple.Repo.all(query)
   end

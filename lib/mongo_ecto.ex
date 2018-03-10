@@ -542,7 +542,6 @@ defmodule Mongo.Ecto do
      }}
   end
 
-
   # Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
   # Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
   defp datetime_from_naive!(naive_datetime, time_zone) do

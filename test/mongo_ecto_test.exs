@@ -25,28 +25,26 @@ defmodule Mongo.EctoTest do
     p1 = TestRepo.insert!(%Post{title: "some text"})
     p2 = TestRepo.insert!(%Post{title: "other text"})
 
-    assert [p1] == TestRepo.all(from(p in Post, where: fragment(title: ["$regex": "some"])))
+    assert [p1] == TestRepo.all(from p in Post, where: fragment(title: ["$regex": "some"]))
 
     assert [p2] ==
              TestRepo.all(
-               from(
-                 p in Post,
+               from p in Post,
                  where: fragment(title: ^regex("other")) and fragment(title: ^regex("text"))
-               )
              )
   end
 
   test "retrieve whole document" do
     TestRepo.insert!(%Tag{ints: [1, 2, 3]})
 
-    query = from(t in Tag, where: 1 in t.ints, select: fragment("ints.$": 1))
+    query = from t in Tag, where: 1 in t.ints, select: fragment("ints.$": 1)
     assert [%{"ints" => [1]}] = TestRepo.all(query)
   end
 
   test "count" do
     TestRepo.insert!(%Post{visits: 1})
 
-    query = from(p in Post, where: p.visits == 1, select: count(p.id))
+    query = from p in Post, where: p.visits == 1, select: count(p.id)
     assert 1 == TestRepo.one(query)
   end
 
@@ -55,7 +53,7 @@ defmodule Mongo.EctoTest do
     TestRepo.insert!(%Post{visits: 10})
     TestRepo.insert!(%Post{visits: 15})
 
-    query = from(p in Post, where: p.visits >= 10, select: min(p.visits))
+    query = from p in Post, where: p.visits >= 10, select: min(p.visits)
     assert 10 == TestRepo.one(query)
   end
 
@@ -64,7 +62,7 @@ defmodule Mongo.EctoTest do
     TestRepo.insert!(%Post{visits: 10})
     TestRepo.insert!(%Post{visits: 5})
 
-    query = from(p in Post, offset: 1, select: max(p.visits))
+    query = from p in Post, offset: 1, select: max(p.visits)
     assert 10 == TestRepo.one(query)
   end
 
@@ -73,7 +71,7 @@ defmodule Mongo.EctoTest do
     TestRepo.insert!(%Post{visits: 10})
     TestRepo.insert!(%Post{visits: 5})
 
-    query = from(p in Post, limit: 2, select: sum(p.visits))
+    query = from p in Post, limit: 2, select: sum(p.visits)
     assert 25 == TestRepo.one(query)
   end
 
@@ -82,7 +80,7 @@ defmodule Mongo.EctoTest do
     TestRepo.insert!(%Post{visits: 10})
     TestRepo.insert!(%Post{visits: 5})
 
-    query = from(p in Post, select: avg(p.visits))
+    query = from p in Post, select: avg(p.visits)
     assert 10 == TestRepo.one(query)
   end
 

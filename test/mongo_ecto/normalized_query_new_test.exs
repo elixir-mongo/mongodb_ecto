@@ -9,24 +9,18 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     use Ecto.Schema
 
     schema "schema" do
-      field(:x, :integer)
-      field(:y, :integer)
-      field(:z, :integer)
-      field(:w, {:array, :integer})
+      field :x, :integer
+      field :y, :integer
+      field :z, :integer
+      field :w, {:array, :integer}
 
-      has_many(
-        :comments,
-        Mongo.Ecto.NormalizedQueryNewTest.Schema2,
+      has_many :comments, Mongo.Ecto.NormalizedQueryNewTest.Schema2,
         references: :x,
         foreign_key: :z
-      )
 
-      has_one(
-        :permalink,
-        Mongo.Ecto.NormalizedQueryNewTest.Schema3,
+      has_one :permalink, Mongo.Ecto.NormalizedQueryNewTest.Schema3,
         references: :y,
         foreign_key: :id
-      )
     end
   end
 
@@ -34,12 +28,9 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     use Ecto.Schema
 
     schema "schema2" do
-      belongs_to(
-        :post,
-        Mongo.Ecto.NormalizedQueryNewTest.Schema,
+      belongs_to :post, Mongo.Ecto.NormalizedQueryNewTest.Schema,
         references: :x,
         foreign_key: :z
-      )
     end
   end
 
@@ -47,9 +38,9 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     use Ecto.Schema
 
     schema "schema3" do
-      field(:list1, {:array, :string})
-      field(:list2, {:array, :integer})
-      field(:binary, :binary)
+      field :list1, {:array, :string}
+      field :list2, {:array, :integer}
+      field :binary, :binary
     end
   end
 
@@ -70,26 +61,22 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   test "bare schema" do
     query = Schema |> from |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       query: %{},
       projection: %{},
       opts: [],
       fields: []
-    )
   end
 
   test "from" do
     query = Schema |> select([r], r.x) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       query: %{},
       projection: %{x: true},
       opts: []
-    )
 
     assert [{:field, :x, _}] = query.fields
   end
@@ -97,31 +84,25 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   test "from without schema" do
     query = "posts" |> select([r], r.x) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "posts",
       projection: %{x: true}
-    )
 
     assert [{:field, :x, _}] = query.fields
 
     query = "posts" |> select([:x]) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "posts",
       projection: %{x: true}
-    )
 
     assert [{:&, _, _}] = query.fields
 
-    query = from(p in "posts", select: p) |> normalize()
+    query = from p in "posts", select: p |> normalize()
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "posts",
       projection: %{}
-    )
 
     assert [{:&, _, _}] = query.fields
   end
@@ -134,41 +115,41 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
 
   test "select" do
     query = Schema |> select([r], {r.x, r.y}) |> normalize
-    assert_fields(query, projection: %{y: true, x: true})
+    assert_fields query, projection: %{y: true, x: true}
     assert [{:field, :x, _}, {:field, :y, _}] = query.fields
 
     query = Schema |> select([r], [r.x, r.y]) |> normalize
-    assert_fields(query, projection: %{y: true, x: true})
+    assert_fields query, projection: %{y: true, x: true}
     assert [{:field, :x, _}, {:field, :y, _}] = query.fields
 
     query = Schema |> select([r], struct(r, [:x, :y])) |> normalize
-    assert_fields(query, projection: %{y: true, x: true})
+    assert_fields query, projection: %{y: true, x: true}
     assert [{:&, _, _}] = query.fields
 
     query = Schema |> select([r], [r, r.x]) |> normalize
-    assert_fields(query, projection: %{_id: true, x: true, y: true, z: true, w: true})
+    assert_fields query, projection: %{_id: true, x: true, y: true, z: true, w: true}
     assert [{:&, _, _}, {:field, :x, _}] = query.fields
 
     query = Schema |> select([r], [r]) |> normalize
-    assert_fields(query, projection: %{_id: true, x: true, y: true, z: true, w: true})
+    assert_fields query, projection: %{_id: true, x: true, y: true, z: true, w: true}
     assert [{:&, _, _}] = query.fields
 
     query = Schema |> select([r], {1}) |> normalize
-    assert_fields(query, projection: %{}, fields: [])
+    assert_fields query, projection: %{}, fields: []
 
     query = Schema |> select([r], [r.id]) |> normalize
-    assert_fields(query, projection: %{_id: true})
+    assert_fields query, projection: %{_id: true}
     assert [{:field, :id, _}] = query.fields
   end
 
   test "count" do
     query = Schema |> select([r], count(r.id)) |> normalize
     assert %Mongo.Ecto.NormalizedQuery.CountQuery{} = query
-    assert_fields(query, coll: "schema", query: %{})
+    assert_fields query, coll: "schema", query: %{}
 
     query = Schema |> select([r], count(r.id)) |> where([r], r.x > 10) |> normalize
     assert %Mongo.Ecto.NormalizedQuery.CountQuery{} = query
-    assert_fields(query, coll: "schema", query: %{x: ["$gt": 10]})
+    assert_fields query, coll: "schema", query: %{x: ["$gt": 10]}
 
     assert_raise Ecto.QueryError, fn ->
       Schema |> select([r], {r.id, count(r.id)}) |> normalize
@@ -177,32 +158,26 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     query = Schema |> select([r], count(r.x, :distinct)) |> normalize
     assert %Mongo.Ecto.NormalizedQuery.AggregateQuery{} = query
 
-    assert_fields(
-      query,
+    assert_fields query,
       pipeline: [["$group": [_id: "$x"]], ["$group": [_id: nil, value: ["$sum": 1]]]]
-    )
   end
 
   test "max" do
     group_stage = ["$group": [_id: nil, value: [{"$max", "$x"}]]]
     query = Schema |> select([r], max(r.x)) |> normalize
-    assert_fields(query, coll: "schema", pipeline: [group_stage])
+    assert_fields query, coll: "schema", pipeline: [group_stage]
 
     query = Schema |> select([r], max(r.x)) |> where([r], r.x == 10) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       pipeline: [["$match": %{x: 10}], group_stage]
-    )
 
     query = Schema |> select([r], max(r.x)) |> limit([r], 3) |> offset([r], 5) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       pipeline: [["$limit": 3], ["$skip": 5], group_stage]
-    )
 
     assert_raise Ecto.QueryError, fn ->
       Schema |> select([r], {max(r.x), r.id}) |> normalize
@@ -212,23 +187,19 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   test "min" do
     group_stage = ["$group": [_id: nil, value: [{"$min", "$x"}]]]
     query = Schema |> select([r], min(r.x)) |> normalize
-    assert_fields(query, coll: "schema", pipeline: [group_stage])
+    assert_fields query, coll: "schema", pipeline: [group_stage]
 
     query = Schema |> select([r], min(r.x)) |> where([r], r.x == 10) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       pipeline: [["$match": %{x: 10}], group_stage]
-    )
 
     query = Schema |> select([r], min(r.x)) |> limit([r], 3) |> offset([r], 5) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       pipeline: [["$limit": 3], ["$skip": 5], group_stage]
-    )
 
     assert_raise Ecto.QueryError, fn ->
       Schema |> select([r], {min(r.x), r.id}) |> normalize
@@ -238,23 +209,19 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   test "sum" do
     group_stage = ["$group": [_id: nil, value: [{"$sum", "$x"}]]]
     query = Schema |> select([r], sum(r.x)) |> normalize
-    assert_fields(query, coll: "schema", pipeline: [group_stage])
+    assert_fields query, coll: "schema", pipeline: [group_stage]
 
     query = Schema |> select([r], sum(r.x)) |> where([r], r.x == 10) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       pipeline: [["$match": %{x: 10}], group_stage]
-    )
 
     query = Schema |> select([r], sum(r.x)) |> limit([r], 3) |> offset([r], 5) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       pipeline: [["$limit": 3], ["$skip": 5], group_stage]
-    )
 
     assert_raise Ecto.QueryError, fn ->
       Schema |> select([r], {sum(r.x), r.id}) |> normalize
@@ -264,23 +231,19 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   test "avg" do
     group_stage = ["$group": [_id: nil, value: [{"$avg", "$x"}]]]
     query = Schema |> select([r], avg(r.x)) |> normalize
-    assert_fields(query, coll: "schema", pipeline: [group_stage])
+    assert_fields query, coll: "schema", pipeline: [group_stage]
 
     query = Schema |> select([r], avg(r.x)) |> where([r], r.x == 10) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       pipeline: [["$match": %{x: 10}], group_stage]
-    )
 
     query = Schema |> select([r], avg(r.x)) |> limit([r], 3) |> offset([r], 5) |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       coll: "schema",
       pipeline: [["$limit": 3], ["$skip": 5], group_stage]
-    )
 
     assert_raise Ecto.QueryError, fn ->
       Schema |> select([r], {avg(r.x), r.id}) |> normalize
@@ -305,38 +268,38 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
       |> select([r], r.x)
       |> normalize
 
-    assert_fields(query, query: %{y: ["$ne": 43], x: 42}, projection: %{x: true})
+    assert_fields query, query: %{y: ["$ne": 43], x: 42}, projection: %{x: true}
 
     query = Schema |> where([r], r.x > 5) |> where([r], r.x < 10) |> normalize
-    assert_fields(query, query: %{x: ["$gt": 5, "$lt": 10]})
+    assert_fields query, query: %{x: ["$gt": 5, "$lt": 10]}
 
     query = Schema |> where([r], not (r.x == 42)) |> normalize
-    assert_fields(query, query: %{x: ["$ne": 42]})
+    assert_fields query, query: %{x: ["$ne": 42]}
   end
 
   test "order by" do
     query = Schema |> order_by([r], r.x) |> select([r], r.x) |> normalize
-    assert_fields(query, query: %{}, order: [x: 1])
+    assert_fields query, query: %{}, order: [x: 1]
 
     query = Schema |> order_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
-    assert_fields(query, query: %{}, order: [x: 1, y: 1])
+    assert_fields query, query: %{}, order: [x: 1, y: 1]
 
     query = Schema |> order_by([r], asc: r.x, desc: r.y) |> select([r], r.x) |> normalize
-    assert_fields(query, query: %{}, order: [x: 1, y: -1])
+    assert_fields query, query: %{}, order: [x: 1, y: -1]
 
     query = Schema |> order_by([r], []) |> select([r], r.x) |> normalize
-    assert_fields(query, query: %{}, order: %{})
+    assert_fields query, query: %{}, order: %{}
   end
 
   test "limit and offset" do
     query = Schema |> limit([r], 3) |> normalize
-    assert_fields(query, opts: [limit: 3])
+    assert_fields query, opts: [limit: 3]
 
     query = Schema |> offset([r], 5) |> normalize
-    assert_fields(query, opts: [skip: 5])
+    assert_fields query, opts: [skip: 5]
 
     query = Schema |> offset([r], 5) |> limit([r], 3) |> normalize
-    assert_fields(query, opts: [limit: 3, skip: 5])
+    assert_fields query, opts: [limit: 3, skip: 5]
   end
 
   test "lock" do
@@ -347,30 +310,30 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
 
   test "binary ops" do
     query = Schema |> where([r], r.x == 2) |> normalize
-    assert_fields(query, query: %{x: 2})
+    assert_fields query, query: %{x: 2}
 
     query = Schema |> where([r], r.x != 2) |> normalize
-    assert_fields(query, query: %{x: ["$ne": 2]})
+    assert_fields query, query: %{x: ["$ne": 2]}
 
     query = Schema |> where([r], r.x <= 2) |> normalize
-    assert_fields(query, query: %{x: ["$lte": 2]})
+    assert_fields query, query: %{x: ["$lte": 2]}
 
     query = Schema |> where([r], r.x >= 2) |> normalize
-    assert_fields(query, query: %{x: ["$gte": 2]})
+    assert_fields query, query: %{x: ["$gte": 2]}
 
     query = Schema |> where([r], r.x < 2) |> normalize
-    assert_fields(query, query: %{x: ["$lt": 2]})
+    assert_fields query, query: %{x: ["$lt": 2]}
 
     query = Schema |> where([r], r.x > 2) |> normalize
-    assert_fields(query, query: %{x: ["$gt": 2]})
+    assert_fields query, query: %{x: ["$gt": 2]}
   end
 
   test "is_nil" do
     query = Schema |> where([r], is_nil(r.x)) |> normalize
-    assert_fields(query, query: %{x: nil})
+    assert_fields query, query: %{x: nil}
 
     query = Schema |> where([r], not is_nil(r.x)) |> normalize
-    assert_fields(query, query: %{x: ["$ne": nil]})
+    assert_fields query, query: %{x: ["$ne": nil]}
   end
 
   test "sql fragments" do
@@ -381,43 +344,43 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
 
   test "fragments in where" do
     query = Schema |> where([], fragment(x: 1)) |> normalize
-    assert_fields(query, query: %{x: 1})
+    assert_fields query, query: %{x: 1}
 
     query = Schema |> where([], fragment(x: ["$in": ^[1, 2, 3]])) |> normalize
-    assert_fields(query, query: %{x: ["$in": [1, 2, 3]]})
+    assert_fields query, query: %{x: ["$in": [1, 2, 3]]}
 
     query = Schema |> where([], fragment(^[x: 1])) |> normalize
-    assert_fields(query, query: %{x: 1})
+    assert_fields query, query: %{x: 1}
   end
 
   test "fragments in select" do
     query = Schema |> select([], fragment("z.$": 1)) |> normalize
-    assert_fields(query, projection: %{"z.$": 1})
+    assert_fields query, projection: %{"z.$": 1}
     assert [{:fragment, _, _}] = query.fields
 
     query = Schema |> select([r], {r.x, fragment("z.$": 1)}) |> normalize
-    assert_fields(query, projection: %{"z.$": 1, x: true})
+    assert_fields query, projection: %{"z.$": 1, x: true}
     assert [{:field, :x, _}, {:fragment, _, _}] = query.fields
   end
 
   test "literals" do
     query = "schema" |> where(foo: true) |> select([], true) |> normalize
-    assert_fields(query, query: %{foo: true})
+    assert_fields query, query: %{foo: true}
 
     query = "schema" |> where(foo: false) |> select([], true) |> normalize
-    assert_fields(query, query: %{foo: false})
+    assert_fields query, query: %{foo: false}
 
     query = "schema" |> where(foo: "abc") |> select([], true) |> normalize
-    assert_fields(query, query: %{foo: "abc"})
+    assert_fields query, query: %{foo: "abc"}
 
     query = "schema" |> where(foo: <<0, ?a, ?b, ?c>>) |> select([], true) |> normalize
-    assert_fields(query, query: %{foo: %BSON.Binary{binary: <<0, ?a, ?b, ?c>>}})
+    assert_fields query, query: %{foo: %BSON.Binary{binary: <<0, ?a, ?b, ?c>>}}
 
     query = "schema" |> where(foo: 123) |> select([], true) |> normalize
-    assert_fields(query, query: %{foo: 123})
+    assert_fields query, query: %{foo: 123}
 
     query = "schema" |> where(foo: 123.0) |> select([], true) |> normalize
-    assert_fields(query, query: %{foo: 123.0})
+    assert_fields query, query: %{foo: 123.0}
   end
 
   # test "tagged type" do
@@ -432,22 +395,23 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     z = 123
 
     query =
-      from(r in Schema, [])
-      |> where([r], (r.x > 0 and r.y > ^(-z)) or true)
-      |> normalize
+      from r in Schema,
+           []
+           |> where([r], (r.x > 0 and r.y > ^(-z)) or true)
+           |> normalize
 
-    assert_fields(query, query: %{"$or": [["$and": [[x: ["$gt": 0]], [y: ["$gt": -123]]]], true]})
+    assert_fields query, query: %{"$or": [["$and": [[x: ["$gt": 0]], [y: ["$gt": -123]]]], true]}
   end
 
   test "bool ops" do
     query = Schema |> where([], true and false) |> normalize
-    assert_fields(query, query: %{"$and": [true, false]})
+    assert_fields query, query: %{"$and": [true, false]}
 
     query = Schema |> where([], true or false) |> normalize
-    assert_fields(query, query: %{"$or": [true, false]})
+    assert_fields query, query: %{"$or": [true, false]}
 
     query = Schema |> where([r], not (r.x > 0) and not (r.x < 5)) |> normalize
-    assert_fields(query, query: %{"$and": [["$not": [x: ["$gt": 0]]], ["$not": [x: ["$lt": 5]]]]})
+    assert_fields query, query: %{"$and": [["$not": [x: ["$gt": 0]]], ["$not": [x: ["$lt": 5]]]]}
   end
 
   # test "in expression" do
@@ -509,12 +473,10 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
       |> offset([], ^5)
       |> normalize
 
-    assert_fields(
-      query,
+    assert_fields query,
       opts: [limit: 4, skip: 5],
       order: [x: 1],
       query: %{_id: ["$exists": false]}
-    )
   end
 
   # test "fragments and types" do
