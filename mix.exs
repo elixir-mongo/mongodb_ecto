@@ -42,14 +42,14 @@ defmodule Mongo.Ecto.Mixfile do
     [
       maintainers: ["Michał Muskała", "Justin Wood"],
       licenses: ["Apache 2.0"],
-      links: %{"GitHub" => "https://github.com/michalmuskala/mongodb_ecto"},
+      links: %{"GitHub" => "https://github.com/ankhers/mongodb_ecto"},
       files: ~w(mix.exs README.md CHANGELOG.md lib)
     ]
   end
 
   defp docs do
     [
-      source_url: "https://github.com/michalmuskala/mongodb_ecto",
+      source_url: "https://github.com/ankhers/mongodb_ecto",
       source_ref: "v#{@version}",
       main: "readme",
       extras: ["README.md"]

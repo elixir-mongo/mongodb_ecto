@@ -122,7 +122,7 @@ branches: 2.4.x, 2.6.x, 3.0.x
 To contribute you need to compile `Mongo.Ecto` from source and test it:
 
 ```
-$ git clone https://github.com/michalmuskala/mongodb_ecto.git
+$ git clone https://github.com/ankhers/mongodb_ecto.git
 $ cd mongodb_ecto
 $ mix test
 ```
