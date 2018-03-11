@@ -24,7 +24,8 @@ defmodule Mongo.Ecto.Mixfile do
     [
       {:mongodb, "~> 0.4.2"},
       {:ecto, "~> 2.1.0"},
-      {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
+      {:dialyxir, "~> 0.5", only: :dev, runtime: false},
+      {:excoveralls, "~> 0.8", only: :test},
       {:inch_ex, "~> 0.5", only: :docs},
       {:earmark, "~> 1.0", only: :docs},
       {:ex_doc, "~> 0.11", only: :docs}

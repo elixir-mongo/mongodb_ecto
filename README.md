@@ -1,8 +1,8 @@
 # Mongo.Ecto
 
-[![Travis Build Status](https://img.shields.io/travis/michalmuskala/mongodb_ecto.svg)](https://travis-ci.org/michalmuskala/mongodb_ecto)
-[![Coveralls Coverage](https://img.shields.io/coveralls/michalmuskala/mongodb_ecto.svg)](https://coveralls.io/github/michalmuskala/mongodb_ecto)
-[![Inline docs](http://inch-ci.org/github/michalmuskala/mongodb_ecto.svg?branch=master)](http://inch-ci.org/github/michalmuskala/mongodb_ecto)
+[![Travis Build Status](https://img.shields.io/travis/ankhers/mongodb_ecto.svg)](https://travis-ci.org/ankhers/mongodb_ecto)
+[![Coveralls Coverage](https://img.shields.io/coveralls/ankhers/mongodb_ecto.svg)](https://coveralls.io/github/ankhers/mongodb_ecto)
+[![Inline docs](http://inch-ci.org/github/ankhers/mongodb_ecto.svg?branch=master)](http://inch-ci.org/github/ankhers/mongodb_ecto)
 
 `Mongo.Ecto` is a MongoDB adapter for Ecto.
 
@@ -103,8 +103,8 @@ the database.
 
 Additionally special values are translated as follows:
 
-|	BSON        |     	Ecto|
-|	----------  |      	------|
+|	BSON        |       Ecto|
+|	----------  |       ------|
 |    null     |           `nil`|
 |    min key  |           `:BSON_min`|
 |    max key  |           `:BSON_max`|
