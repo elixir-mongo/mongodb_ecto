@@ -33,9 +33,11 @@ defmodule Simple do
   import Ecto.Query
 
   def sample_query do
-    query = from w in Weather,
-          where: w.prcp > 0.0 or is_nil(w.prcp),
-         select: w
+    query =
+      from w in Weather,
+        where: w.prcp > 0.0 or is_nil(w.prcp),
+        select: w
+
     Simple.Repo.all(query)
   end
 
@@ -50,6 +52,6 @@ defmodule Simple do
 
     weather
     |> Ecto.Changeset.change(%{city: "NYC"})
-    |> Simple.Repo.update
+    |> Simple.Repo.update()
   end
 end

@@ -293,7 +293,6 @@
 #     assert_query(query, query: %{x: 123.0})
 #   end
 
-
 #   test "in expression" do
 #     query = Schema |> where([e], e.x in []) |> normalize
 #     assert_query(query, query: %{x: ["$in": []]})
@@ -315,8 +314,6 @@
 #       Schema |> where([e], e.x in [1, e.x, 3]) |> normalize
 #     end
 #   end
-
-
 
 #   # *_all
 

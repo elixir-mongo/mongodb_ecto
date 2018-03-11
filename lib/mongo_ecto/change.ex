@@ -11,7 +11,7 @@ defmodule Mongo.Ecto.ChangeMap do
   @behaviour Ecto.Type
 
   defstruct [:field, :value]
-  @type t :: %__MODULE__{field: String.t, value: term}
+  @type t :: %__MODULE__{field: String.t(), value: term}
 
   @doc """
   The Ecto primitive type
@@ -49,7 +49,7 @@ defmodule Mongo.Ecto.ChangeArray do
   @behaviour Ecto.Type
 
   defstruct [:field, :value]
-  @type t :: %__MODULE__{field: String.t, value: term}
+  @type t :: %__MODULE__{field: String.t(), value: term}
 
   @doc """
   The Ecto primitive type

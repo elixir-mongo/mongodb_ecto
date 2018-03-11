@@ -1,4 +1,4 @@
-ExUnit.start
+ExUnit.start()
 Logger.configure(level: :info)
 
 defmodule Simple.Case do
