@@ -9,6 +9,9 @@
 For detailed information read the documentation for the `Mongo.Ecto` module,
 or check out examples below.
 
+## Features still missing to be Ecto 2.1 compliant
+* on_conflict
+
 ## Example
 ```elixir
 # In your config/config.exs file
