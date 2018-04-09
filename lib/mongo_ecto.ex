@@ -336,11 +336,13 @@ defmodule Mongo.Ecto do
     * `:port` - Server port (default: `27017`)
     * `:username` - Username
     * `:password` - User password
-    * `:connect_timeout` - The timeout for establishing new connections (default: 5000)
+    * `:mongo_url` - A MongoDB [URL](https://docs.mongodb.com/manual/reference/connection-string/)
+    * `:connect_timeout` - The timeout for establishing new connections
+       (default: 5000)
     * `:w` - MongoDB's write convern (default: 1). If set to 0, some of the
       Ecto's functions may not work properely
-    * `:j`, `:fsync`, `:wtimeout` - Other MongoDB's write concern options. Please
-      consult MongoDB's documentation
+    * `:j`, `:fsync`, `:wtimeout` - Other MongoDB's write concern options.
+      Please consult MongoDB's documentation
 
   ### Pool options
 
@@ -416,6 +418,12 @@ defmodule Mongo.Ecto do
         _ ->
           repo.__pool__
       end
+
+    # Rename the `:mongo_url` key so that the driver can parse it
+    opts = Enum.map(opts, fn
+      {:mongo_url, value} -> {:url, value}
+      {key, value} -> {key, value}
+    end)
 
     opts = [name: pool_name] ++ Keyword.delete(opts, :pool) ++ pool_opts
 
