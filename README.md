@@ -16,6 +16,7 @@ or check out examples below.
 ```elixir
 # In your config/config.exs file
 config :my_app, Repo,
+  adapter: Mongo.Ecto
   database: "ecto_simple",
   username: "mongodb",
   password: "mongosb",
@@ -23,9 +24,7 @@ config :my_app, Repo,
 
 # In your application code
 defmodule Repo do
-  use Ecto.Repo,
-    otp_app: :my_app,
-    adapter: Mongo.Ecto
+  use Ecto.Repo, otp_app: :my_app
 end
 
 defmodule Weather do
