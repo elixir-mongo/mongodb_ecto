@@ -774,7 +774,7 @@ defmodule Mongo.Ecto do
       opts: [multi: true]
     }
 
-    _update_count = Connection.update_all(repo, query, opts)
+    Connection.update_all(repo, query, opts)
     :ok
   end
 
