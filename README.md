@@ -16,7 +16,7 @@ or check out examples below.
 ```elixir
 # In your config/config.exs file
 config :my_app, Repo,
-  adapter: Mongo.Ecto
+  adapter: Mongo.Ecto,
   database: "ecto_simple",
   username: "mongodb",
   password: "mongosb",
