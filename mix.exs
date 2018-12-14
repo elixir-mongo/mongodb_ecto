@@ -1,13 +1,13 @@
 defmodule Mongo.Ecto.Mixfile do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.2.1"
 
   def project do
     [
       app: :mongodb_ecto,
       version: @version,
-      elixir: "~> 1.3",
+      elixir: "~> 1.4",
       deps: deps(),
       test_coverage: [tool: ExCoveralls],
       description: description(),
