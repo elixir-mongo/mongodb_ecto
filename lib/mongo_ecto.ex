@@ -819,6 +819,14 @@ defmodule Mongo.Ecto do
 
   ## Mongo specific calls
 
+  @migration Ecto.Migration.SchemaMigration.__schema__(:source)
+
+  special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
+  migration_regex = %BSON.Regex{pattern: @migration, options: ""}
+  @list_collections_query [
+    "$and": [[name: ["$not": special_regex]], [name: ["$not": migration_regex]]]
+  ]
+
   @doc """
   Drops all the collections in current database.
 
@@ -830,8 +838,25 @@ defmodule Mongo.Ecto do
   @spec truncate(Ecto.Repo.t(), Keyword.t()) :: [String.t()]
   def truncate(repo, opts \\ []) do
     opts = Keyword.put(opts, :log, false)
+    version = db_version(repo)
+    [major_version, minor_version | _] = version
 
-    Enum.map(list_collections(repo, opts), fn collection ->
+    collection_names =
+      if major_version > 3 || (major_version == 3 && minor_version >= 4) do
+        all_collection_names =
+          repo
+          |> command(%{listCollections: 1}, opts)
+          |> get_in(["cursor", "firstBatch"])
+          |> Enum.filter(&(&1["type"] == "collection")) # exclude mongo views which were introduced in version 3.4
+          |> Enum.map(&Map.fetch!(&1, "name"))
+          |> Enum.reject(&String.contains?(&1, "system."))
+
+        all_collection_names -- [@migration]
+      else
+        list_collections(version, repo, opts)
+      end
+
+    Enum.map(collection_names, fn collection ->
       truncate_collection(repo, collection, opts)
       collection
     end)
@@ -859,20 +884,12 @@ defmodule Mongo.Ecto do
     Connection.command(repo, normalized, opts)
   end
 
-  special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
-  @migration Ecto.Migration.SchemaMigration.__schema__(:source)
-  migration_regex = %BSON.Regex{pattern: @migration, options: ""}
-
-  @list_collections_query [
-    "$and": [[name: ["$not": special_regex]], [name: ["$not": migration_regex]]]
-  ]
-
   @doc false
   def list_collections(repo, opts \\ []) do
     list_collections(db_version(repo), repo, opts)
   end
 
-  defp list_collections(version, repo, opts) when version >= 3 do
+  defp list_collections([major_version | _], repo, opts) when major_version >= 3 do
     colls = command(repo, %{listCollections: 1}, opts)["cursor"]["firstBatch"]
 
     all_collections =
@@ -904,8 +921,6 @@ defmodule Mongo.Ecto do
   end
 
   defp db_version(repo) do
-    version = command(repo, %{buildinfo: 1}, [])["versionArray"]
-
-    Enum.fetch!(version, 0)
+    command(repo, %{buildinfo: 1}, [])["versionArray"]
   end
 end
