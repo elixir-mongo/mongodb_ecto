@@ -345,6 +345,22 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
 
+  defp offset_limit(
+         %Query.QueryExpr{expr: {:^, l, [idx]} = expr},
+         params,
+         pk,
+         %Query{wheres: wheres} = query,
+         where
+       ) do
+    param_offset =
+      Enum.reduce(wheres, 0, fn %Query.BooleanExpr{expr: expr}, acc ->
+        _from..to = pair_params_range(expr)
+        acc + to
+      end)
+
+    value({:^, l, [idx + param_offset]}, params, pk, query, where)
+  end
+
   defp offset_limit(%Query.QueryExpr{expr: expr}, params, pk, query, where),
     do: value(expr, params, pk, query, where)
 
@@ -466,9 +482,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {field(left, pk, query, place), ["$in": []]}
   end
 
-  defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query, place) do
+  defp pair({:in, _, [left, _]} = expr, params, pk, query, place) do
     args =
-      ix..(ix + len - 1)
+      expr
+      |> pair_params_range()
       |> Enum.map(&elem(params, &1))
       |> Enum.map(&value(&1, params, pk, query, place))
 
@@ -483,9 +500,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {field(left, pk, query, place), [{binary_op(op), value(right, params, pk, query, place)}]}
   end
 
-  defp pair({:not, _, [{:in, _, [left, {:^, _, [ix, len]}]}]}, params, pk, query, place) do
+  defp pair({:not, _, [{:in, _, [left, _]}]} = expr, params, pk, query, place) do
     args =
-      ix..(ix + len - 1)
+      expr
+      |> pair_params_range()
       |> Enum.map(&elem(params, &1))
       |> Enum.map(&value(&1, params, pk, query, place))
 
@@ -545,4 +563,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp error(place) do
     raise ArgumentError, "Invalid expression for MongoDB adapter in #{place}"
   end
+
+  defp pair_params_range({:in, _, [_, {:^, _, [ix, len]}]}), do: ix..(ix + len - 1)
+  defp pair_params_range({:not, _, [{:in, _, [_, {:^, _, [ix, len]}]}]}), do: ix..(ix + len - 1)
+  defp pair_params_range(expr), do: 0..0
 end

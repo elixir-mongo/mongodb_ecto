@@ -91,6 +91,18 @@ defmodule Mongo.EctoTest do
     assert 10 == TestRepo.one(query)
   end
 
+  test "where in ids + dynamic limit + dynamic offset" do
+    post1 = TestRepo.insert!(%Post{})
+    post2 = TestRepo.insert!(%Post{})
+    post3 = TestRepo.insert!(%Post{})
+    ids = [post1.id, post2.id, post3.id]
+    limit = 1
+    offset = 1
+
+    query = from p in Post, where: p.id in ^ids, limit: ^limit, offset: ^offset
+    assert TestRepo.all(query) == [post2]
+  end
+
   # test "partial update in map" do
   #   post = TestRepo.insert!(%Post{meta: %{author: %{name: "michal"}, other: "value"}})
   #   TestRepo.update_all(Post, set: [meta: change_map("author.name", "michal")])
