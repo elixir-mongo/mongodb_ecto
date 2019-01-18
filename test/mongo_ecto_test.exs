@@ -92,15 +92,24 @@ defmodule Mongo.EctoTest do
   end
 
   test "where in ids + dynamic limit + dynamic offset" do
-    post1 = TestRepo.insert!(%Post{})
-    post2 = TestRepo.insert!(%Post{})
-    post3 = TestRepo.insert!(%Post{})
+    visits = 3
+    exclude_visits = [4, 5]
+    post1 = TestRepo.insert!(%Post{visits: visits})
+    post2 = TestRepo.insert!(%Post{visits: visits})
+    post3 = TestRepo.insert!(%Post{visits: visits})
     ids = [post1.id, post2.id, post3.id]
     limit = 1
-    offset = 1
+    offset = 2
 
-    query = from p in Post, where: p.id in ^ids, limit: ^limit, offset: ^offset
-    assert TestRepo.all(query) == [post2]
+    query =
+      from(
+        p in Post,
+        where: p.visits == ^visits and not (p.visits in ^exclude_visits) and p.id in ^ids,
+        limit: ^limit,
+        offset: ^offset
+      )
+
+    assert TestRepo.all(query) == [post3]
   end
 
   # test "partial update in map" do
