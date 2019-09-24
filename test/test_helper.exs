@@ -24,10 +24,7 @@ ExUnit.start(
 Application.put_env(:ecto, :primary_key_type, :binary_id)
 Application.put_env(:ecto, :async_integration_tests, false)
 
-Code.require_file("../deps/ecto/integration_test/support/repo.exs", __DIR__)
-Code.require_file("../deps/ecto/integration_test/support/types.exs", __DIR__)
-Code.require_file("../deps/ecto/integration_test/support/schemas.exs", __DIR__)
-Code.require_file("../deps/ecto/integration_test/support/migration.exs", __DIR__)
+#Code.require_file("../deps/ecto_sql/integration_test/support/repo.exs", __DIR__)
 
 # Basic test repo
 alias Ecto.Integration.TestRepo
@@ -48,12 +45,40 @@ Application.put_env(
   pool_size: 5
 )
 
+defmodule Ecto.Integration.Repo do
+  defmacro __using__(opts) do
+    quote do
+      use Ecto.Repo, unquote(opts)
+
+      @query_event __MODULE__
+                   |> Module.split()
+                   |> Enum.map(& &1 |> Macro.underscore() |> String.to_atom())
+                   |> Kernel.++([:query])
+
+      def init(_, opts) do
+        fun = &Ecto.Integration.Repo.handle_event/4
+        :telemetry.attach_many(__MODULE__, [[:custom], @query_event], fun, :ok)
+        {:ok, opts}
+      end
+    end
+  end
+
+  def handle_event(event, latency, metadata, _config) do
+    handler = Process.delete(:telemetry) || fn _, _, _ -> :ok end
+    handler.(event, latency, metadata)
+  end
+end
+
 defmodule Ecto.Integration.TestRepo do
-  use Ecto.Integration.Repo, otp_app: :ecto
+  use Ecto.Integration.Repo, otp_app: :ecto, adapter: Mongo.Ecto
+
+  def uuid do
+    Ecto.UUID
+  end
 end
 
 defmodule Ecto.Integration.PoolRepo do
-  use Ecto.Integration.Repo, otp_app: :ecto
+  use Ecto.Integration.Repo, otp_app: :ecto, adapter: Mongo.Ecto
 end
 
 defmodule Ecto.Integration.Case do
@@ -72,15 +97,19 @@ defmodule Ecto.Integration.Case do
   end
 end
 
+Code.require_file("../deps/ecto/integration_test/support/types.exs", __DIR__)
+Code.require_file("../deps/ecto/integration_test/support/schemas.exs", __DIR__)
+
 _ = Mongo.Ecto.storage_down(TestRepo.config())
+
 :ok = Mongo.Ecto.storage_up(TestRepo.config())
 
-{:ok, pid} = TestRepo.start_link()
-:ok = TestRepo.stop(pid, :infinity)
+{:ok, _pid} = TestRepo.start_link()
+:ok = TestRepo.stop(:infinity)
 {:ok, _pid} = TestRepo.start_link()
 {:ok, _pid} = Ecto.Integration.PoolRepo.start_link()
 
 # We capture_io, because of warnings on references
-ExUnit.CaptureIO.capture_io(fn ->
-  :ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
-end)
+#ExUnit.CaptureIO.capture_io(fn ->
+#  :ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
+#end)

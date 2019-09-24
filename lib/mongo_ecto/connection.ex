@@ -8,14 +8,30 @@ defmodule Mongo.Ecto.Connection do
   alias Mongo.Ecto.NormalizedQuery.AggregateQuery
   alias Mongo.Query
 
+  def child_spec(opts) do
+
+
+    # Rename the `:mongo_url` key so that the driver can parse it
+    opts = Enum.map(opts, fn
+      {:mongo_url, value} -> {:url, value}
+      {key, value} -> {key, value}
+    end)
+
+  #  opts = [name: pool_name] ++ Keyword.delete(opts, :pool) ++ pool_opts
+    Mongo.child_spec(opts)
+  end
+
   ## Worker
 
-  def storage_down(opts) do
-    opts = Keyword.put(opts, :pool, DBConnection.Connection)
+  def init(config) do
 
+  end
+  def storage_down(opts) do
+    #opts = Keyword.put(opts, :pool, DBConnection.Connection)
+    
     {:ok, _apps} = Application.ensure_all_started(:mongodb)
     {:ok, conn} = Mongo.start_link(opts)
-
+    
     try do
       Mongo.command!(conn, dropDatabase: 1)
       :ok
@@ -58,7 +74,7 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
     query = query.query
 
-    %{deleted_count: n} = query(repo, :delete_many!, [coll, query], opts)
+    %{deleted_count: n} = query(Ecto.Adapter.lookup_meta(repo), :delete_many!, [coll, query], opts)
     n
   end
 
@@ -144,9 +160,9 @@ defmodule Mongo.Ecto.Connection do
     query(repo, :command!, [command], opts)
   end
 
-  defp query(repo, operation, args, opts) do
-    {conn, default_opts} = repo.__pool__
-    args = [conn] ++ args ++ [with_log(repo, opts ++ default_opts)]
+  def query(repo, operation, args, opts) do
+    #{conn, default_opts} = repo.__pool__
+    args = [repo.pid] ++ args ++ [with_log(repo, opts)]
     apply(Mongo, operation, args)
   end
 
@@ -169,15 +185,15 @@ defmodule Mongo.Ecto.Connection do
 
     source = Keyword.get(opts, :source)
 
-    repo.__log__(%Ecto.LogEntry{
-      query_time: query_time,
-      decode_time: decode_time,
-      queue_time: queue_time,
-      result: log_result(result),
-      params: [],
-      query: format_query(query, params),
-      source: source
-    })
+  #  repo.__log__(%Ecto.LogEntry{
+  #    query_time: query_time,
+  #    decode_time: decode_time,
+  #    queue_time: queue_time,
+  #    result: log_result(result),
+  #    params: [],
+  #    query: format_query(query, params),
+  #    source: source
+  #  })
   end
 
   defp log_result({:ok, _query, res}), do: {:ok, res}

@@ -143,13 +143,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, database: original.prefix}
   end
 
-  def delete(%{source: {prefix, coll}, schema: schema}, filter) do
+  def delete(%{source: coll, schema: schema, prefix: prefix}, filter) do
     query = query(filter, primary_key(schema))
 
     %WriteQuery{coll: coll, query: query, database: prefix}
   end
 
-  def insert(%{source: {prefix, coll}, schema: schema}, document) do
+  def insert(%{source: coll, schema: schema, prefix: prefix}, document) do
     command = command(:insert, document, primary_key(schema))
 
     %WriteQuery{coll: coll, command: command, database: prefix}
@@ -159,7 +159,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %CommandQuery{command: command, database: Keyword.get(opts, :database, nil)}
   end
 
-  defp from(%Query{from: {coll, model}}) do
+  defp from(%Query{from: %{source: {coll, model}}}) do
     {coll, model, primary_key(model)}
   end
 

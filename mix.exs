@@ -17,18 +17,20 @@ defmodule Mongo.Ecto.Mixfile do
   end
 
   def application do
-    [applications: [:ecto, :mongodb, :logger]]
+    [applications: [:ecto, :mongodb, :logger, :telemetry]]
   end
 
   defp deps do
     [
-      {:mongodb, "~> 0.4.2"},
-      {:ecto, "~> 2.1.0"},
+      {:mongodb, "~> 0.5.1"},
+      {:ecto, "~> 3.1"},
       {:dialyxir, "~> 0.5", only: :dev, runtime: false},
       {:excoveralls, "~> 0.8", only: :test},
       {:inch_ex, "~> 0.5", only: [:dev, :test]},
       {:earmark, "~> 1.0", only: :dev},
-      {:ex_doc, ">= 0.0.0", only: :dev}
+      {:ex_doc, ">= 0.0.0", only: :dev},
+      {:poolboy, ">= 1.5.0", only: [:dev, :test]},
+      {:telemetry, ">= 0.0.0", only: [:dev, :test]}
     ]
   end
 
