@@ -47,7 +47,7 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
 
   defp normalize(query, operation \\ :all) do
     {query, params, _key} = Ecto.Query.Planner.plan(query, operation, Mongo.Ecto)
-    query = Ecto.Query.Planner.normalize(query, operation, Mongo.Ecto, 0)
+    {query, _} = Ecto.Query.Planner.normalize(query, operation, Mongo.Ecto, 0)
     apply(Mongo.Ecto.NormalizedQuery, operation, [query, params])
   end
 

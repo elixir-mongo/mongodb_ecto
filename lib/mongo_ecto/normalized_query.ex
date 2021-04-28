@@ -49,7 +49,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end
   end
 
-  def all({original, _}, params) do
+  def all(original, params) do
     check_query!(original, [:limit, :offset])
 
     from = from(original)

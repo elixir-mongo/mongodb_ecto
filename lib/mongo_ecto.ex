@@ -469,7 +469,7 @@ defmodule Mongo.Ecto do
   end
 
   defp load_objectid(arg), do: :error
-  
+
   @doc false
   def dumpers(:time, type), do: [type, &dump_time/1]
   def dumpers(:date, type), do: [type, &dump_date/1]
@@ -631,26 +631,28 @@ defmodule Mongo.Ecto do
       end
     end)
   end
-  
+
   def row_to_list(row, %{select: %{from: :none}}) do
     [row]
   end
-  
+
   # This can be backed by a normal mongo stream, we just have to get it to play nicely with
   #  ecto's batch/preload functionality ( hence the map(&{nil, [&1]}) )
   @doc false
-  def stream(repo, _meta, {:nocache, {function, query}}, params, process, opts) do
+  # def stream(repo, meta, {:nocache, {function, query}}, params, process, opts \\ []) do
+  def stream(adapter_meta, query_meta, {:nocache, {function, query}}, params, opts) do
     case apply(NormalizedQuery, function, [query, params]) do
       %{__struct__: read} = query when read in @read_queries ->
-        Connection.read(repo, query, opts)
-        |> Stream.map(&process_document(&1, query, process))
+        Connection.read(adapter_meta, query, opts)
+        |> Stream.map(&process_document(&1, query))
 
       %WriteQuery{} = write ->
-        apply(Connection, function, [repo, write, opts])
+        apply(Connection, function, [adapter_meta, write, opts])
         [nil]
     end
     |> Stream.map(&{nil, [&1]})
   end
+
 
   @doc false
   def insert(_repo, meta, _params, _on_conflict, [_ | _] = returning, _opts) do
@@ -699,18 +701,19 @@ defmodule Mongo.Ecto do
     Connection.delete(repo, normalized, opts)
   end
 
-  defp process_document(document, %{fields: fields, pk: pk}, preprocess) do
+  defp process_document(document, %{fields: fields, pk: pk}) do
     document = Conversions.to_ecto_pk(document, pk)
     Enum.map(fields, fn
       {:field, name, field} ->
-        preprocess.(field, Map.get(document, Atom.to_string(name)), nil)
+        Map.get(document, Atom.to_string(name))
 
       {:value, value, field} ->
-        preprocess.(field, Conversions.to_ecto_pk(value, pk), nil)
+        Conversions.to_ecto_pk(value, pk)
 
       field ->
-        preprocess.(field, document, nil)
+        document
     end)
+
   end
 
   ## Storage
