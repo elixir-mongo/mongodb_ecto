@@ -49,7 +49,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end
   end
 
-  def all(%Query{} = original, params) do
+  def all({original, _}, params) do
     check_query!(original, [:limit, :offset])
 
     from = from(original)
@@ -163,9 +163,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {coll, model, primary_key(model)}
   end
 
-  defp from(%Query{from: %Ecto.SubQuery{}}) do
+  defp from(%Query{from: %{source: %Ecto.SubQuery{}}}) do
     raise ArgumentError, "MongoDB does not support subqueries"
   end
+
 
   @aggregate_ops [:min, :max, :sum, :avg]
   @special_ops [:count | @aggregate_ops]
