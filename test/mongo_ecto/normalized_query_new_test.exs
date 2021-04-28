@@ -1,3 +1,4 @@
+# 0/26 passed
 defmodule Mongo.Ecto.NormalizedQueryNewTest do
   use ExUnit.Case, async: true
 

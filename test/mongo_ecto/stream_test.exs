@@ -1,3 +1,4 @@
+# 0/4 pass
 # Alternative, in ecto_test.exs
 # Code.require_file "../../deps/ecto/integration_test/sql/stream.exs", __DIR__
 # Code.require_file "../deps/ecto/integration_test/sql/stream.exs", __DIR__

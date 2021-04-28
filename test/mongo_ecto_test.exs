@@ -1,3 +1,5 @@
+# 10/10 pass
+
 defmodule Mongo.EctoTest do
   use Ecto.Integration.Case
 

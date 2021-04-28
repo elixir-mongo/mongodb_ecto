@@ -14,6 +14,11 @@ ExUnit.start(
     :composite_pk,
     :join,
     :returning,
+    :update_with_join,
+    :delete_with_join,
+    :cross_join,
+    :left_join,
+    :right_join,
 
     # TODO: Turn these back on
     :with_conflict_target,
