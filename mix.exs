@@ -23,14 +23,14 @@ defmodule Mongo.Ecto.Mixfile do
   defp deps do
     [
       {:mongodb, "~> 0.5.1"},
-      {:ecto, "~> 3.1"},
+      {:ecto, "~> 3.6"},
       {:dialyxir, "~> 0.5", only: :dev, runtime: false},
       {:excoveralls, "~> 0.8", only: :test},
       {:inch_ex, "~> 0.5", only: [:dev, :test]},
       {:earmark, "~> 1.0", only: :dev},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:poolboy, ">= 1.5.0", only: [:dev, :test]},
-      {:telemetry, ">= 0.0.0", only: [:dev, :test]}
+      {:telemetry, ">= 0.4.0"}
     ]
   end
 
@@ -42,16 +42,16 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp package do
     [
-      maintainers: ["Michał Muskała", "Justin Wood"],
+      maintainers: ["Michał Muskała", "Justin Wood", "Scott Ames-Messinger"],
       licenses: ["Apache 2.0"],
-      links: %{"GitHub" => "https://github.com/ankhers/mongodb_ecto"},
+      links: %{"GitHub" => "https://github.com/commoncurriculum/mongodb_ecto"},
       files: ~w(mix.exs README.md CHANGELOG.md lib)
     ]
   end
 
   defp docs do
     [
-      source_url: "https://github.com/ankhers/mongodb_ecto",
+      source_url: "https://github.com/commoncurriuclum/mongodb_ecto",
       source_ref: "v#{@version}",
       main: "readme",
       extras: ["README.md"]
