@@ -479,7 +479,9 @@ defmodule Mongo.Ecto do
   def dumpers(:time, type), do: [type, &dump_time/1]
   def dumpers(:date, type), do: [type, &dump_date/1]
   def dumpers(:utc_datetime, type), do: [type, &dump_utc_datetime/1]
+  def dumpers(:utc_datetime_usec, type), do: [type, &dump_utc_datetime/1]
   def dumpers(:naive_datetime, type), do: [type, &dump_naive_datetime/1]
+  def dumpers(:naive_datetime_usec, type), do: [type, &dump_naive_datetime/1]
   def dumpers(:binary_id, type), do: [type, &dump_objectid/1]
   def dumpers(:uuid, type), do: [type, &dump_binary(&1, :uuid)]
   def dumpers(:binary, type), do: [type, &dump_binary(&1, :generic)]
@@ -508,7 +510,18 @@ defmodule Mongo.Ecto do
     {:ok, datetime}
   end
 
-  defp dump_utc_datetime(_), do: :error
+  defp dump_utc_datetime({{_, _, _} = date, {h, m, s}}) do
+    datetime =
+      {date, {h, m, s}}
+      |> NaiveDateTime.from_erl!({0, 6})
+      |> datetime_from_naive!("Etc/UTC")
+
+    {:ok, datetime}
+  end
+
+  defp dump_utc_datetime(datetime) do
+    {:ok, datetime}
+  end
 
   defp dump_naive_datetime({{_, _, _} = date, {h, m, s, ms}}) do
     datetime =
@@ -527,7 +540,13 @@ defmodule Mongo.Ecto do
     {:ok, datetime}
   end
 
-  defp dump_naive_datetime(_args), do: :error
+  defp dump_naive_datetime(dt) do
+    datetime =
+      dt
+      |> datetime_from_naive!("Etc/UTC")
+
+    {:ok, datetime}
+  end
 
   # Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
   # Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
@@ -639,7 +658,7 @@ defmodule Mongo.Ecto do
     end)
   end
 
-  def row_to_list(row, %{select: %{from: :none}} = select) do
+  def row_to_list(row, %{select: %{from: :none}}) do
     [row]
   end
 
