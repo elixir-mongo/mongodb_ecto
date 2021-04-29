@@ -102,11 +102,8 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
     query = query.query
 
-    IO.inspect("update many")
-
     case query(repo, :update_many, [coll, query, command], opts) do
       {:ok, %Mongo.UpdateResult{modified_count: m} = result} ->
-        IO.inspect(result)
         m
 
       {:error, error} ->
@@ -119,8 +116,6 @@ defmodule Mongo.Ecto.Connection do
     command = query.command
     opts = query.opts ++ opts
     query = query.query
-
-    IO.inspect("update!")
 
     case query(repo, :update_one, [coll, query, command], opts) do
       {:ok, %{modified_count: 1}} ->
