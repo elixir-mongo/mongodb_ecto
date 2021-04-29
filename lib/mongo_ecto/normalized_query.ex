@@ -167,14 +167,18 @@ defmodule Mongo.Ecto.NormalizedQuery do
     raise ArgumentError, "MongoDB does not support subqueries"
   end
 
-
   @aggregate_ops [:min, :max, :sum, :avg]
   @special_ops [:count | @aggregate_ops]
 
   defp projection(%Query{select: nil}, _params, _from), do: {:find, %{}, []}
 
-  defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, from),
-    do: projection(fields, params, from, query, %{}, [])
+  defp projection(
+         %Query{select: %Query.SelectExpr{fields: fields} = select} = query,
+         params,
+         from
+       ) do
+    projection(fields, params, from, query, %{}, [])
+  end
 
   defp projection([], _params, _from, _query, pacc, facc), do: {:find, pacc, Enum.reverse(facc)}
 
@@ -546,4 +550,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp error(place) do
     raise ArgumentError, "Invalid expression for MongoDB adapter in #{place}"
   end
+
+  defp intersperse_map(list, separator, mapper, acc \\ [])
+
+  defp intersperse_map([], _separator, _mapper, acc),
+    do: acc
+
+  defp intersperse_map([elem], _separator, mapper, acc),
+    do: [acc | mapper.(elem)]
+
+  defp intersperse_map([elem | rest], separator, mapper, acc),
+    do: intersperse_map(rest, separator, mapper, [acc, mapper.(elem), separator])
 end

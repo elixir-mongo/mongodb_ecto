@@ -372,7 +372,6 @@ defmodule Mongo.Ecto do
 
   @doc false
   defmacro __before_compile__(env) do
-
   end
 
   @pool_timeout 5_000
@@ -396,26 +395,28 @@ defmodule Mongo.Ecto do
   @doc false
   def application, do: :mongodb_ecto
 
-
   @pool_opts [:timeout, :pool, :pool_size, :migration_lock] ++
                [:queue_target, :queue_interval, :ownership_timeout]
 
+  @impl true
   def init(config) do
     connection = Connection
+
     unless Code.ensure_loaded?(connection) do
       driver = :mongodb
+
       raise """
-      could not find #{inspect connection}.
-      Please verify you have added #{inspect driver} as a dependency:
-          {#{inspect driver}, ">= 0.0.0"}
+      could not find #{inspect(connection)}.
+      Please verify you have added #{inspect(driver)} as a dependency:
+          {#{inspect(driver)}, ">= 0.0.0"}
       And remember to recompile Ecto afterwards by cleaning the current build:
           mix deps.clean --build ecto
       """
     end
 
-    #otp_app = Module.get_attribute(env.module, :opt_app)
-    #config = Application.get_env(otp_app, env.module, [])
-    pool = Keyword.get(config, :pool, DBConnection.Poolboy)
+    # otp_app = Module.get_attribute(env.module, :opt_app)
+    # config = Application.get_env(otp_app, env.module, [])
+    # pool = Keyword.get(config, :pool, DBConnection.Poolboy)
     pool_name = pool_name(config)
     norm_config = normalize_config(config)
 
@@ -423,22 +424,18 @@ defmodule Mongo.Ecto do
     telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
     telemetry = {config[:repo], log, telemetry_prefix ++ [:query]}
 
-    #config = adapter_config(config)
+    # config = adapter_config(config)
     opts = Keyword.take(config, @pool_opts)
     meta = %{telemetry: telemetry, opts: opts, pool: {pool_name, norm_config}}
     {:ok, connection.child_spec(config), meta}
   end
 
-  @doc false
-  def ensure_all_started(repo, type) do
-    {_, opts} = repo.__pool__
-
-    with {:ok, pool} <- DBConnection.ensure_all_started(opts, type),
-         {:ok, mongo} <- Application.ensure_all_started(:mongodb, type),
-         do: {:ok, pool ++ mongo}
+  @impl true
+  def ensure_all_started(_repo, type) do
+    {:ok, _mongo} = Application.ensure_all_started(:mongodb, type)
   end
 
-  @doc false
+  @impl true
   def loaders(:time, type), do: [&load_time/1, type]
   def loaders(:date, type), do: [&load_date/1, type]
   def loaders(:utc_datetime, type), do: [&load_datetime/1, type]
@@ -446,7 +443,11 @@ defmodule Mongo.Ecto do
   def loaders(:binary_id, type), do: [&load_objectid/1, type]
   def loaders(:uuid, type), do: [&load_binary/1, type]
   def loaders(:binary, type), do: [&load_binary/1, type]
-  def loaders(_base, type), do: [type]
+  def loaders(:integer, type), do: [&load_integer/1, type]
+
+  def loaders(_base, type) do
+    [type]
+  end
 
   defp load_time(time), do: Time.to_erl(time)
 
@@ -454,6 +455,10 @@ defmodule Mongo.Ecto do
 
   defp load_datetime(datetime) do
     {:ok, datetime}
+  end
+
+  defp load_integer(map) do
+    {:ok, map}
   end
 
   defp load_binary(%BSON.Binary{binary: binary}), do: {:ok, binary}
@@ -468,9 +473,9 @@ defmodule Mongo.Ecto do
     end
   end
 
-  defp load_objectid(arg), do: :error
+  defp load_objectid(_arg), do: :error
 
-  @doc false
+  @impl true
   def dumpers(:time, type), do: [type, &dump_time/1]
   def dumpers(:date, type), do: [type, &dump_date/1]
   def dumpers(:utc_datetime, type), do: [type, &dump_utc_datetime/1]
@@ -515,13 +520,14 @@ defmodule Mongo.Ecto do
   end
 
   defp dump_naive_datetime(%NaiveDateTime{} = dt) do
-    datetime = dt
+    datetime =
+      dt
       |> datetime_from_naive!("Etc/UTC")
 
     {:ok, datetime}
   end
 
-  defp dump_naive_datetime(args), do: :error
+  defp dump_naive_datetime(_args), do: :error
 
   # Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
   # Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
@@ -582,39 +588,40 @@ defmodule Mongo.Ecto do
 
   defp dump_objectid(_), do: :error
 
-  @doc false
+  @impl true
   def autogenerate(:id), do: raise("MongoDB adapter does not support `:id` type as primary key")
   def autogenerate(:embed_id), do: BSON.ObjectId.encode!(Mongo.object_id())
   def autogenerate(:binary_id), do: Mongo.object_id()
 
-  @doc false
+  @impl true
   def prepare(function, query) do
     {:nocache, {function, query}}
   end
 
   @read_queries [ReadQuery, CountQuery, AggregateQuery]
 
-  @doc false
-  def execute(meta, query_meta, {:nocache, {function, query}}, params, opts) do
-
+  @impl true
+  def execute(meta, _query_meta, {:nocache, {function, query}}, params, opts) do
     case apply(NormalizedQuery, function, [query, params]) do
-
       %AggregateQuery{} = query ->
         {rows, count} =
-        Connection.read(meta, query, opts)
-        |> Enum.map_reduce(0, &{[&1["value"]], &2 + 1})
+          Connection.read(meta, query, opts)
+          |> Enum.map_reduce(0, &{[&1["value"]], &2 + 1})
 
         {count, rows}
+
       %CountQuery{} = query ->
         {rows, count} =
-        Connection.read(meta, query, opts)
-        |> Enum.map_reduce(0, &{[&1["value"]], &2 + 1})
+          Connection.read(meta, query, opts)
+          |> Enum.map_reduce(0, &{[&1["value"]], &2 + 1})
 
         {count, rows}
-      %ReadQuery{} = query  ->
+
+      %ReadQuery{} = query ->
         {rows, count} =
           Connection.read(meta, query, opts)
-          |> Enum.map_reduce(0, &{row_to_list(&1, query_meta), &2 + 1})
+          |> Enum.map_reduce(0, &{process_document(&1, query), &2 + 1})
+
         {count, rows}
 
       %WriteQuery{} = write ->
@@ -624,7 +631,7 @@ defmodule Mongo.Ecto do
   end
 
   def row_to_list(row, %{select: %{from: {_op, {_source, _tuple, _something, types}}}}) do
-    Enum.map(types, fn {field, type} ->
+    Enum.map(types, fn {field, _type} ->
       case field do
         :id -> row["_id"]
         _ -> row[Atom.to_string(field)]
@@ -632,15 +639,14 @@ defmodule Mongo.Ecto do
     end)
   end
 
-  def row_to_list(row, %{select: %{from: :none}}) do
+  def row_to_list(row, %{select: %{from: :none}} = select) do
     [row]
   end
 
   # This can be backed by a normal mongo stream, we just have to get it to play nicely with
   #  ecto's batch/preload functionality ( hence the map(&{nil, [&1]}) )
-  @doc false
-  # def stream(repo, meta, {:nocache, {function, query}}, params, process, opts \\ []) do
-  def stream(adapter_meta, query_meta, {:nocache, {function, query}}, params, opts) do
+  @impl true
+  def stream(adapter_meta, _query_meta, {:nocache, {function, query}}, params, opts) do
     case apply(NormalizedQuery, function, [query, params]) do
       %{__struct__: read} = query when read in @read_queries ->
         Connection.read(adapter_meta, query, opts)
@@ -653,8 +659,7 @@ defmodule Mongo.Ecto do
     |> Stream.map(&{nil, [&1]})
   end
 
-
-  @doc false
+  @impl true
   def insert(_repo, meta, _params, _on_conflict, [_ | _] = returning, _opts) do
     raise ArgumentError,
           "MongoDB adapter does not support :read_after_writes in models. " <>
@@ -687,14 +692,14 @@ defmodule Mongo.Ecto do
     end
   end
 
-  @doc false
+  @impl true
   def update(repo, meta, fields, filters, _returning, opts) do
     normalized = NormalizedQuery.update(meta, fields, filters)
 
     Connection.update(repo, normalized, opts)
   end
 
-  @doc false
+  @impl true
   def delete(repo, meta, filter, opts) do
     normalized = NormalizedQuery.delete(meta, filter)
 
@@ -703,37 +708,36 @@ defmodule Mongo.Ecto do
 
   defp process_document(document, %{fields: fields, pk: pk}) do
     document = Conversions.to_ecto_pk(document, pk)
+
     Enum.map(fields, fn
-      {:field, name, field} ->
+      {:field, name, _field} ->
         Map.get(document, Atom.to_string(name))
 
-      {:value, value, field} ->
+      {:value, value, _field} ->
         Conversions.to_ecto_pk(value, pk)
 
-      field ->
+      _field ->
         document
     end)
-
   end
 
   ## Storage
 
   # Noop for MongoDB, as any databases and collections are created as needed.
-  @doc false
+  @impl true
   def storage_up(_opts) do
     :ok
   end
 
-  @doc false
+  @impl true
   def storage_down(opts) do
     Connection.storage_down(opts)
   end
 
   ## Mongo specific calls
 
-
   special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
-  #migration_regex = %BSON.Regex{pattern: @migration, options: ""}
+  # migration_regex = %BSON.Regex{pattern: @migration, options: ""}
   @list_collections_query [
     [name: ["$not": special_regex]]
   ]
@@ -758,11 +762,12 @@ defmodule Mongo.Ecto do
           repo
           |> command(%{listCollections: 1}, opts)
           |> get_in(["cursor", "firstBatch"])
-          |> Enum.filter(&(&1["type"] == "collection")) # exclude mongo views which were introduced in version 3.4
+          # exclude mongo views which were introduced in version 3.4
+          |> Enum.filter(&(&1["type"] == "collection"))
           |> Enum.map(&Map.fetch!(&1, "name"))
           |> Enum.reject(&String.contains?(&1, "system."))
 
-        all_collection_names -- [@migration]
+        # all_collection_names -- [@migration]
       else
         list_collections(version, repo, opts)
       end
@@ -803,12 +808,12 @@ defmodule Mongo.Ecto do
   defp list_collections([major_version | _], repo, opts) when major_version >= 3 do
     colls = command(repo, %{listCollections: 1}, opts)["cursor"]["firstBatch"]
 
-    all_collections =
+    _all_collections =
       colls
       |> Enum.map(&Map.fetch!(&1, "name"))
       |> Enum.reject(&String.contains?(&1, "system."))
 
-    all_collections -- [@migration]
+    # all_collections -- [@migration]
   end
 
   defp list_collections(_, repo, opts) do
@@ -825,10 +830,6 @@ defmodule Mongo.Ecto do
   defp truncate_collection(repo, collection, opts) do
     query = %WriteQuery{coll: collection, query: %{}}
     Connection.delete_all(repo, query, opts)
-  end
-
-  defp namespace(repo, coll) do
-    "#{repo.config[:database]}.#{coll}"
   end
 
   defp db_version(repo) do
