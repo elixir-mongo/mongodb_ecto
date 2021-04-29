@@ -125,7 +125,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
   end
 
-  def update(%{source: {prefix, coll}, schema: schema}, fields, filter) do
+  def update(%{source: coll, prefix: prefix, schema: schema}, fields, filter) do
     command = command(:update, fields, primary_key(schema))
     query = query(filter, primary_key(schema))
 
