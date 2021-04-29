@@ -9,29 +9,28 @@ defmodule Mongo.Ecto.Connection do
   alias Mongo.Query
 
   def child_spec(opts) do
-
-
     # Rename the `:mongo_url` key so that the driver can parse it
-    opts = Enum.map(opts, fn
-      {:mongo_url, value} -> {:url, value}
-      {key, value} -> {key, value}
-    end)
+    opts =
+      Enum.map(opts, fn
+        {:mongo_url, value} -> {:url, value}
+        {key, value} -> {key, value}
+      end)
 
-  #  opts = [name: pool_name] ++ Keyword.delete(opts, :pool) ++ pool_opts
+    #  opts = [name: pool_name] ++ Keyword.delete(opts, :pool) ++ pool_opts
     Mongo.child_spec(opts)
   end
 
   ## Worker
 
   def init(config) do
-
   end
+
   def storage_down(opts) do
-    #opts = Keyword.put(opts, :pool, DBConnection.Connection)
-    
+    # opts = Keyword.put(opts, :pool, DBConnection.Connection)
+
     {:ok, _apps} = Application.ensure_all_started(:mongodb)
     {:ok, conn} = Mongo.start_link(opts)
-    
+
     try do
       Mongo.command!(conn, dropDatabase: 1)
       :ok
@@ -74,7 +73,9 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
     query = query.query
 
-    %{deleted_count: n} = query(Ecto.Adapter.lookup_meta(repo), :delete_many!, [coll, query], opts)
+    %{deleted_count: n} =
+      query(Ecto.Adapter.lookup_meta(repo), :delete_many!, [coll, query], opts)
+
     n
   end
 
@@ -101,8 +102,11 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
     query = query.query
 
+    IO.inspect("update many")
+
     case query(repo, :update_many, [coll, query, command], opts) do
-      {:ok, %Mongo.UpdateResult{modified_count: m}} ->
+      {:ok, %Mongo.UpdateResult{modified_count: m} = result} ->
+        IO.inspect(result)
         m
 
       {:error, error} ->
@@ -115,6 +119,8 @@ defmodule Mongo.Ecto.Connection do
     command = query.command
     opts = query.opts ++ opts
     query = query.query
+
+    IO.inspect("update!")
 
     case query(repo, :update_one, [coll, query, command], opts) do
       {:ok, %{modified_count: 1}} ->
@@ -161,7 +167,7 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def query(repo, operation, args, opts) do
-    #{conn, default_opts} = repo.__pool__
+    # {conn, default_opts} = repo.__pool__
     args = [repo.pid] ++ args ++ [with_log(repo, opts)]
     apply(Mongo, operation, args)
   end
@@ -185,15 +191,15 @@ defmodule Mongo.Ecto.Connection do
 
     source = Keyword.get(opts, :source)
 
-  #  repo.__log__(%Ecto.LogEntry{
-  #    query_time: query_time,
-  #    decode_time: decode_time,
-  #    queue_time: queue_time,
-  #    result: log_result(result),
-  #    params: [],
-  #    query: format_query(query, params),
-  #    source: source
-  #  })
+    #  repo.__log__(%Ecto.LogEntry{
+    #    query_time: query_time,
+    #    decode_time: decode_time,
+    #    queue_time: queue_time,
+    #    result: log_result(result),
+    #    params: [],
+    #    query: format_query(query, params),
+    #    source: source
+    #  })
   end
 
   defp log_result({:ok, _query, res}), do: {:ok, res}

@@ -439,7 +439,9 @@ defmodule Mongo.Ecto do
   def loaders(:time, type), do: [&load_time/1, type]
   def loaders(:date, type), do: [&load_date/1, type]
   def loaders(:utc_datetime, type), do: [&load_datetime/1, type]
+  def loaders(:utc_datetime_usec, type), do: [&load_datetime/1, type]
   def loaders(:naive_datetime, type), do: [&load_datetime/1, type]
+  def loaders(:naive_datetime_usec, type), do: [&load_datetime/1, type]
   def loaders(:binary_id, type), do: [&load_objectid/1, type]
   def loaders(:uuid, type), do: [&load_binary/1, type]
   def loaders(:binary, type), do: [&load_binary/1, type]
@@ -699,7 +701,8 @@ defmodule Mongo.Ecto do
     end
   end
 
-  def insert_all(repo, meta, _fields, params, _, _returning, opts) do
+  @impl true
+  def insert_all(repo, meta, _fields, params, _on_conflict, _returning, _placeholders, opts) do
     normalized = NormalizedQuery.insert(meta, params)
 
     case Connection.insert_all(repo, normalized, opts) do
