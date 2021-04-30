@@ -92,8 +92,15 @@ defmodule Mongo.Ecto.Conversions do
     end
   end
 
-  defp key(pk, pk), do: :_id
-  defp key(key, _), do: key
+  defp key(pk, pk), do: "_id"
+
+  defp key(key, _) when is_atom(key) do
+    Atom.to_string(key)
+  end
+
+  defp key(key, _) do
+    key
+  end
 
   defp map(map, _fun) when is_map(map) and map_size(map) == 0 do
     {:ok, %{}}
