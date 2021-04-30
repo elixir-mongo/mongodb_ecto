@@ -73,8 +73,7 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
     query = query.query
 
-    %{deleted_count: n} =
-      query(Ecto.Adapter.lookup_meta(repo), :delete_many!, [coll, query], opts)
+    %{deleted_count: n} = query(repo, :delete_many!, [coll, query], opts)
 
     n
   end

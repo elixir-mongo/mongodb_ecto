@@ -1363,8 +1363,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{visits: 13, inserted_at: ^datetime} = TestRepo.get(Post, id)
   end
 
-  # TODO Fails
-  @tag :should_pass
+  # Passes
   test "delete all" do
     assert %Post{} = TestRepo.insert!(%Post{title: "1"})
     assert %Post{} = TestRepo.insert!(%Post{title: "2"})
@@ -1407,8 +1406,7 @@ defmodule Ecto.Integration.RepoTest do
     assert p3 == %{id: id3, title: "3"}
   end
 
-  # TODO Fails
-  @tag :should_pass
+  # Passes
   test "delete all with filter" do
     assert %Post{} = TestRepo.insert!(%Post{title: "1"})
     assert %Post{} = TestRepo.insert!(%Post{title: "2"})
@@ -1419,8 +1417,7 @@ defmodule Ecto.Integration.RepoTest do
     assert [%Post{}] = TestRepo.all(Post)
   end
 
-  # TODO Fails
-  @tag :should_pass
+  # Passes
   test "delete all no entries" do
     assert %Post{id: id1} = TestRepo.insert!(%Post{title: "1"})
     assert %Post{id: id2} = TestRepo.insert!(%Post{title: "2"})
