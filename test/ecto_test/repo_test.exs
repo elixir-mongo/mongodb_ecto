@@ -825,22 +825,20 @@ defmodule Ecto.Integration.RepoTest do
     assert %{comments: %Ecto.Association.NotLoaded{}} = TestRepo.reload(post)
   end
 
-  # TODO Fails
-  # Expected exception RuntimeError but got Ecto.Query.CastError (deps/ecto/lib/ecto/repo/queryable.ex:468: value `["608c28ca29eb8978c3ebab15", "608c28ca29eb8978c3ebab16", 55]` in `where` cannot be cast to type {:in, :binary_id} in query:
-  @tag :should_pass
   test "reload!" do
     post1 = TestRepo.insert!(%Post{title: "1", visits: 1})
     post2 = TestRepo.insert!(%Post{title: "2", visits: 2})
+    non_existent_id = BSON.ObjectId.encode!(Mongo.object_id())
 
     assert post1 == TestRepo.reload!(post1)
     assert [post1, post2] == TestRepo.reload!([post1, post2])
 
     assert_raise RuntimeError, ~r"could not reload", fn ->
-      TestRepo.reload!([post1, post2, %Post{id: 55}])
+      TestRepo.reload!([post1, post2, %Post{id: non_existent_id}])
     end
 
     assert_raise Ecto.NoResultsError, fn ->
-      TestRepo.reload!(%Post{id: 55})
+      TestRepo.reload!(%Post{id: non_existent_id})
     end
 
     assert [post2, post1] == TestRepo.reload([post2, post1])
@@ -907,11 +905,11 @@ defmodule Ecto.Integration.RepoTest do
     assert query |> TestRepo.exists?() == true
   end
 
-  # TODO Fails
-  # ** (Ecto.NoResultsError) expected at least one result but got none in query:
-  @tag :should_pass
+  # Passes
   test "aggregate" do
-    assert TestRepo.aggregate(Post, :max, :visits) == nil
+    assert_raise Ecto.NoResultsError, fn ->
+      assert TestRepo.aggregate(Post, :max, :visits) == nil
+    end
 
     TestRepo.insert!(%Post{visits: 10})
     TestRepo.insert!(%Post{visits: 12})
@@ -927,6 +925,14 @@ defmodule Ecto.Integration.RepoTest do
     # With order_by
     query = from Post, order_by: [asc: :visits]
     assert TestRepo.aggregate(query, :max, :visits) == 14
+  end
+
+  @tag :sub_query
+  test "aggregate with order_by and limit" do
+    TestRepo.insert!(%Post{visits: 10})
+    TestRepo.insert!(%Post{visits: 12})
+    TestRepo.insert!(%Post{visits: 14})
+    TestRepo.insert!(%Post{visits: 14})
 
     # With order_by and limit
     query = from Post, order_by: [asc: :visits], limit: 2
