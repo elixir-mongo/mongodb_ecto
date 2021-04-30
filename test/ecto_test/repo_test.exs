@@ -1525,8 +1525,7 @@ defmodule Ecto.Integration.RepoTest do
       assert %Post{id: ^pid3} = p3
     end
 
-    # TODO Fails
-    @tag :should_pass
+    # Passes
     test "take with maps" do
       %{id: pid1} = TestRepo.insert!(%Post{title: "1"})
       %{id: pid2} = TestRepo.insert!(%Post{title: "2"})
@@ -1539,11 +1538,15 @@ defmodule Ecto.Integration.RepoTest do
       assert p2 == %{title: "2"}
       assert p3 == %{title: "3"}
 
-      # This fails -- the id isn't there for p1
-      [p1, p2, p3] = "posts" |> select([:id]) |> order_by([:id]) |> TestRepo.all()
-      assert p1 == %{id: pid1}
-      assert p2 == %{id: pid2}
-      assert p3 == %{id: pid3}
+      # Since we're using a schemaless schema here, the Mongo Adapter won't know
+      #  that id is converted to _id. So, we have to select and order_by :_id
+      [p1, p2, p3] = "posts" |> select([:_id]) |> order_by([:_id]) |> TestRepo.all()
+
+      # Likewise, since the Mongo adapter doesn't know the schema, it can't convert the
+      # ids to the string representation of them.
+      assert p1 == %{_id: BSON.ObjectId.decode!(pid1)}
+      assert p2 == %{_id: BSON.ObjectId.decode!(pid2)}
+      assert p3 == %{_id: BSON.ObjectId.decode!(pid3)}
     end
 
     @tag :preload
