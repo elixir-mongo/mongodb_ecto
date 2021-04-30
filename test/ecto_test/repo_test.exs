@@ -797,12 +797,18 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
+  # Passes
   test "reload" do
     post1 = TestRepo.insert!(%Post{title: "1", visits: 1})
     post2 = TestRepo.insert!(%Post{title: "2", visits: 2})
+    non_existent_id = BSON.ObjectId.encode!(Mongo.object_id())
 
     assert post1 == TestRepo.reload(post1)
     assert [post1, post2] == TestRepo.reload([post1, post2])
+
+    assert [post1, post2, nil] == TestRepo.reload([post1, post2, %Post{id: non_existent_id}])
+
+    assert nil == TestRepo.reload(%Post{id: non_existent_id})
 
     # keeps order as received in the params
     assert [post2, post1] == TestRepo.reload([post2, post1])
