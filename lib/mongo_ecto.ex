@@ -453,7 +453,9 @@ defmodule Mongo.Ecto do
 
   defp load_time(time), do: Time.to_erl(time)
 
-  defp load_date(date), do: {:ok, date |> DateTime.to_date() |> Date.to_erl()}
+  defp load_date(date) do
+    {:ok, date |> DateTime.to_date()}
+  end
 
   defp load_datetime(datetime) do
     {:ok, datetime}
@@ -501,7 +503,13 @@ defmodule Mongo.Ecto do
     {:ok, dt}
   end
 
-  defp dump_date(_), do: :error
+  defp dump_date(%Date{} = date) do
+    {:ok, date}
+  end
+
+  defp dump_date(_) do
+    :error
+  end
 
   defp dump_utc_datetime({{_, _, _} = date, {h, m, s, ms}}) do
     datetime =
