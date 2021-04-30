@@ -13,7 +13,7 @@
 # 6/36
 # Code.require_file("../deps/ecto/integration_test/cases/preload.exs", __DIR__)
 
-# 28/125
+# 84/125
 # Code.require_file("../deps/ecto/integration_test/cases/repo.exs", __DIR__)
 
 # 6/33
