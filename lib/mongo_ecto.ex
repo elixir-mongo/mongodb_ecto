@@ -859,8 +859,9 @@ defmodule Mongo.Ecto do
   end
 
   defp truncate_collection(repo, collection, opts) do
+    meta = Ecto.Adapter.lookup_meta(repo)
     query = %WriteQuery{coll: collection, query: %{}}
-    Connection.delete_all(repo, query, opts)
+    Connection.delete_all(meta, query, opts)
   end
 
   defp db_version(repo) do
