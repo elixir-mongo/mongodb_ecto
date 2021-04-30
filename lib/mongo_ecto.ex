@@ -738,7 +738,6 @@ defmodule Mongo.Ecto do
   end
 
   defp process_document(document, %{fields: fields, pk: pk}) do
-    document = Conversions.to_ecto_pk(document, pk)
     document = Conversions.to_ecto_pk(document, pk || :_id)
 
     Enum.map(fields, fn
