@@ -45,6 +45,7 @@ defmodule Mongo.Ecto.Integration.StreamTest do
     assert c2.id == cid2
   end
 
+  @tag :preload
   test "stream with preload" do
     p1 = TestRepo.insert!(%Post{title: "1"})
     p2 = TestRepo.insert!(%Post{title: "2"})

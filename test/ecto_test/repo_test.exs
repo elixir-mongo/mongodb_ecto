@@ -1770,7 +1770,7 @@ defmodule Ecto.Integration.RepoTest do
     end
 
     # TODO Fails
-    @tag :with_conflict
+    @tag :with_conflict_target
     test "on conflict ignore" do
       post = %Post{title: "first", uuid: Ecto.UUID.generate()}
       {:ok, inserted} = TestRepo.insert(post, on_conflict: :nothing)

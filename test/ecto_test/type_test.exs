@@ -145,6 +145,7 @@ defmodule Ecto.Integration.TypeTest do
   end
 
   # TODO invalid expression
+  @tag :coalesce
   test "coalesce text type when default" do
     TestRepo.insert!(%Post{blob: nil})
     blob = <<0, 1>>
@@ -153,6 +154,7 @@ defmodule Ecto.Integration.TypeTest do
   end
 
   # TODO Invalid expression
+  @tag :coalesce
   test "coalesce text type when value" do
     blob = <<0, 2>>
     default_blob = <<0, 1>>
@@ -161,57 +163,59 @@ defmodule Ecto.Integration.TypeTest do
     assert [^blob] = TestRepo.all(query)
   end
 
-  # test "tagged types" do
-  #   TestRepo.insert!(%Post{})
+  @tag :tagged_types
+  test "tagged types" do
+    TestRepo.insert!(%Post{})
 
-  #   # Numbers
-  #   assert [1] = TestRepo.all(from Post, select: type(^"1", :integer))
-  #   assert [1.0] = TestRepo.all(from Post, select: type(^1.0, :float))
-  #   assert [1] = TestRepo.all(from p in Post, select: type(^"1", p.visits))
-  #   assert [1.0] = TestRepo.all(from p in Post, select: type(^"1", p.intensity))
+    # Numbers
+    assert [1] = TestRepo.all(from Post, select: type(^"1", :integer))
+    assert [1.0] = TestRepo.all(from Post, select: type(^1.0, :float))
+    assert [1] = TestRepo.all(from p in Post, select: type(^"1", p.visits))
+    assert [1.0] = TestRepo.all(from p in Post, select: type(^"1", p.intensity))
 
-  #   # Custom wrappers
-  #   assert [1] = TestRepo.all(from Post, select: type(^"1", CustomPermalink))
+    # Custom wrappers
+    assert [1] = TestRepo.all(from Post, select: type(^"1", CustomPermalink))
 
-  #   # Custom types
-  #   uuid = Ecto.UUID.generate()
-  #   assert [^uuid] = TestRepo.all(from Post, select: type(^uuid, Ecto.UUID))
+    # Custom types
+    uuid = Ecto.UUID.generate()
+    assert [^uuid] = TestRepo.all(from Post, select: type(^uuid, Ecto.UUID))
 
-  #   # Math operations
-  #   assert [4] = TestRepo.all(from Post, select: type(2 + ^"2", :integer))
-  #   assert [4.0] = TestRepo.all(from Post, select: type(2.0 + ^"2", :float))
-  #   assert [4] = TestRepo.all(from p in Post, select: type(2 + ^"2", p.visits))
-  #   assert [4.0] = TestRepo.all(from p in Post, select: type(2.0 + ^"2", p.intensity))
-  # end
+    # Math operations
+    assert [4] = TestRepo.all(from Post, select: type(2 + ^"2", :integer))
+    assert [4.0] = TestRepo.all(from Post, select: type(2.0 + ^"2", :float))
+    assert [4] = TestRepo.all(from p in Post, select: type(2 + ^"2", p.visits))
+    assert [4.0] = TestRepo.all(from p in Post, select: type(2.0 + ^"2", p.intensity))
+  end
 
   # TODO FAILS
-  # test "binary id type" do
-  #   assert %Custom{} = custom = TestRepo.insert!(%Custom{})
-  #   bid = custom.bid
-  #   assert [^bid] = TestRepo.all(from c in Custom, select: c.bid)
+  @tag :binary_id_type
+  test "binary id type" do
+    assert %Custom{} = custom = TestRepo.insert!(%Custom{})
+    bid = custom.bid
+    assert [^bid] = TestRepo.all(from c in Custom, select: c.bid)
 
-  #   # TODO FAils with invalid expression
-  #   assert [^bid] = TestRepo.all(from c in Custom, select: type(^bid, :binary_id))
-  # end
+    # TODO FAils with invalid expression
+    assert [^bid] = TestRepo.all(from c in Custom, select: type(^bid, :binary_id))
+  end
 
   # TODO Invalid express
-  # @tag :like_match_blob
-  # test "text type as blob" do
-  #   assert %Post{} = post = TestRepo.insert!(%Post{blob: <<0, 1, 2>>})
-  #   id = post.id
-  #   assert post.blob == <<0, 1, 2>>
-  #   assert [^id] = TestRepo.all(from p in Post, where: like(p.blob, ^<<0, 1, 2>>), select: p.id)
-  # end
+  @tag :like_match_blob
+  test "text type as blob" do
+    assert %Post{} = post = TestRepo.insert!(%Post{blob: <<0, 1, 2>>})
+    id = post.id
+    assert post.blob == <<0, 1, 2>>
+    assert [^id] = TestRepo.all(from p in Post, where: like(p.blob, ^<<0, 1, 2>>), select: p.id)
+  end
 
   # TODO invalid express
-  # @tag :like_match_blob
-  # @tag :text_type_as_string
-  # test "text type as string" do
-  #   assert %Post{} = post = TestRepo.insert!(%Post{blob: "hello"})
-  #   id = post.id
-  #   assert post.blob == "hello"
-  #   assert [^id] = TestRepo.all(from p in Post, where: like(p.blob, ^"hello"), select: p.id)
-  # end
+  @tag :like_match_blob
+  @tag :text_type_as_string
+  test "text type as string" do
+    assert %Post{} = post = TestRepo.insert!(%Post{blob: "hello"})
+    id = post.id
+    assert post.blob == "hello"
+    assert [^id] = TestRepo.all(from p in Post, where: like(p.blob, ^"hello"), select: p.id)
+  end
 
   # PASSES
   @tag :array_type
@@ -572,6 +576,7 @@ defmodule Ecto.Integration.TypeTest do
   end
 
   # TODO Tagged type doesn't work
+  @tag :tagged_types
   test "schemaless types" do
     TestRepo.insert!(%Post{visits: 123})
     assert [123] = TestRepo.all(from p in "posts", select: type(p.visits, :integer))

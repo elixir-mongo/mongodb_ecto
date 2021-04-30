@@ -21,9 +21,25 @@ ExUnit.start(
     :uses_usec,
 
     # Unsure?
+    :aggregate_filters,
+    :binary_id_type,
+    :coalesce,
+    :concat,
     :group_by,
-    :sub_query,
+    :insert_cell_wise_defaults,
+    :insert_select,
+    :like_match_blob,
+    :placeholders,
     :preload,
+    :sub_query,
+    :tagged_types,
+    :union_with_literals,
+    :unique_constraint,
+    :preload,
+
+    # For now:
+    :json_extract_path,
+    :select_not,
 
     # TODO: Turn these back on
     :with_conflict_target,
