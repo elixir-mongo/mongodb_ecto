@@ -22,11 +22,11 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp deps do
     [
-      {:mongodb, "~> 0.5.1"},
+      {:mongodb, github: "commoncurriculum/mongodb", branch: "ecto-3"},
       {:ecto, "~> 3.6"},
-      {:dialyxir, "~> 0.5", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.1.0", only: :dev, runtime: false},
       {:excoveralls, "~> 0.8", only: :test},
-      {:inch_ex, "~> 0.5", only: [:dev, :test]},
+      {:inch_ex, "~> 2.0.0", only: [:dev, :test]},
       {:earmark, "~> 1.0", only: :dev},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:poolboy, ">= 1.5.0", only: [:dev, :test]},
