@@ -787,6 +787,11 @@ defmodule Mongo.Ecto do
     Connection.storage_down(opts)
   end
 
+  @impl true
+  def storage_status(opts) do
+    Connection.storage_status(opts)
+  end
+
   ## Mongo specific calls
 
   special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}

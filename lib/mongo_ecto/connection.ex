@@ -39,6 +39,16 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
+  def storage_status(opts) do
+    {:ok, _apps} = Application.ensure_all_started(:mongodb)
+    {:ok, conn} = Mongo.start_link(opts)
+
+    case Mongo.command(conn, %{ping: true}) do
+      {:ok, %{"ok" => 1.0}} -> :up
+      _ -> :down
+    end
+  end
+
   ## Callbacks for adapter
 
   def read(repo, query, opts \\ [])
