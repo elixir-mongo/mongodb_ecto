@@ -768,6 +768,12 @@ defmodule Mongo.Ecto do
     end)
   end
 
+  # TODO Not sure how to do this or if it's useful for Mongo
+  @impl true
+  def checkout(_, _, fun) do
+    fun.()
+  end
+
   ## Storage
 
   # Noop for MongoDB, as any databases and collections are created as needed.
