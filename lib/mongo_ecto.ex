@@ -632,6 +632,8 @@ defmodule Mongo.Ecto do
 
   @impl true
   def execute(meta, _query_meta, {:nocache, {function, query}}, params, opts) do
+    struct = get_struct_from_query(query)
+
     case apply(NormalizedQuery, function, [query, params]) do
       %AggregateQuery{} = query ->
         {rows, count} =
@@ -650,7 +652,7 @@ defmodule Mongo.Ecto do
       %ReadQuery{} = query ->
         {rows, count} =
           Connection.read(meta, query, opts)
-          |> Enum.map_reduce(0, &{process_document(&1, query), &2 + 1})
+          |> Enum.map_reduce(0, &{process_document(&1, query, struct), &2 + 1})
 
         {count, rows}
 
@@ -677,10 +679,12 @@ defmodule Mongo.Ecto do
   #  ecto's batch/preload functionality ( hence the map(&{nil, [&1]}) )
   @impl true
   def stream(adapter_meta, _query_meta, {:nocache, {function, query}}, params, opts) do
+    struct = get_struct_from_query(query)
+
     case apply(NormalizedQuery, function, [query, params]) do
       %{__struct__: read} = query when read in @read_queries ->
         Connection.read(adapter_meta, query, opts)
-        |> Stream.map(&process_document(&1, query))
+        |> Stream.map(&process_document(&1, query, struct))
 
       %WriteQuery{} = write ->
         apply(Connection, function, [adapter_meta, write, opts])
@@ -688,6 +692,11 @@ defmodule Mongo.Ecto do
     end
     |> Stream.map(&{nil, [&1]})
   end
+
+  defp get_struct_from_query(%Ecto.Query{from: %Ecto.Query.FromExpr{source: {_coll, struct}}}),
+    do: struct.__struct__()
+
+  defp get_struct_from_query(_), do: nil
 
   @impl true
   def insert(_repo, meta, _params, _on_conflict, [_ | _] = returning, _opts) do
@@ -737,12 +746,18 @@ defmodule Mongo.Ecto do
     Connection.delete(repo, normalized, opts)
   end
 
-  defp process_document(document, %{fields: fields, pk: pk}) do
+  defp process_document(document, %{fields: fields, pk: pk}, struct) do
     document = Conversions.to_ecto_pk(document, pk || :_id)
 
     Enum.map(fields, fn
       {:field, name, _field} ->
-        Map.get(document, Atom.to_string(name))
+        # If we don't have the key but do a have a struct, we get the default.
+        # Otherwise, we get get the value from the doc
+        if Map.has_key?(document, Atom.to_string(name)) == false && struct != nil do
+          Map.get(struct, name)
+        else
+          Map.get(document, Atom.to_string(name))
+        end
 
       {:value, value, _field} ->
         Conversions.to_ecto_pk(value, pk)

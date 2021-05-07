@@ -217,6 +217,14 @@ defmodule Ecto.Integration.TypeTest do
     assert [^id] = TestRepo.all(from p in Post, where: like(p.blob, ^"hello"), select: p.id)
   end
 
+  test "uses default value" do
+    {_, opts} = Ecto.Repo.Registry.lookup(TestRepo)
+    Mongo.insert_one(opts.pid, "posts", %{title: "My Post"})
+
+    post = TestRepo.all(Post) |> List.first()
+    assert post.public == true
+  end
+
   # PASSES
   @tag :array_type
   test "array type" do
