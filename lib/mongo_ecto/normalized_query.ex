@@ -40,7 +40,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   alias Mongo.Ecto.Conversions
-  alias Ecto.Query.Tagged
   alias Ecto.Query
 
   defmacrop is_op(op) do
@@ -173,7 +172,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp projection(%Query{select: nil}, _params, _from), do: {:find, %{}, []}
 
   defp projection(
-         %Query{select: %Query.SelectExpr{fields: fields} = select} = query,
+         %Query{select: %Query.SelectExpr{fields: fields} = _select} = query,
          params,
          from
        ) do
@@ -345,8 +344,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
     ["$set": values |> value(pk, "update command") |> map_unless_empty]
   end
 
-  defp both_nil(nil, nil), do: true
-  defp both_nil(_, _), do: false
+  # Currently unused
+  # defp both_nil(nil, nil), do: true
+  # defp both_nil(_, _), do: false
 
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
 
@@ -550,15 +550,4 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp error(place) do
     raise ArgumentError, "Invalid expression for MongoDB adapter in #{place}"
   end
-
-  defp intersperse_map(list, separator, mapper, acc \\ [])
-
-  defp intersperse_map([], _separator, _mapper, acc),
-    do: acc
-
-  defp intersperse_map([elem], _separator, mapper, acc),
-    do: [acc | mapper.(elem)]
-
-  defp intersperse_map([elem | rest], separator, mapper, acc),
-    do: intersperse_map(rest, separator, mapper, [acc, mapper.(elem), separator])
 end

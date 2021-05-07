@@ -26,7 +26,7 @@ defmodule Mongo.Ecto.Conversions do
     do: map(list, &inject_params(&1, params, pk))
 
   def inject_params(
-        %Ecto.Query.Tagged{tag: tag, type: type, value: {:^, _, [idx]} = value},
+        %Ecto.Query.Tagged{tag: _tag, type: _type, value: {:^, _, [idx]} = _value},
         params,
         pk
       ) do

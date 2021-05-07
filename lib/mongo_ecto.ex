@@ -371,6 +371,7 @@ defmodule Mongo.Ecto do
   ## Adapter
 
   @doc false
+  @impl true
   defmacro __before_compile__(_env) do
   end
 
@@ -804,7 +805,7 @@ defmodule Mongo.Ecto do
 
     collection_names =
       if major_version > 3 || (major_version == 3 && minor_version >= 4) do
-        all_collection_names =
+        _all_collection_names =
           repo
           |> command(%{listCollections: 1}, opts)
           |> get_in(["cursor", "firstBatch"])

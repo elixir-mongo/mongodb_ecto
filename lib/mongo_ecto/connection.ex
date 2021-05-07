@@ -22,7 +22,7 @@ defmodule Mongo.Ecto.Connection do
 
   ## Worker
 
-  def init(config) do
+  def init(_config) do
   end
 
   def storage_down(opts) do
@@ -102,7 +102,7 @@ defmodule Mongo.Ecto.Connection do
     query = query.query
 
     case query(repo, :update_many, [coll, query, command], opts) do
-      {:ok, %Mongo.UpdateResult{modified_count: m} = result} ->
+      {:ok, %Mongo.UpdateResult{modified_count: m} = _result} ->
         m
 
       {:error, error} ->
@@ -173,17 +173,17 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
-  defp log(repo, entry, opts) do
-    %{
-      connection_time: query_time,
-      decode_time: decode_time,
-      pool_time: queue_time,
-      result: result,
-      query: query,
-      params: params
-    } = entry
+  defp log(_repo, _entry, _opts) do
+    # %{
+    #   connection_time: query_time,
+    #   decode_time: decode_time,
+    #   pool_time: queue_time,
+    #   result: result,
+    #   query: query,
+    #   params: params
+    # } = entry
 
-    source = Keyword.get(opts, :source)
+    # source = Keyword.get(opts, :source)
 
     #  repo.__log__(%Ecto.LogEntry{
     #    query_time: query_time,
@@ -196,8 +196,9 @@ defmodule Mongo.Ecto.Connection do
     #  })
   end
 
-  defp log_result({:ok, _query, res}), do: {:ok, res}
-  defp log_result(other), do: other
+  # Currently unused
+  # defp log_result({:ok, _query, res}), do: {:ok, res}
+  # defp log_result(other), do: other
 
   defp check_constraint_errors(%Mongo.Error{code: 11000, message: msg}) do
     {:invalid, [unique: extract_index(msg)]}
@@ -212,7 +213,7 @@ defmodule Mongo.Ecto.Connection do
 
     case Enum.reverse(parts) do
       [_, index | _] ->
-        String.strip(index)
+        String.trim(index)
 
       _ ->
         raise "failed to extract index from error message: #{inspect(msg)}"

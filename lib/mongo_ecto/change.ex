@@ -34,6 +34,10 @@ defmodule Mongo.Ecto.ChangeMap do
   Change is not a value - it can't be loaded
   """
   def load(_), do: :error
+
+  def embed_as(_), do: :dump
+
+  def equal?(a, b), do: a == b
 end
 
 defmodule Mongo.Ecto.ChangeArray do
@@ -72,4 +76,8 @@ defmodule Mongo.Ecto.ChangeArray do
   Change is not a value - it can't be loaded
   """
   def load(_), do: :error
+
+  def embed_as(_), do: :dump
+
+  def equal?(a, b), do: a == b
 end

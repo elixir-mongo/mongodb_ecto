@@ -130,11 +130,20 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     query = Schema |> select([r], [r, r.x]) |> normalize
     assert_fields query, projection: %{_id: true, x: true, y: true, z: true, w: true}
     # This seems off -- why is x apearing 2 times?
-    assert [{:field, :id, _}, {:field, :x, _}, {:field, :y, _}, {:field, :z, _}, {:field, :w, _}, {:field, :x, _}] = query.fields
+    assert [
+             {:field, :id, _},
+             {:field, :x, _},
+             {:field, :y, _},
+             {:field, :z, _},
+             {:field, :w, _},
+             {:field, :x, _}
+           ] = query.fields
 
     query = Schema |> select([r], [r]) |> normalize
     assert_fields query, projection: %{_id: true, x: true, y: true, z: true, w: true}
-    assert [{:field, :id, _}, {:field, :x, _}, {:field, :y, _}, {:field, :z, _}, {:field, :w, _}] = query.fields
+
+    assert [{:field, :id, _}, {:field, :x, _}, {:field, :y, _}, {:field, :z, _}, {:field, :w, _}] =
+             query.fields
 
     query = Schema |> select([r], {1}) |> normalize
     assert_fields query, projection: %{}, fields: []
