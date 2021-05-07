@@ -371,7 +371,7 @@ defmodule Mongo.Ecto do
   ## Adapter
 
   @doc false
-  defmacro __before_compile__(env) do
+  defmacro __before_compile__(_env) do
   end
 
   @pool_timeout 5_000
