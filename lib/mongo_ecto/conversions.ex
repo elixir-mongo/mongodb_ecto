@@ -94,10 +94,6 @@ defmodule Mongo.Ecto.Conversions do
 
   defp key(pk, pk), do: :_id
 
-  defp key(key, _) when is_binary(key) do
-    String.to_atom(key)
-  end
-
   defp key(key, _) do
     key
   end
