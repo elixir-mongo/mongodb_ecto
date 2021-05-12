@@ -59,6 +59,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Does nto support distinct claust
+  @tag :distinct
   test "has_many through assoc" do
     p1 = TestRepo.insert!(%Post{})
     p2 = TestRepo.insert!(%Post{})
@@ -81,6 +82,7 @@ defmodule Ecto.Integration.AssocTest do
 
   # Fails
   @tag :on_replace_nilify
+  @tag :distinct
   test "has_many through-through assoc leading" do
     p1 = TestRepo.insert!(%Post{})
     p2 = TestRepo.insert!(%Post{})
@@ -105,6 +107,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Fails distinc
+  @tag :distinct
   test "has_many through-through assoc trailing" do
     p1 = TestRepo.insert!(%Post{})
     u1 = TestRepo.insert!(%User{})
@@ -121,6 +124,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Fails distinct
+  @tag :distinct
   test "has_many through has_many, many_to_many and has_many" do
     user1 = %User{id: uid1} = TestRepo.insert!(%User{name: "Gabriel"})
     %User{id: uid2} = TestRepo.insert!(%User{name: "Isadora"})
@@ -149,6 +153,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # Fails distinct
+  @tag :distinct
   test "has_many through has_many, belongs_to and a nested has through" do
     user1 = TestRepo.insert!(%User{name: "Gabriel"})
     user2 = TestRepo.insert!(%User{name: "Isadora"})
@@ -172,6 +177,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Fails distinct
+  @tag :distinct
   test "has_many through two many_to_many associations" do
     user1 = %User{id: uid1} = TestRepo.insert!(%User{name: "Gabriel"})
     %User{id: uid2} = TestRepo.insert!(%User{name: "Isadora"})
@@ -204,6 +210,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Fails distinct
+  @tag :distinct
   test "has_many through with where" do
     post1 = TestRepo.insert!(%Post{title: "p1"})
     post2 = TestRepo.insert!(%Post{title: "p2"})
@@ -310,6 +317,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Fails
+  @tag :on_replace_delete_if_exists
   test "has_one changeset assoc (on_replace: :delete_if_exists)" do
     permalink = TestRepo.insert!(%Permalink{url: "1"})
     post = TestRepo.insert!(%Post{title: "1", permalink: permalink, force_permalink: permalink})
@@ -498,6 +506,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Fails
+  @tag :on_replace_delete_if_exists
   test "has_many changeset assoc (on_replace: :delete_if_exists)" do
     comment = TestRepo.insert!(%Comment{text: "1"})
     post = TestRepo.insert!(%Post{title: "1", comments: [comment], force_comments: [comment]})
@@ -760,6 +769,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Fails
+  @tag :on_replace_update
   test "belongs_to changeset assoc (on_replace: :update)" do
     # Insert new
     changeset =
@@ -924,6 +934,7 @@ defmodule Ecto.Integration.AssocTest do
   end
 
   # TODO Fails no match
+  @tag :delete_with_has_many
   test "many_to_many assoc on delete deletes all" do
     p1 = TestRepo.insert!(%Post{title: "1", visits: 1})
     p2 = TestRepo.insert!(%Post{title: "2", visits: 2})

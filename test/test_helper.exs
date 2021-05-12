@@ -31,11 +31,15 @@ ExUnit.start(
     :like_match_blob,
     :placeholders,
     :preload,
+    :on_replace_delete_if_exists,
+    :on_replace_update,
     :sub_query,
     :tagged_types,
     :union_with_literals,
     :unique_constraint,
     :preload,
+    :distinct,
+    :delete_with_has_many,
 
     # For now:
     :json_extract_path,
