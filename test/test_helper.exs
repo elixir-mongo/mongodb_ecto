@@ -115,7 +115,6 @@ defmodule Ecto.Integration.Case do
   use ExUnit.CaseTemplate
 
   alias Ecto.Integration.TestRepo
-  alias Ecto.Integration.PoolRepo
 
   setup_all do
     :ok

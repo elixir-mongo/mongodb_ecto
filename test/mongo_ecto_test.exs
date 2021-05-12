@@ -6,8 +6,6 @@ defmodule Mongo.EctoTest do
   alias Ecto.Integration.TestRepo
   alias Ecto.Integration.Post
   alias Ecto.Integration.Tag
-  alias Ecto.Integration.Order
-  alias Ecto.Integration.Item
 
   import Ecto.Query, only: [from: 2]
   import Mongo.Ecto.Helpers

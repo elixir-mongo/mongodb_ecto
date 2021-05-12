@@ -4,8 +4,6 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
 
   import Ecto.Query
 
-  alias Ecto.Queryable
-
   defmodule Schema do
     use Ecto.Schema
 
