@@ -1,6 +1,8 @@
 defmodule Mongo.Ecto.Connection do
   @moduledoc false
 
+  require Logger
+
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
   alias Mongo.Ecto.NormalizedQuery.WriteQuery
   alias Mongo.Ecto.NormalizedQuery.CommandQuery
@@ -170,45 +172,140 @@ defmodule Mongo.Ecto.Connection do
     query(repo, :command!, [command], opts)
   end
 
-  def query(repo, operation, args, opts) do
-    # {conn, default_opts} = repo.__pool__
-    args = [repo.pid] ++ args ++ [with_log(repo, opts)]
+  def query(adapter_meta, operation, args, opts) do
+    %{pid: pool, telemetry: telemetry, opts: default_opts} = adapter_meta
+
+    args = [pool] ++ args ++ [with_log(telemetry, args, opts ++ default_opts)]
     apply(Mongo, operation, args)
   end
 
-  defp with_log(repo, opts) do
-    case Keyword.pop(opts, :log, true) do
-      {true, opts} -> [log: &log(repo, &1, opts)] ++ opts
-      {false, opts} -> opts
+  defp with_log(telemetry, params, opts) do
+    [log: &log(telemetry, params, &1, opts)] ++ opts
+  end
+
+  defp log({repo, log, event_name}, _params, entry, opts) do
+    %{
+      connection_time: query_time,
+      decode_time: decode_time,
+      pool_time: queue_time,
+      idle_time: idle_time,
+      result: result,
+      query: query,
+      params: params
+    } = entry
+
+    source = Keyword.get(opts, :source)
+
+    params =
+      Enum.map(params, fn
+        %Ecto.Query.Tagged{value: value} -> value
+        value -> value
+      end)
+
+    acc = if idle_time, do: [idle_time: idle_time], else: []
+
+    measurements =
+      log_measurements(
+        [query_time: query_time, decode_time: decode_time, queue_time: queue_time],
+        0,
+        acc
+      )
+
+    metadata = %{
+      type: :ecto_sql_query,
+      repo: repo,
+      result: log_result(result),
+      params: params,
+      query: format_query(query, params),
+      source: source,
+      options: Keyword.get(opts, :telemetry_options, [])
+    }
+
+    if event_name = Keyword.get(opts, :telemetry_event, event_name) do
+      :telemetry.execute(event_name, measurements, metadata)
     end
+
+    case Keyword.get(opts, :log, log) do
+      true ->
+        Logger.log(
+          log,
+          fn -> log_iodata(measurements, metadata) end,
+          ansi_color: log_color(query)
+        )
+
+      false ->
+        :ok
+
+      level ->
+        Logger.log(
+          level,
+          fn -> log_iodata(measurements, metadata) end,
+          ansi_color: log_color(query)
+        )
+    end
+
+    :ok
   end
 
-  defp log(_repo, _entry, _opts) do
-    # %{
-    #   connection_time: query_time,
-    #   decode_time: decode_time,
-    #   pool_time: queue_time,
-    #   result: result,
-    #   query: query,
-    #   params: params
-    # } = entry
+  defp log_measurements([{_, nil} | rest], total, acc),
+    do: log_measurements(rest, total, acc)
 
-    # source = Keyword.get(opts, :source)
+  defp log_measurements([{key, value} | rest], total, acc),
+    do: log_measurements(rest, total + value, [{key, value} | acc])
 
-    #  repo.__log__(%Ecto.LogEntry{
-    #    query_time: query_time,
-    #    decode_time: decode_time,
-    #    queue_time: queue_time,
-    #    result: log_result(result),
-    #    params: [],
-    #    query: format_query(query, params),
-    #    source: source
-    #  })
-  end
+  defp log_measurements([], total, acc),
+    do: Map.new([total_time: total] ++ acc)
 
   # Currently unused
-  # defp log_result({:ok, _query, res}), do: {:ok, res}
-  # defp log_result(other), do: other
+  defp log_result({:ok, _query, res}), do: {:ok, res}
+  defp log_result(other), do: other
+
+  defp log_iodata(measurements, metadata) do
+    %{
+      params: params,
+      query: query,
+      result: result,
+      source: source
+    } = metadata
+
+    [
+      "QUERY",
+      ?\s,
+      log_ok_error(result),
+      log_ok_source(source),
+      log_time("db", measurements, :query_time, true),
+      log_time("decode", measurements, :decode_time, false),
+      log_time("queue", measurements, :queue_time, false),
+      log_time("idle", measurements, :idle_time, true),
+      ?\n,
+      query,
+      ?\s,
+      inspect(params, charlists: false)
+    ]
+  end
+
+  defp log_ok_error({:ok, _res}), do: "OK"
+  defp log_ok_error({:error, _err}), do: "ERROR"
+
+  defp log_ok_source(nil), do: ""
+  defp log_ok_source(source), do: " source=#{inspect(source)}"
+
+  defp log_time(label, measurements, key, force) do
+    case measurements do
+      %{^key => time} ->
+        us = System.convert_time_unit(time, :native, :microsecond)
+        ms = div(us, 100) / 10
+
+        if force or ms > 0 do
+          [?\s, label, ?=, :io_lib_format.fwrite_g(ms), ?m, ?s]
+        else
+          []
+        end
+
+      %{} ->
+        []
+    end
+  end
 
   defp check_constraint_errors(%Mongo.Error{code: 11000, message: msg}) do
     {:invalid, [unique: extract_index(msg)]}
@@ -326,4 +423,15 @@ defmodule Mongo.Ecto.Connection do
   defp format_part(name, value) do
     [" ", name, "=" | inspect(value)]
   end
+
+  defp log_color(%Query{action: :command}), do: :white
+  defp log_color(%Query{action: :find}), do: :cyan
+  defp log_color(%Query{action: :insert_one}), do: :green
+  defp log_color(%Query{action: :insert_many}), do: :green
+  defp log_color(%Query{action: :update_one}), do: :yellow
+  defp log_color(%Query{action: :update_many}), do: :yellow
+  defp log_color(%Query{action: :delete_many}), do: :red
+  defp log_color(%Query{action: :replace_one}), do: :yellow
+  defp log_color(%Query{action: :get_more}), do: :cyan
+  defp log_color(%Query{action: _}), do: nil
 end

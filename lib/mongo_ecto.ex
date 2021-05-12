@@ -694,6 +694,9 @@ defmodule Mongo.Ecto do
     |> Stream.map(&{nil, [&1]})
   end
 
+  defp get_struct_from_query(%Ecto.Query{from: %Ecto.Query.FromExpr{source: {_coll, nil}}}),
+    do: nil
+
   defp get_struct_from_query(%Ecto.Query{from: %Ecto.Query.FromExpr{source: {_coll, struct}}}),
     do: struct.__struct__()
 
