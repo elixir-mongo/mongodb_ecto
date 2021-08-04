@@ -1,8 +1,18 @@
 defmodule Ecto.Integration.TypeTest do
   use Ecto.Integration.Case, async: Application.get_env(:ecto, :async_integration_tests, true)
 
-  alias Ecto.Integration.{Custom, Item, ItemColor, Order, Post, User, Tag, Usec}
-  alias Ecto.Integration.TestRepo
+  alias Ecto.Integration.{
+    Custom,
+    Item,
+    ItemColor,
+    Order,
+    Post,
+    Tag,
+    TestRepo,
+    Usec,
+    User
+  }
+
   import Ecto.Query
 
   test "primitive types" do

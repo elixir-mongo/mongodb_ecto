@@ -1,15 +1,17 @@
 defmodule Ecto.Integration.AssocTest do
   use Ecto.Integration.Case, async: Application.get_env(:ecto, :async_integration_tests, true)
 
-  alias Ecto.Integration.TestRepo
   import Ecto.Query
 
-  alias Ecto.Integration.Custom
-  alias Ecto.Integration.Post
-  alias Ecto.Integration.User
-  alias Ecto.Integration.PostUser
-  alias Ecto.Integration.Comment
-  alias Ecto.Integration.Permalink
+  alias Ecto.Integration.{
+    Comment,
+    Custom,
+    Permalink,
+    Post,
+    PostUser,
+    TestRepo,
+    User
+  }
 
   # Passes
   test "has_many assoc" do

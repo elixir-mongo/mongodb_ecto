@@ -3,11 +3,14 @@ defmodule Mongo.Ecto.Connection do
 
   require Logger
 
-  alias Mongo.Ecto.NormalizedQuery.ReadQuery
-  alias Mongo.Ecto.NormalizedQuery.WriteQuery
-  alias Mongo.Ecto.NormalizedQuery.CommandQuery
-  alias Mongo.Ecto.NormalizedQuery.CountQuery
-  alias Mongo.Ecto.NormalizedQuery.AggregateQuery
+  alias Mongo.Ecto.NormalizedQuery.{
+    AggregateQuery,
+    CommandQuery,
+    CountQuery,
+    ReadQuery,
+    WriteQuery
+  }
+
   alias Mongo.Query
 
   def child_spec(opts) do
@@ -307,7 +310,7 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
-  defp check_constraint_errors(%Mongo.Error{code: 11000, message: msg}) do
+  defp check_constraint_errors(%Mongo.Error{code: 11_000, message: msg}) do
     {:invalid, [unique: extract_index(msg)]}
   end
 

@@ -39,8 +39,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     defstruct coll: nil, pk: nil, fields: [], pipeline: [], database: nil, opts: []
   end
 
-  alias Mongo.Ecto.Conversions
   alias Ecto.Query
+  alias Mongo.Ecto.Conversions
 
   defmacrop is_op(op) do
     quote do

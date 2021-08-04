@@ -9,9 +9,12 @@
 defmodule Mongo.Ecto.Integration.StreamTest do
   use Ecto.Integration.Case
 
-  alias Ecto.Integration.TestRepo
-  alias Ecto.Integration.Post
-  alias Ecto.Integration.Comment
+  alias Ecto.Integration.{
+    Comment,
+    Post,
+    TestRepo
+  }
+
   import Ecto.Query
 
   test "stream empty" do

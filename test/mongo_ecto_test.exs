@@ -3,9 +3,11 @@
 defmodule Mongo.EctoTest do
   use Ecto.Integration.Case
 
-  alias Ecto.Integration.TestRepo
-  alias Ecto.Integration.Post
-  alias Ecto.Integration.Tag
+  alias Ecto.Integration.{
+    Post,
+    Tag,
+    TestRepo
+  }
 
   import Ecto.Query, only: [from: 2]
   import Mongo.Ecto.Helpers

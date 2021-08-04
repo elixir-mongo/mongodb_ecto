@@ -360,13 +360,16 @@ defmodule Mongo.Ecto do
   @behaviour Ecto.Adapter.Schema
   @behaviour Ecto.Adapter.Queryable
 
-  alias Mongo.Ecto.NormalizedQuery
-  alias Mongo.Ecto.NormalizedQuery.ReadQuery
-  alias Mongo.Ecto.NormalizedQuery.WriteQuery
-  alias Mongo.Ecto.NormalizedQuery.CountQuery
-  alias Mongo.Ecto.NormalizedQuery.AggregateQuery
   alias Mongo.Ecto.Connection
   alias Mongo.Ecto.Conversions
+  alias Mongo.Ecto.NormalizedQuery
+
+  alias Mongo.Ecto.NormalizedQuery.{
+    AggregateQuery,
+    CountQuery,
+    ReadQuery,
+    WriteQuery
+  }
 
   ## Adapter
 
@@ -470,12 +473,10 @@ defmodule Mongo.Ecto do
   defp load_binary(_), do: :error
 
   defp load_objectid(%BSON.ObjectId{} = objectid) do
-    try do
-      {:ok, BSON.ObjectId.encode!(objectid)}
-    catch
-      ArgumentError ->
-        :error
-    end
+    {:ok, BSON.ObjectId.encode!(objectid)}
+  rescue
+    ArgumentError ->
+      :error
   end
 
   defp load_objectid(_arg), do: :error
@@ -609,12 +610,9 @@ defmodule Mongo.Ecto do
   defp dump_binary(_, _), do: :error
 
   defp dump_objectid(<<objectid::binary-size(24)>>) do
-    try do
-      {:ok, BSON.ObjectId.decode!(objectid)}
-    catch
-      ArgumentError ->
-        :error
-    end
+    {:ok, BSON.ObjectId.decode!(objectid)}
+  rescue
+    ArgumentError -> :error
   end
 
   defp dump_objectid(_), do: :error
@@ -706,9 +704,7 @@ defmodule Mongo.Ecto do
   def insert(_repo, meta, _params, _on_conflict, [_ | _] = returning, _opts) do
     raise ArgumentError,
           "MongoDB adapter does not support :read_after_writes in models. " <>
-            "The following fields in #{inspect(meta.schema)} are tagged as such: #{
-              inspect(returning)
-            }"
+            "The following fields in #{inspect(meta.schema)} are tagged as such: #{inspect(returning)}"
   end
 
   def insert(repo, meta, params, _, [], opts) do
