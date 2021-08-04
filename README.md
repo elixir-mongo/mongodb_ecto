@@ -1,16 +1,12 @@
 # Mongo.Ecto
 
-[![Travis Build Status](https://img.shields.io/travis/ankhers/mongodb_ecto.svg)](https://travis-ci.org/ankhers/mongodb_ecto)
-[![Coveralls Coverage](https://img.shields.io/coveralls/ankhers/mongodb_ecto.svg)](https://coveralls.io/github/ankhers/mongodb_ecto)
-[![Inline docs](http://inch-ci.org/github/ankhers/mongodb_ecto.svg?branch=master)](http://inch-ci.org/github/ankhers/mongodb_ecto)
+[![Hex.pm](https://img.shields.io/hexpm/v/mongodb_ecto.svg)](https://hex.pm/packages/mongodb_ecto)
+![CI](https://github.com/avid-technology/mongodb_ecto/actions/workflows/ci.yml/badge.svg)
 
 `Mongo.Ecto` is a MongoDB adapter for Ecto.
 
 For detailed information read the documentation for the `Mongo.Ecto` module,
 or check out examples below.
-
-## Features still missing to be Ecto 2.1 compliant
-* on_conflict
 
 ## Example
 ```elixir
@@ -110,8 +106,6 @@ Additionally special values are translated as follows:
 |    null     |           `nil`|
 |    min key  |           `:BSON_min`|
 |    max key  |           `:BSON_max`|
-
-
 
 
 ## Supported Mongo versions
