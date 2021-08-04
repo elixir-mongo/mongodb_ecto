@@ -29,13 +29,10 @@ defmodule Mongo.Ecto.Mixfile do
     [
       {:credo, "~> 1.5.6", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.1.0", only: :dev, runtime: false},
-      {:earmark, "~> 1.0", only: :dev},
       {:ecto, "~> 3.6"},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:excoveralls, "~> 0.8", only: :test},
-      {:inch_ex, "~> 2.0.0", only: [:dev, :test]},
       {:mongodb, github: "commoncurriculum/mongodb", branch: "ecto-3"},
-      {:poolboy, ">= 1.5.0", only: [:dev, :test]},
       {:telemetry, ">= 0.4.0"}
     ]
   end
