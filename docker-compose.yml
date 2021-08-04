@@ -1,0 +1,7 @@
+# See https://docs.docker.com/compose/
+version: "3.9"
+services:
+  mongo:
+    image: mongo:4.4.4
+    ports:
+      - 27017:27017
