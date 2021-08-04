@@ -3,7 +3,7 @@
   inputs: [
     "mix.exs",
     ".formatter.exs",
-    "{config,lib,test,examples}/**/*.{ex,exs}"
+    "{lib,test,examples}/**/*.{ex,exs}"
   ],
   locals_without_parens: [
     # Query
