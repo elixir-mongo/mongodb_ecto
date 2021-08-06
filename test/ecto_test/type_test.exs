@@ -197,14 +197,12 @@ defmodule Ecto.Integration.TypeTest do
     assert [4.0] = TestRepo.all(from p in Post, select: type(2.0 + ^"2", p.intensity))
   end
 
-  # TODO FAILS
   @tag :binary_id_type
   test "binary id type" do
     assert %Custom{} = custom = TestRepo.insert!(%Custom{})
     bid = custom.bid
     assert [^bid] = TestRepo.all(from c in Custom, select: c.bid)
 
-    # TODO FAils with invalid expression
     assert [^bid] = TestRepo.all(from c in Custom, select: type(^bid, :binary_id))
   end
 

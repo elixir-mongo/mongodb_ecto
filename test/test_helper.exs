@@ -22,7 +22,6 @@ ExUnit.start(
 
     # Unsure?
     :aggregate_filters,
-    :binary_id_type,
     :coalesce,
     :concat,
     :group_by,
