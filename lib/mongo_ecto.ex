@@ -501,7 +501,7 @@ defmodule Mongo.Ecto do
     dt =
       {date, {0, 0, 0}}
       |> NaiveDateTime.from_erl!()
-      |> datetime_from_naive!("Etc/UTC")
+      |> DateTime.from_naive!("Etc/UTC")
 
     {:ok, dt}
   end
@@ -518,7 +518,7 @@ defmodule Mongo.Ecto do
     datetime =
       {date, {h, m, s}}
       |> NaiveDateTime.from_erl!({ms, 6})
-      |> datetime_from_naive!("Etc/UTC")
+      |> DateTime.from_naive!("Etc/UTC")
 
     {:ok, datetime}
   end
@@ -527,7 +527,7 @@ defmodule Mongo.Ecto do
     datetime =
       {date, {h, m, s}}
       |> NaiveDateTime.from_erl!({0, 6})
-      |> datetime_from_naive!("Etc/UTC")
+      |> DateTime.from_naive!("Etc/UTC")
 
     {:ok, datetime}
   end
@@ -540,7 +540,7 @@ defmodule Mongo.Ecto do
     datetime =
       {date, {h, m, s}}
       |> NaiveDateTime.from_erl!({ms, 6})
-      |> datetime_from_naive!("Etc/UTC")
+      |> DateTime.from_naive!("Etc/UTC")
 
     {:ok, datetime}
   end
@@ -548,7 +548,7 @@ defmodule Mongo.Ecto do
   defp dump_naive_datetime(%NaiveDateTime{} = dt) do
     datetime =
       dt
-      |> datetime_from_naive!("Etc/UTC")
+      |> DateTime.from_naive!("Etc/UTC")
 
     {:ok, datetime}
   end
@@ -556,52 +556,9 @@ defmodule Mongo.Ecto do
   defp dump_naive_datetime(dt) do
     datetime =
       dt
-      |> datetime_from_naive!("Etc/UTC")
+      |> DateTime.from_naive!("Etc/UTC")
 
     {:ok, datetime}
-  end
-
-  # Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
-  # Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
-  defp datetime_from_naive(
-         %NaiveDateTime{
-           hour: hour,
-           minute: minute,
-           second: second,
-           microsecond: microsecond,
-           year: year,
-           month: month,
-           day: day
-         },
-         "Etc/UTC"
-       ) do
-    {:ok,
-     %DateTime{
-       year: year,
-       month: month,
-       day: day,
-       hour: hour,
-       minute: minute,
-       second: second,
-       microsecond: microsecond,
-       std_offset: 0,
-       utc_offset: 0,
-       zone_abbr: "UTC",
-       time_zone: "Etc/UTC"
-     }}
-  end
-
-  # Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
-  # Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
-  defp datetime_from_naive!(naive_datetime, time_zone) do
-    case datetime_from_naive(naive_datetime, time_zone) do
-      {:ok, datetime} ->
-        datetime
-
-      {:error, reason} ->
-        raise ArgumentError,
-              "cannot parse #{inspect(naive_datetime)} to datetime, reason: #{inspect(reason)}"
-    end
   end
 
   defp dump_binary(binary, subtype) when is_binary(binary),
