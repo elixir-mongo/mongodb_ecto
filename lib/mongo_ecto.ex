@@ -267,7 +267,7 @@ defmodule Mongo.Ecto do
   ## Indexes and Migrations
 
   Although schema migrations make no sense for databases such as MongoDB
-  there is one field where they can be very benefitial - indexes. Because of
+  there is one field where they can be very beneficial - indexes. Because of
   this Mongodb.Ecto supports Ecto's database migrations. You can generate a
   migration with:
 
@@ -677,6 +677,16 @@ defmodule Mongo.Ecto do
   end
 
   @impl true
+  @spec insert_all(
+          %{:opts => any, :pid => any, :telemetry => any, optional(any) => any},
+          %{:prefix => any, :schema => atom, :source => any, optional(any) => any},
+          any,
+          any,
+          any,
+          any,
+          any,
+          list
+        ) :: {:invalid | non_neg_integer, nil | [{:unique, binary}, ...]}
   def insert_all(repo, meta, _fields, params, _on_conflict, _returning, _placeholders, opts) do
     normalized = NormalizedQuery.insert(meta, params)
 
@@ -849,5 +859,52 @@ defmodule Mongo.Ecto do
 
   defp db_version(repo) do
     command(repo, %{buildinfo: 1}, [])["versionArray"]
+  end
+
+  @doc """
+  Lists indexes in the specified `repo` and `collection`.
+  """
+  def list_indexes(repo, collection, opts \\ []) do
+    Ecto.Adapter.lookup_meta(repo)
+    |> Connection.query(:list_indexes, [collection], opts)
+    |> Enum.to_list()
+  end
+
+  def list_index_names(repo, collection, opts \\ []) do
+    Ecto.Adapter.lookup_meta(repo)
+    |> Connection.query(:list_index_names, [collection], opts)
+    |> Enum.to_list()
+  end
+
+  def index(repo, collection, index_name, opts \\ []) do
+    list_indexes(repo, collection, opts)
+    |> Enum.find(fn index -> index["name"] == index_name end)
+  end
+
+  @doc """
+  Creates one or more `indexes` for the specified collection `coll`.
+
+  See
+  https://docs.mongodb.com/manual/reference/method/db.collection.createIndexes/#mongodb-method-db.collection.createIndexes
+  for the syntax of `indexes`.
+  """
+  def create_indexes(repo, collection, indexes, opts \\ []) do
+    Ecto.Adapter.lookup_meta(repo)
+    |> Connection.query(:create_indexes, [collection, indexes], opts)
+  end
+
+  @doc """
+  Drops the specified `indexes` in the collection `coll`.
+
+  To drop a single index, pass the name of the index.
+
+  To drop multiple indexes at once pass a list of indexes to `index`.  To drop all indexes except
+  that of `_id` pass "*" to `index`.
+
+  See https://docs.mongodb.com/manual/reference/command/dropIndexes/#dropindexes
+  """
+  def drop_indexes(repo, collection, indexes, opts \\ []) do
+    Ecto.Adapter.lookup_meta(repo)
+    |> Connection.query(:drop_index, [collection, indexes], opts)
   end
 end
