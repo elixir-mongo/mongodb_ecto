@@ -22,7 +22,7 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp deps do
     [
-      {:mongodb, github: "elixir-ecto/mongodb", branch: "ecto-3"},
+      {:mongodb, github: "elixir-mongo/mongodb", branch: "ecto-3"},
       {:ecto, "~> 3.6"},
       {:dialyxir, "~> 1.1.0", only: :dev, runtime: false},
       {:excoveralls, "~> 0.8", only: :test},
