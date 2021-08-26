@@ -124,6 +124,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
   end
 
+  def update_one(%{source: coll, prefix: prefix, schema: schema}, fields, filter) do
+    command = command(:update_one, fields, primary_key(schema))
+    query = query(filter, primary_key(schema))
+
+    %WriteQuery{coll: coll, query: query, database: prefix, command: command}
+  end
+
   def update(%{source: coll, prefix: prefix, schema: schema}, fields, filter) do
     command = command(:update, fields, primary_key(schema))
     query = query(filter, primary_key(schema))
@@ -352,10 +359,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp command(:update, values, pk) do
     ["$set": values |> value(pk, "update command") |> map_unless_empty]
   end
-
-  # Currently unused
-  # defp both_nil(nil, nil), do: true
-  # defp both_nil(_, _), do: false
 
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
 

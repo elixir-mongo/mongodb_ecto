@@ -410,17 +410,16 @@ defmodule Mongo.Ecto do
       driver = :mongodb
 
       raise """
-      could not find #{inspect(connection)}.
-      Please verify you have added #{inspect(driver)} as a dependency:
+      Could not find #{inspect(connection)}.
+
+      Please verify you have added #{inspect(driver)} as a dependency to mix.exs:
           {#{inspect(driver)}, ">= 0.0.0"}
-      And remember to recompile Ecto afterwards by cleaning the current build:
+
+      Remember to recompile Ecto afterwards by cleaning the current build:
           mix deps.clean --build ecto
       """
     end
 
-    # otp_app = Module.get_attribute(env.module, :opt_app)
-    # config = Application.get_env(otp_app, env.module, [])
-    # pool = Keyword.get(config, :pool, DBConnection.Poolboy)
     pool_name = pool_name(config)
     norm_config = normalize_config(config)
 
@@ -428,7 +427,6 @@ defmodule Mongo.Ecto do
     telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
     telemetry = {config[:repo], log, telemetry_prefix ++ [:query]}
 
-    # config = adapter_config(config)
     opts = Keyword.take(config, @pool_opts)
     meta = %{telemetry: telemetry, opts: opts, pool: {pool_name, norm_config}}
     {:ok, connection.child_spec(config), meta}
@@ -586,7 +584,7 @@ defmodule Mongo.Ecto do
 
   @read_queries [ReadQuery, CountQuery, AggregateQuery]
 
-  @impl true
+  @impl Ecto.Adapter.Queryable
   def execute(meta, _query_meta, {:nocache, {function, query}}, params, opts) do
     struct = get_struct_from_query(query)
 
@@ -664,7 +662,27 @@ defmodule Mongo.Ecto do
             "The following fields in #{inspect(meta.schema)} are tagged as such: #{inspect(returning)}"
   end
 
-  def insert(repo, meta, params, _, [], opts) do
+  def insert(repo, meta, params, {[_ | _] = replace_fields, _, conflict_targets}, [], opts) do
+    # `on_conflict` has determined that we must perform an upsert.  In Mongo
+    # land this is performed with an `update` operation.
+
+    {set_fields, set_on_insert_fields} = Keyword.split(params, replace_fields)
+
+    filter = Keyword.take(params, conflict_targets)
+
+    # TODO some sort of upsert API? OR reuse update() somehow?
+    normalized = %Mongo.Ecto.NormalizedQuery.WriteQuery{
+      coll: meta.source,
+      command: ["$set": set_fields |> normalise_id(), "$setOnInsert": set_on_insert_fields |> normalise_id()],
+      database: nil,
+      opts: [] |> Keyword.put(:upsert, true),
+      query: filter
+    }
+
+    Connection.update_one(repo, normalized, opts)
+  end
+
+  def insert(repo, meta, params, _on_conflict, [], opts) do
     normalized = NormalizedQuery.insert(meta, params)
 
     case Connection.insert(repo, normalized, opts) do
@@ -676,17 +694,49 @@ defmodule Mongo.Ecto do
     end
   end
 
-  @impl true
-  @spec insert_all(
-          %{:opts => any, :pid => any, :telemetry => any, optional(any) => any},
-          %{:prefix => any, :schema => atom, :source => any, optional(any) => any},
-          any,
-          any,
-          any,
-          any,
-          any,
-          list
-        ) :: {:invalid | non_neg_integer, nil | [{:unique, binary}, ...]}
+  defp normalise_id(doc) do
+    doc
+    |> Enum.map(fn
+      {:id, id} -> {:_id, id}
+      other -> other
+    end)
+  end
+
+  @impl Ecto.Adapter.Schema
+  def insert_all(repo, meta, _fields, params, {[_ | _] = replace_fields, _, conflict_targets}, _returning, _placeholders, opts) do
+    command =
+      params # docs
+      |> Enum.map(fn doc ->
+
+        [
+          query: conflict_targets |> Enum.map(fn target -> {target, doc[target]} end),
+          update: [
+            "$set": replace_fields |> Enum.map(fn field -> {field, doc[field]} end) |> normalise_id(),
+            "$setOnInsert": doc
+              |> Enum.filter(fn {k, _v} -> k not in replace_fields end)
+              |> normalise_id()
+          ],
+          upsert: true
+        ]
+
+      end)
+
+
+    normalized = %Mongo.Ecto.NormalizedQuery.WriteQuery{
+      coll: meta.source,
+      command: command,
+      database: nil,
+      opts: [],
+      query: %{}
+    }
+
+    case Connection.update(repo, normalized, opts) do
+      {:ok, n_modified} -> {n_modified, []}
+      other -> other
+    end
+  end
+
+
   def insert_all(repo, meta, _fields, params, _on_conflict, _returning, _placeholders, opts) do
     normalized = NormalizedQuery.insert(meta, params)
 
@@ -699,11 +749,13 @@ defmodule Mongo.Ecto do
     end
   end
 
-  @impl true
+  @impl Ecto.Adapter.Schema
   def update(repo, meta, fields, filters, _returning, opts) do
-    normalized = NormalizedQuery.update(meta, fields, filters)
+    {repo, meta, fields, filters, opts}
 
-    Connection.update(repo, normalized, opts)
+    normalized = NormalizedQuery.update_one(meta, fields, filters)
+
+    Connection.update_one(repo, normalized, opts)
   end
 
   @impl true
@@ -770,7 +822,7 @@ defmodule Mongo.Ecto do
   Drops all the collections in current database.
 
   Skips system collections and `schema_migrations` collection.
-  Especially usefull in testing.
+  Especially useful in testing.
 
   Returns list of dropped collections.
   """

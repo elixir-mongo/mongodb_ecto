@@ -125,7 +125,7 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
-  def update(repo, %WriteQuery{} = query, opts) do
+  def update_one(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
     command = query.command
     opts = query.opts ++ opts
@@ -135,8 +135,30 @@ defmodule Mongo.Ecto.Connection do
       {:ok, %{modified_count: 1}} ->
         {:ok, []}
 
+      # TODO - maybe?!  What constitutes a successful upsert.
+      {:ok, %{upserted_ids: [_|_]}} ->
+        {:ok, []}
+
       {:ok, _} ->
         {:error, :stale}
+
+      {:error, error} ->
+        check_constraint_errors(error)
+    end
+  end
+
+  @doc """
+  like update_one and update_many except more powerful
+  """
+  def update(repo, %WriteQuery{} = query, opts) do
+    coll = query.coll
+    command = query.command
+    opts = query.opts ++ opts
+    query = query.query
+
+    case query(repo, :update, [coll, command], opts) do
+      {:ok, %Mongo.UpdateResult{modified_count: m} = _result} ->
+        {:ok, m}
 
       {:error, error} ->
         check_constraint_errors(error)
@@ -308,6 +330,16 @@ defmodule Mongo.Ecto.Connection do
       %{} ->
         []
     end
+  end
+
+  # At some point in the past it looks like the MongoDB driver switched from
+  # returning a single `%Mongo.Error{}` to a `%Mongo.WriteError{}` containing
+  # one or more errors in its `write_errors` property.  It looks like
+  # `check_constraint_errors` was never really intended to handle the   JP 2021-08-25.
+  defp check_constraint_errors(%Mongo.WriteError{
+         write_errors: [%{"code" => 11_000, "errmsg" => msg}]
+       }) do
+    {:invalid, [unique: extract_index(msg)]}
   end
 
   defp check_constraint_errors(%Mongo.Error{code: 11_000, message: msg}) do

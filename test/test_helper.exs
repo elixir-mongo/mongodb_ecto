@@ -45,7 +45,7 @@ ExUnit.start(
     :select_not,
 
     # TODO: Turn these back on
-    :with_conflict_target,
+    # :with_conflict_target,
     :without_conflict_target
   ]
 )
@@ -120,7 +120,15 @@ defmodule Ecto.Integration.Case do
   end
 
   setup do
+    # Drops all collections and by implication their indexes in the specified Repo.
     Mongo.Ecto.truncate(TestRepo)
+
+    # TODO - this can be removed / modified / updated once we have a proper solution in place for managing indexes.  JP 2021-08-24
+    {:ok, _} =
+      Mongo.Ecto.create_indexes(TestRepo, "posts", [
+        [key: [uuid: 1], name: "uuid_1", unique: true]
+      ])
+
     :ok
   end
 end
