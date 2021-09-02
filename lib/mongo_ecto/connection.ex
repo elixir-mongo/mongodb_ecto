@@ -136,8 +136,8 @@ defmodule Mongo.Ecto.Connection do
         {:ok, []}
 
       # TODO - maybe?!  What constitutes a successful upsert.
-      {:ok, %{upserted_ids: [_|_]}} ->
-        {:ok, []}
+      # {:ok, %{upserted_ids: [_|_]}} ->
+      #   {:ok, []}
 
       {:ok, _} ->
         {:error, :stale}
@@ -156,7 +156,14 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
     query = query.query
 
-    case query(repo, :update, [coll, command], opts) do
+    case query(repo, :update, [coll, command], opts) |> IO.inspect(label: "UPDATE") do
+
+      # {:ok, %Mongo.UpdateResult{modified_count: 0, matched_count: matched_count, upserted_ids: nil}} ->
+      #   {:ok, 0}
+
+      {:ok, %Mongo.UpdateResult{modified_count: 0, upserted_ids: upserted_ids }} when is_list(upserted_ids) ->
+        {:ok, Enum.count(upserted_ids)}
+
       {:ok, %Mongo.UpdateResult{modified_count: m} = _result} ->
         {:ok, m}
 
@@ -197,7 +204,18 @@ defmodule Mongo.Ecto.Connection do
     query(repo, :command!, [command], opts)
   end
 
+  def query(adapter_meta, :multi, operations, opts) do
+    operations
+    |> Enum.map(fn {op, args} -> query(adapter_meta, op, args, opts) end)
+    |> Enum.at(-1)
+  end
+
   def query(adapter_meta, operation, args, opts) do
+    # adapter_meta |> IO.inspect(label: "adapter_meta")
+    # operation |> IO.inspect(label: "operation")
+    # args |> IO.inspect(label: "args")
+    # opts |> IO.inspect(label: "opts")
+
     %{pid: pool, telemetry: telemetry, opts: default_opts} = adapter_meta
 
     args = [pool] ++ args ++ [with_log(telemetry, args, opts ++ default_opts)]
