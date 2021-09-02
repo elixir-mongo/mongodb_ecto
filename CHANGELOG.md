@@ -5,6 +5,10 @@
 * Introduce support for Ecto 3 (work in progress)
 * Introduce GitHub actions, replacing Travis CI
 
+### Possible breaking changes
+
+* Some upsert operations are only supported with MongoDBs 4.2 or newer.
+
 ## v0.1.4
 
   Support MongoDB version 3.2
