@@ -147,8 +147,49 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
+  def find_one_and_update(repo, %WriteQuery{} = query, opts) do
+    coll = query.coll
+    command = query.command
+    opts = query.opts ++ opts
+    query = query.query
+
+    query(repo, :find_one_and_update, [coll, query, command], opts)
+
+    # case query(repo, :find_one_and_update, [coll, query, command], opts) do
+    #   {:ok, %Mongo.UpdateResult{modified_count: 0, upserted_ids: upserted_ids }} when is_list(upserted_ids) ->
+    #     {:ok, Enum.count(upserted_ids)}
+
+    #   {:ok, %Mongo.UpdateResult{modified_count: m} = _result} ->
+    #     {:ok, m}
+
+    #   {:error, error} ->
+    #     check_constraint_errors(error)
+
+    # end
+  end
+
+  def find_one_and_replace(repo, %WriteQuery{} = query, opts) do
+    coll = query.coll
+    command = query.command
+    opts = query.opts ++ opts
+    filter = query.query
+
+    if Keyword.get(opts, :delete_matching_documents_before_update_hack) do
+      Logger.warning(
+        """
+        In order to fulfil this query matching documents must first be deleted.  This could be dangerous and result in data loss!
+
+        To work around this issue you should avoid `on_conflict: :replace_all`.
+        """
+      )
+      delete(repo, query, opts) |> IO.inspect(label: "delete res")
+    end
+
+    query(repo, :find_one_and_replace, [coll, filter, command], opts)
+  end
+
   @doc """
-  like update_one and update_many except more powerful
+  Like update_one and update_many except more powerful
   """
   def update(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
@@ -156,12 +197,12 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
     query = query.query
 
-    case query(repo, :update, [coll, command], opts) |> IO.inspect(label: "UPDATE") do
-
+    case query(repo, :update, [coll, command], opts) do
       # {:ok, %Mongo.UpdateResult{modified_count: 0, matched_count: matched_count, upserted_ids: nil}} ->
       #   {:ok, 0}
 
-      {:ok, %Mongo.UpdateResult{modified_count: 0, upserted_ids: upserted_ids }} when is_list(upserted_ids) ->
+      {:ok, %Mongo.UpdateResult{modified_count: 0, upserted_ids: upserted_ids}}
+      when is_list(upserted_ids) ->
         {:ok, Enum.count(upserted_ids)}
 
       {:ok, %Mongo.UpdateResult{modified_count: m} = _result} ->
@@ -187,13 +228,21 @@ defmodule Mongo.Ecto.Connection do
     coll = query.coll
     command = query.command
     opts = query.opts ++ opts
+    on_conflict = opts |> Keyword.get(:on_conflict)
 
     case query(repo, :insert_many, [coll, command], opts) do
       {:ok, %{inserted_ids: ids}} ->
         {Enum.count(ids), nil}
 
       {:error, error} ->
-        check_constraint_errors(error)
+        case on_conflict do
+          :raise ->
+            raise(error)
+          :nothing ->
+            {0, nil}
+          _ ->
+            check_constraint_errors(error)
+        end
     end
   end
 
@@ -204,6 +253,7 @@ defmodule Mongo.Ecto.Connection do
     query(repo, :command!, [command], opts)
   end
 
+  # TODO remove!  connection should be able to figure out whether you need to make two commands for on_conflict: :replace_all
   def query(adapter_meta, :multi, operations, opts) do
     operations
     |> Enum.map(fn {op, args} -> query(adapter_meta, op, args, opts) end)
@@ -211,11 +261,6 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def query(adapter_meta, operation, args, opts) do
-    # adapter_meta |> IO.inspect(label: "adapter_meta")
-    # operation |> IO.inspect(label: "operation")
-    # args |> IO.inspect(label: "args")
-    # opts |> IO.inspect(label: "opts")
-
     %{pid: pool, telemetry: telemetry, opts: default_opts} = adapter_meta
 
     args = [pool] ++ args ++ [with_log(telemetry, args, opts ++ default_opts)]

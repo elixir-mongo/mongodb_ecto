@@ -18,7 +18,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defmodule WriteQuery do
     @moduledoc false
 
-    defstruct coll: nil, query: %{}, command: %{}, database: nil, opts: []
+    defstruct op: nil,
+              coll: nil,
+              query: %{},
+              command: %{},
+              database: nil,
+              opts: []
   end
 
   defmodule CommandQuery do
@@ -39,6 +44,8 @@ defmodule Mongo.Ecto.NormalizedQuery do
     defstruct coll: nil, pk: nil, fields: [], pipeline: [], database: nil, opts: []
   end
 
+  require Ecto.Query
+
   alias Ecto.Query
   alias Mongo.Ecto.Conversions
 
@@ -54,10 +61,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
     from = from(original)
     params = List.to_tuple(params)
     query = query(original, params, from)
-
-    # original |> IO.inspect(label: "original")
-    # params |> IO.inspect(label: "params")
-    # from |> IO.inspect(label: "from")
 
     case projection(original, params, from) do
       {:count, fields} ->
@@ -159,138 +162,183 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, database: prefix}
   end
 
+  # # TODO this insert should no longer be used
   def insert(%{source: coll, schema: schema, prefix: prefix}, document) do
     command = command(:insert, document, primary_key(schema))
 
     %WriteQuery{coll: coll, command: command, database: prefix}
   end
 
-  defp upsert(schema_meta, [], set_fields, [], returning, opts) do
-    # When both `conflict_targets and `set_on_insert` are empty we can consider this a plain insert.
-    # TODO not sure if is correct to use :raise here
-    insert(schema_meta, set_fields, {:raise, [], []}, returning, opts)
-  end
+  ####### JP START
 
-  # defp upsert(schema_meta, query, set_fields, [], returning, opts) do
+  # `:raise` is the default behaviour when on_conflict is not specified. In this
+  # case we assume that any conflict will be raised by the driver (e.g.
+  # duplicate value on a uniquely indexed field)
+  def insert(schema_meta, fields, {:raise, [], []}, _returning, _opts),
+    do: plain_insert(schema_meta, fields)
 
-  #   insert(schema_meta, set_fields, {:raise, [], []}, returning, opts)
-  # end
+  # When a user specifies `on_conflict: :nothing` with no conflict targets then
+  # we can treat this as a plain insert.  It's expected that exceptions from the
+  # driver will be suppressed elsewhere as appropriate.
+  def insert(schema_meta, fields, {:nothing, [], []}, _returning, _opts),
+    do: plain_insert(schema_meta, fields)
 
-  defp upsert(%{source: coll, schema: schema}, query, set_fields, set_on_insert_fields, _returning, _opts) do
+  # User specified `on_conflict: :nothing` with specified fields that must be
+  # checked for conflicts.
+  def insert(
+        %{source: coll, schema: schema, prefix: prefix},
+        fields,
+        {:nothing, [], conflict_targets},
+        _returning,
+        _opts
+      ) do
+    check_conflict_targets!(schema, conflict_targets)
+
+    # User has specified `conflict_targets` so we need to use a
+    # `find_one_and_update` operation instead of a plain insert.
+    #
+    # We'll use the conflict targets to construct a query that can be used to
+    # find existing matching documents.
+    op = :find_one_and_update
+
     pk = primary_key(schema)
 
-    should_replace? = set_fields |> Keyword.has_key?(pk)
+    # Use `conflict_targets` to create a query that will match any existing documents
+    query = query(fields, conflict_targets, pk)
+    command = command(:update, fields, pk)
 
-    set_on_insert_fields = case Keyword.get(set_fields, pk) do
-      nil -> set_on_insert_fields
-      v -> set_on_insert_fields |> Keyword.put(pk, v)
+    # * `upsert: true` creates an existing document if none already exists.
+    # * `return_document: :after` causes the upserted document to be returned,
+    #   which we need since we need to know the ID of the inserted or updated
+    #   document.  Ecto expects updates **not** to return an ID but Mongo always
+    #   does (seems like a rare moment where Mongo has slightly clearer support
+    #   than SQL).  It's expected that this discrepency is massaged out
+    #   elsewhere.
+    opts = [
+      upsert: true,
+      return_document: :after
+    ]
+
+    %WriteQuery{
+      op: op,
+      coll: coll,
+      query: query,
+      command: command,
+      database: prefix,
+      opts: opts
+    }
+  end
+
+  # User specified a list of fields to replace and conflict targets to check.
+  # This gets called if the user has specified an `on_conflict` value of
+  # `:replace_all`, `{:replace, fields}` or `{:replace_all_except, fields}`
+  #
+  # Ecto wants us to be able to support the replacement of the `id` field which
+  # MongoDB forbids, so this gets a bit tricky.  When the user wishes to replace
+  # the `id` field then the only way I have found to make this work is to
+  # perform a delete followed by an insert; not ideal since data loss could
+  # occur.  We can't do an insert followed by a delete instead because the
+  # inserted document could contain conflicts with the document that is about to
+  # be deleted.
+  def insert(
+        %{schema: schema} = schema_meta,
+        fields,
+        {[_ | _] = replace_fields, _, conflict_targets},
+        returning,
+        opts
+      ) do
+
+    pk = primary_key(schema)
+    query = query(fields, conflict_targets, pk)
+
+    if pk in replace_fields do
+      replace(schema_meta, query, fields)
+    else
+      IO.inspect(replace_fields, label: "replace_fields")
+      IO.inspect(opts, label: "opts")
+
+      {set_fields, set_on_insert_fields} = upsert_fields(fields, replace_fields, conflict_targets)
+
+      IO.inspect(set_fields, label: "set_fields")
+      IO.inspect(set_on_insert_fields, label: "set_on_insert_fields")
+
+
+      upsert(schema_meta, query, set_fields, set_on_insert_fields, returning, opts)
     end
-
-
-    case should_replace? do
-      true ->
-        replacement_doc = set_fields ++ set_on_insert_fields
-
-        replacement_doc = replacement_doc |> Enum.dedup() |> value(pk, "insert_one for replace_all") |> map_unless_empty()
-
-        delete_doc = Keyword.take(set_fields, [pk]) |> value(pk, "delete_one for replace_all")
-
-        {:multi, [
-          {:delete_one, [coll, query]},
-          {:insert_one, [coll, replacement_doc]}
-        ]}
-
-      false ->
-
-
-        update = [
-          "$set": set_fields |> Keyword.drop([pk]) |> value(pk, "insert command set fields") |> map_unless_empty(),
-          "$setOnInsert": set_on_insert_fields |> value(pk, "insert command set on insert fields") |> map_unless_empty()
-        ] |> Enum.reject(fn {_k, v} -> v == %{} end) # TODO factor out
-
-        command =
-        [
-          query: query,
-          update: update,
-          upsert: true
-        ]
-
-        opts = [
-          return_document: :after,
-          upsert: true
-        ]
-
-          # coll filter update opts
-        {:find_one_and_update, [coll, query, update], opts}
-
-
-    end
-
   end
 
-  def insert(%{ schema: schema } = schema_meta, fields, {[_ | _] = replace_fields, _, conflict_targets}, returning, opts) do
-    # IO.inspect(replace_fields, label: "replace_fields")
-    # IO.inspect(conflict_targets, label: "conflict targets")
+  # User specified a query to perform in the event of a conflict.
+  #
+  # This is achieved using the mongo `$project` operator.  Undoubtedly this
+  # could be refactored to be clearer code wise but for now since `$project` is
+  # only used here a long function will suffice.
+  def insert(
+        %{source: coll, schema: schema, prefix: prefix},
+        fields,
+        {%Ecto.Query{} = query, values, conflict_targets},
+        _returning,
+        _opts
+      ) do
 
-
-    {set_fields, set_on_insert_fields} = Keyword.split(fields, replace_fields)
-
-    set_on_insert_fields = set_on_insert_fields ++ Keyword.take(set_fields, conflict_targets)
-
-    set_fields = set_fields |> Keyword.drop(conflict_targets)
-
-    pk = primary_key(schema)
-
-    query = fields |> Keyword.take(conflict_targets) |> query(pk)
-
-    # IO.inspect(query, label: "query")
-    # IO.inspect(set_fields, label: "set_fields")
-    # IO.inspect(set_on_insert_fields, label: "set_on_insert_fields")
-
-    upsert(schema_meta, query, set_fields, set_on_insert_fields, returning, opts)
-  end
-
-  def insert(%{ source: coll, schema: schema }, fields, {%Ecto.Query{} = query, values, conflict_targets}, returning, opts) do
-    %{ query: find_query } = query |> all(values)
-
-    IO.inspect(fields, label: "fields")
-
-
-    %{ command: update }  = query |> update_all(Keyword.values(fields) ++ values)
+    check_conflict_targets!(schema, conflict_targets)
 
     pk = primary_key(schema)
+    from = from(query)
 
-    # IO.inspect(pk, label: "primary key")
+    # Create a query for finding existing documents based on the conflict targets
+    find_query_values =
+      fields |> Keyword.take(conflict_targets) |> Keyword.values() |> List.to_tuple()
 
-    # need to check for duplicates in $set and $setOnInsert
-    update = update
-    |> Map.put(:"$setOnInsert", fields |> value(pk, "set on insert fields"))
+    find_query =
+      query
+      |> filtering_conflict_targets(fields, conflict_targets)
+      |> query(find_query_values, from)
 
-    # IO.inspect(update, label: "initial update")
+    # If the query has specified a where then this cannot be an upsert; it's
+    # expected that a non-matching query return no results (and be reported as
+    # stale by Ecto)
+    upsert = query.wheres == []
 
-    set_fields = Map.get(update, :"$set")
+    %{ "$set": set_fields } =
+      command(:update, query, List.to_tuple(Keyword.values(fields) ++ values), from)
+
+    # The behaviour we want is for different values to be set on the database
+    # depending on whether this is an insert or an update.  In Mongo land we
+    # might tend to reach for `$set` and `$setOnInsert`, however Mongo disallows
+    # us from having the same fields in both `$set` and `$setOnInsert`, so that
+    # won't work.
+    #
+    # The workaround implemented below is to use the `$project` aggregate
+    # operator along with `$cond`.  `$cond` allows us to check for the presence
+    # of an `_id` field, so we can `$project` different fields depending on
+    # whether this was an insert or an update.
 
     # ID is a special case
-
-    # [{pkk, pkv}] = fields |> Keyword.take([pk]) |> value(pk, "primary key projection")
-
     pkk = :_id
     pkv = "$_id"
 
     projection = %{}
 
-    projection = projection
-    |> Map.put(pkk, %{ "$cond": ["$#{pkk}", "$REMOVE", pkv]})
+    # If an existing document matches `find_query`, then `_id` will be present.
+    # If we specify an `_id` in the projection of an **existing** document then
+    # Mongo complains, so we must omit it in this case.  There's a special
+    # variable `$REMOVE` for this purpose which tells Mongo to omit that field
+    # from the projection.
+    projection =
+      projection
+      |> Map.put(pkk, %{"$cond": ["$#{pkk}", "$REMOVE", pkv]})
 
-
+    # set_fields are either set to the value from the query (in the event of an
+    # update) or the value in fields (in the event of an insert)
     projection =
       set_fields
       |> Enum.reduce(projection, fn {k, v}, acc ->
-        # Map.put(acc, k, %{ "$cond": ["$#{pkk}", fields[k], v]})
-
-        Map.put(acc, k, %{ "$cond": ["$#{pkk}", v, fields[k]]})
+        Map.put(acc, k, %{"$cond": ["$#{pkk}", v, fields[k]]})
       end)
 
+    # All other fields are just plain "set" operation.  Because we don't want
+    # them to conflict with the set vs. set_on_insert operations above, we can
+    # use `Map.put_new` to ensure there are no duplicates.
     projection =
       fields
       |> value(pk, "projection")
@@ -304,90 +352,170 @@ defmodule Mongo.Ecto.NormalizedQuery do
       }
     ]
 
-    # query = Keyword.take(fields, Keyword.keys(set_fields)) ++ Keyword.take(field s, conflict_targets) ++ Enum.into(find_query, []),
-    query = Keyword.take(fields, conflict_targets) ++ Enum.into(find_query, [])
-
-    # command =
-    #   [
-
-    #     query: query,
-    #     update: update,
-    #     upsert: find_query == %{}
-    #   ]
-
     opts = [
-      upsert: find_query == %{},
+      upsert: upsert,
       return_document: :after
     ]
 
-      # coll filter update opts
-  {:find_one_and_update, [coll, query, update], opts}
+    %WriteQuery{
+      op: :find_one_and_update,
+      coll: coll,
+      database: prefix,
+      query: find_query,
+      command: update,
+      opts: opts
+    }
   end
 
-  def insert(%{source: coll, schema: schema}, fields, {:nothing, [], conflict_targets}, _returning, _opts) do
-    # command = command(:insert, fields, primary_key(schema), on_conflict)
+  defp plain_insert(%{source: coll, schema: schema, prefix: prefix}, fields) do
+    command = command(:insert, fields, primary_key(schema))
 
-    if :id in conflict_targets do
-      raise "Primary key not allowed as a target?!"
+    op = case fields do
+      [[_ | _] | _] -> :insert_all
+      _ -> :insert
     end
 
+    %WriteQuery{op: op, coll: coll, command: command, database: prefix}
+  end
 
-    command =
-      fields
-      |> value(primary_key(schema), "insert")
-      |> map_unless_empty
+  defp replace(%{source: coll, schema: schema, prefix: prefix}, query, fields) do
 
-    {:insert_one, [coll, command]}
+    pk = primary_key(schema)
+
+    opts = [
+      upsert: true,
+      return_document: :after,
+      delete_matching_documents_before_update_hack: true
+    ]
+
+    %WriteQuery{
+      op: :find_one_and_replace,
+      coll: coll,
+      database: prefix,
+      query: query,
+      command: fields |> value(pk, "replace"),
+      opts: opts
+    }
+  end
+
+  # When both `conflict_targets and `set_on_insert` are empty we can consider this a plain insert.
+  defp upsert(schema_meta, [], set_fields, [], _returning, _opts),
+    do: plain_insert(schema_meta, set_fields)
+
+  defp upsert(
+         %{source: coll, schema: schema, prefix: prefix},
+         query,
+         set_fields,
+         set_on_insert_fields,
+         _returning,
+         _opts
+       ) do
+
+    # In this case we are going to put the responsibility of a double query onto `connection.ex`
+
+    pk = primary_key(schema)
+
+    # update = command(:update, Keyword.drop(set_fields, [pk]), set_on_insert_fields, pk)
+
+    update = command(:update, set_fields, set_on_insert_fields, pk)
+
+    opts = [
+      return_document: :after,
+      upsert: true
+    ]
+
+    %WriteQuery{
+      op: :find_one_and_update,
+      coll: coll,
+      database: prefix,
+      query: query,
+      command: update,
+      opts: opts
+    }
+
+    # should_replace? = set_fields |> Keyword.has_key?(pk)
+
+    # set_on_insert_fields =
+    #   case Keyword.get(set_fields, pk) do
+    #     nil -> set_on_insert_fields
+    #     v -> set_on_insert_fields |> Keyword.put(pk, v)
+    #   end
+
+    # if should_replace? do
+    #   replacement_doc = set_fields ++ set_on_insert_fields
+
+    #   replacement_doc =
+    #     replacement_doc
+    #     |> Enum.dedup()
+    #     |> value(pk, "insert_one for replace_all")
+    #     |> map_unless_empty()
+
+    #   {:multi,
+    #    [
+    #      {:delete_one, [coll, query]},
+    #      {:insert_one, [coll, replacement_doc]}
+    #    ]}
+    # else
+    #   q = %Query{
+    #     updates: [
+    #       %Query.QueryExpr{
+    #         expr: [
+    #           set: set_fields |> Keyword.drop([pk]),
+    #           set_on_insert: set_on_insert_fields
+    #         ]
+    #       }
+    #     ]
+    #   }
+
+    #   update = command(:update, q, set_fields ++ set_on_insert_fields, {coll, schema, pk})
+
+    #   opts = [
+    #     return_document: :after,
+    #     upsert: true
+    #   ]
+
+    #   %WriteQuery{
+    #     op: :find_one_and_update,
+    #     coll: coll,
+    #     database: prefix,
+    #     query: query,
+    #     command: update,
+    #     opts: opts
+    #   }
+    # end
   end
 
 
-  # Default simple case - plain insert with default :raise on_conflict behaviour
-  def insert(%{source: coll, schema: schema}, fields, {:raise, [], []}, _returning, _opts) do
-    # command = command(:insert, fields, primary_key(schema), on_conflict)
-
-    command =
-      fields
-      |> value(primary_key(schema), "insert")
-      |> map_unless_empty
-
-    {:insert_one, [coll, command]}
-  end
-
-  # def insert(%{source: coll, schema: schema, prefix: prefix}, document, {[_ | _] = replace_fields, _, conflict_targets}) do
-  #   # No conflict targets have been specified, so in this case we're relying on
-  #   # the database to report any conflicts that occur, e.g. via a unique index violation.
-
-  #   command = command(:insert, document, primary_key(schema))
-
-  #   # {set_fields, set_on_insert_fields} = Keyword.split(document, replace_fields)
-
-  #   # filter = Keyword.take(document, conflict_targets)
-
-  #   # %WriteQuery{
-  #   #   coll: coll,
-  #   #   command: ["$set": set_fields |> normalise_id(), "$setOnInsert": set_on_insert_fields |> normalise_id()],
-  #   #   database: nil,
-  #   #   opts: [] |> Keyword.put(:upsert, true),
-  #   #   query: filter
-  #   # }
-  # end
-
-  def insert(_meta, _document, on_conflict), do: raise "Unsupported on_conflict: #{inspect(on_conflict)}"
-
-  # def update_all(%Query{} = original, params) do
-  #   check_query!(original)
-
-  #   params = List.to_tuple(params)
-  #   from = from(original)
-  #   coll = coll(from)
-  #   query = query(original, params, from)
-  #   command = command(:update, original, params, from)
-
-  #   %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
-  # end
 
   def command(command, opts) do
-    %CommandQuery{command: command, database: Keyword.get(opts, :database, nil)}
+    %CommandQuery{command: command, database: Keyword.get(opts, :database)}
+  end
+
+  # Splits a list of fields into individual set and set_on_insert lists
+  defp upsert_fields(fields, replace_fields, conflict_targets) do
+    fields
+    |> Keyword.split(replace_fields)
+    |> then(fn {set_fields, set_on_insert_fields} ->
+      {
+        set_fields |> Keyword.drop(conflict_targets),
+        set_on_insert_fields ++ Keyword.take(set_fields, conflict_targets)
+      }
+    end)
+  end
+
+  defp filtering_conflict_targets(%Ecto.Query{} = query, fields, conflict_targets) do
+    conflict_field_filters = fields |> Keyword.take(conflict_targets)
+
+    Ecto.Query.from(u in query, where: ^conflict_field_filters)
+  end
+
+  defp check_conflict_targets!(schema, conflict_targets) do
+    # I can't find this documented anywhere but the Ecto integration tests seem
+    # to expect an error to be raised in the event that the primary key is
+    # specified in `conflict_targets`.  2021-09-02 JP.
+    if primary_key(schema) in conflict_targets do
+      raise "Invalid conflict targets #{inspect(conflict_targets)}"
+    end
   end
 
   defp from(%Query{from: %{source: {coll, model}}}) do
@@ -408,28 +536,20 @@ defmodule Mongo.Ecto.NormalizedQuery do
          params,
          from
        ) do
-    # fields |> IO.inspect(label: "fields")
-    # params |> IO.inspect(label: "params")
-    # from |> IO.inspect(label: "from")
-    # query |> IO.inspect(label: "query")
-
     projection(fields, params, from, query, %{}, [])
   end
 
   defp projection([], _params, _from, _query, pacc, facc), do: {:find, pacc, Enum.reverse(facc)}
 
-
-
   # TODO this projection function is the same as the one below with a different pattern
   defp projection(
-    [{:&, _, [0]} = field | rest],
-    params,
-    {_, nil, _} = from,
-    query,
-    _pacc,
-    facc
-  ) do
-
+         [{:&, _, [0]} = field | rest],
+         params,
+         {_, nil, _} = from,
+         query,
+         _pacc,
+         facc
+       ) do
     facc =
       case projection(rest, params, from, query, %{}, [field | facc]) do
         {:find, _, facc} ->
@@ -584,6 +704,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> map_unless_empty
   end
 
+  defp query([{_, _} | _] = fields, keys, pk) do
+    fields
+    |> Keyword.take(keys)
+    |> query(pk)
+  end
+
   defp query(filter, pk) do
     filter |> value(pk, "where clause") |> map_unless_empty
   end
@@ -607,6 +733,16 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> merge_keys(query, "update clause")
   end
 
+  defp command(:update, set_fields, set_on_insert_fields, pk) do
+    # Set fields are the same as doing a plain update with `$set`
+    set_command = command(:update, set_fields, pk)
+
+    # These fields are only applied if the operation results in an insert.
+    set_on_insert_command = ["$setOnInsert": set_on_insert_fields |> value(pk, "update command (set on insert)") |> map_unless_empty()]
+
+    set_command ++ set_on_insert_command
+  end
+
   defp command(:insert, document, pk) do
     document
     |> value(pk, "insert command")
@@ -615,30 +751,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp command(:update, values, pk) do
     ["$set": values |> value(pk, "update command") |> map_unless_empty]
-  end
-
-  defp command(:insert, document, pk, {[_ | _] = replace_fields, _, conflict_targets}) do
-
-    {set_fields, set_on_insert_fields} = Keyword.split(document, replace_fields)
-
-    # set_fields |> IO.inspect(label: "set fields")
-    # set_on_insert_fields |> IO.inspect(label: "set on insert fields")
-
-    [
-      "$set": set_fields |> value(pk, "insert command set fields"),
-      "$setOnInsert": set_on_insert_fields |> value(pk, "insert command set on insert fields")
-    ]
-    |> map_unless_empty()
-    # |> IO.inspect(label: "query")
-  end
-
-  defp command(:insert, document, pk, on_conflict) do
-    # IO.inspect(on_conflict, label: "unhandled insert on_conflict")
-    document
-    # |> IO.inspect(label: "document")
-    |> value(pk, "insert command")
-    # |> IO.inspect(label: "document after value")
-    |> map_unless_empty()
   end
 
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
@@ -693,9 +805,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   defp value(expr, params, pk, query, place) do
-    # IO.inspect(expr)
-    # IO.inspect(params)
-    # IO.inspect(pk)
     case Conversions.inject_params(expr, params, pk) do
       {:ok, value} -> value
       :error -> error(query, place)
@@ -720,9 +829,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end)
   end
 
-  update = [set: :"$set", inc: :"$inc", push: :"$push", pull: :"$pull"]
+  update_ops = [set: :"$set", inc: :"$inc", push: :"$push", pull: :"$pull"]
 
-  Enum.map(update, fn {key, op} ->
+  Enum.map(update_ops, fn {key, op} ->
     def update_op(unquote(key), _query), do: unquote(op)
   end)
 
