@@ -734,7 +734,6 @@ defmodule Ecto.Integration.RepoTest do
     assert changeset.errors[:name] == nil
   end
 
-  # TODO Fails
   test "get(!)" do
     post1 = TestRepo.insert!(%Post{title: "1"})
     post2 = TestRepo.insert!(%Post{title: "2"})
@@ -756,9 +755,6 @@ defmodule Ecto.Integration.RepoTest do
     end
   end
 
-  # Now fails because Custom schema has a primary key of `bid` which is not
-  # supported by MongoDB. 2021-09-01 JP.
-  @tag :skip
   test "get(!) with custom source" do
     custom = Ecto.put_meta(%Custom{}, source: "posts")
     custom = TestRepo.insert!(custom)
@@ -768,9 +764,6 @@ defmodule Ecto.Integration.RepoTest do
              TestRepo.get(from(c in {"posts", Custom}), bid)
   end
 
-  # Now fails because Custom schema has a primary key of `bid` which is not
-  # supported by MongoDB. 2021-09-01 JP.
-  @tag :skip
   test "get(!) with binary_id" do
     custom = TestRepo.insert!(%Custom{})
     bid = custom.bid

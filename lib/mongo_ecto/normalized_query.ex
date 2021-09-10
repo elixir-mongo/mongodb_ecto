@@ -24,6 +24,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
               command: %{},
               database: nil,
               returning: [],
+              pk: nil,
               opts: []
   end
 
@@ -225,6 +226,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
       command: command,
       database: prefix,
       returning: returning,
+      pk: pk,
       opts: opts
     }
   end
@@ -274,6 +276,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     check_conflict_targets!(schema, conflict_targets)
 
     from = from(query)
+    {_coll, _schema, pk} = from
 
     # Create a query for finding existing documents based on the conflict targets
     find_query_values =
@@ -303,12 +306,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
       query: find_query,
       command: update,
       returning: returning,
+      pk: pk,
       opts: opts
     }
   end
 
   defp plain_insert(%{source: coll, schema: schema, prefix: prefix}, fields, returning) do
-    command = command(:insert, fields, primary_key(schema))
+    pk = primary_key(schema)
+
+    command = command(:insert, fields, pk)
 
     op =
       case fields do
@@ -316,7 +322,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
         _ -> :insert
       end
 
-    %WriteQuery{op: op, coll: coll, command: command, database: prefix, returning: returning}
+    %WriteQuery{op: op, coll: coll, command: command, database: prefix, returning: returning, pk: pk}
   end
 
   defp replace(%{source: coll, schema: schema, prefix: prefix}, query, fields, returning) do
@@ -335,6 +341,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
       query: query,
       command: fields |> value(pk, "replace"),
       returning: returning,
+      pk: pk,
       opts: opts
     }
   end
@@ -367,6 +374,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
       query: query,
       command: update,
       returning: returning,
+      pk: pk,
       opts: opts
     }
   end

@@ -149,6 +149,7 @@ defmodule Mongo.Ecto.Connection do
     command = query.command
     returning = query.returning
     opts = query.opts ++ opts
+    pk = query.pk
     query = query.query
 
     case query(repo, :find_one_and_update, [coll, query, command], opts) |> IO.inspect(label: "find_one_and_update res`") do
@@ -157,7 +158,7 @@ defmodule Mongo.Ecto.Connection do
         {:error, :stale}
 
       {:ok, result} ->
-        {:ok, returning_fields(result, returning, opts)}
+        {:ok, returning_fields(result, returning, pk, opts)}
     end
   end
 
@@ -166,6 +167,7 @@ defmodule Mongo.Ecto.Connection do
     command = query.command
     returning = query.returning
     opts = query.opts ++ opts
+    pk = query.pk
     filter = query.query
 
     if Keyword.get(opts, :delete_matching_documents_before_update_hack) do
@@ -184,7 +186,7 @@ defmodule Mongo.Ecto.Connection do
         {:error, :stale}
 
       {:ok, result} ->
-        {:ok, returning_fields(result, returning, opts)}
+        {:ok, returning_fields(result, returning, pk, opts)}
 
     end
   end
@@ -222,30 +224,31 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
 
     case query(repo, :insert_one, [coll, command], opts) do
-      {:ok, result} -> {:ok, returning_fields(result, query.returning)}
+      {:ok, result} -> {:ok, returning_fields(result, query.returning, query.pk)}
       {:error, error} -> check_constraint_errors(error, opts)
     end
   end
 
   # returning_fields/2 extracts the requested returning fields from a Mongo
   # result struct
-  defp returning_fields(_result, []), do: []
+  defp returning_fields(result, fields, primary_key, opts \\ [])
 
-  defp returning_fields(%Mongo.InsertOneResult{inserted_id: inserted_id}, [:id]),
-    do: [id: inserted_id]
+  defp returning_fields(_result, [], _primary_key, _opts), do: []
 
-  defp returning_fields(%Mongo.FindAndModifyResult{ upserted_id: upserted_id, value: value }, fields, opts) do
+  defp returning_fields(%Mongo.InsertOneResult{inserted_id: inserted_id}, [pk], pk, _opts),
+    do: Keyword.put([], pk, inserted_id)
+
+  defp returning_fields(%Mongo.FindAndModifyResult{ upserted_id: upserted_id, value: value }, fields, pk, opts) do
     fields
     |> Enum.map(fn
-        :id ->
+        ^pk ->
           case Keyword.get(opts, :return_document) do
             :after ->
-              {:id, Map.get(value, "_id")}
+              {pk, Map.get(value, "_id")}
             _other ->
-              {:id, upserted_id}
+              {pk, upserted_id}
           end
         field -> {field, Map.get(value, Atom.to_string(field))}
-
       end)
   end
 
