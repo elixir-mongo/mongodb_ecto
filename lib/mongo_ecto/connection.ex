@@ -21,7 +21,6 @@ defmodule Mongo.Ecto.Connection do
         {key, value} -> {key, value}
       end)
 
-    #  opts = [name: pool_name] ++ Keyword.delete(opts, :pool) ++ pool_opts
     Mongo.child_spec(opts)
   end
 
@@ -31,8 +30,6 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def storage_down(opts) do
-    # opts = Keyword.put(opts, :pool, DBConnection.Connection)
-
     {:ok, _apps} = Application.ensure_all_started(:mongodb)
     {:ok, conn} = Mongo.start_link(opts)
 
