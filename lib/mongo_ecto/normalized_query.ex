@@ -275,7 +275,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
       ) do
     check_conflict_targets!(schema, conflict_targets)
 
-    pk = primary_key(schema)
     from = from(query)
 
     # Create a query for finding existing documents based on the conflict targets
@@ -292,58 +291,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     # stale by Ecto)
     upsert = query.wheres == []
 
-    %{"$set": set_fields} =
-      command(:update, query, List.to_tuple(Keyword.values(fields) ++ values), from)
-
-    # The behaviour we want is for different values to be set on the database
-    # depending on whether this is an insert or an update.  In Mongo land we
-    # might tend to reach for `$set` and `$setOnInsert`, however Mongo disallows
-    # us from having the same fields in both `$set` and `$setOnInsert`, so that
-    # won't work.
-    #
-    # The workaround implemented below is to use the `$project` aggregate
-    # operator along with `$cond`.  `$cond` allows us to check for the presence
-    # of an `_id` field, so we can `$project` different fields depending on
-    # whether this was an insert or an update.
-
-    # ID is a special case
-    pkk = :_id
-    pkv = "$_id"
-
-    projection = %{}
-
-    # If an existing document matches `find_query`, then `_id` will be present.
-    # If we specify an `_id` in the projection of an **existing** document then
-    # Mongo complains, so we must omit it in this case.  There's a special
-    # variable `$REMOVE` for this purpose which tells Mongo to omit that field
-    # from the projection.
-    projection =
-      projection
-      |> Map.put(pkk, %{"$cond": ["$#{pkk}", "$REMOVE", pkv]})
-
-    # set_fields are either set to the value from the query (in the event of an
-    # update) or the value in fields (in the event of an insert)
-    projection =
-      set_fields
-      |> Enum.reduce(projection, fn {k, v}, acc ->
-        Map.put(acc, k, %{"$cond": ["$#{pkk}", v, fields[k]]})
-      end)
-
-    # All other fields are just plain "set" operation.  Because we don't want
-    # them to conflict with the set vs. set_on_insert operations above, we can
-    # use `Map.put_new` to ensure there are no duplicates.
-    projection =
-      fields
-      |> value(pk, "projection")
-      |> Enum.reduce(projection, fn {k, v}, acc ->
-        Map.put_new(acc, k, v)
-      end)
-
-    update = [
-      %{
-        "$project": projection
-      }
-    ]
+    update = command(:update, query, List.to_tuple(Keyword.values(fields) ++ values), fields, from)
 
     opts = [
       upsert: upsert,
@@ -682,6 +630,61 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     set_command ++ set_on_insert_command
   end
+
+  defp command(:update, %Query{} = query, params, set_on_insert_fields, {_coll, _model, pk} = from) do
+    %{"$set": set_fields} = command(:update, query, params, from)
+
+    # The behaviour we want is for different values to be set on the database
+    # depending on whether this is an insert or an update.  In Mongo land we
+    # might tend to reach for `$set` and `$setOnInsert`, however Mongo disallows
+    # us from having the same fields in both `$set` and `$setOnInsert`, so that
+    # won't work.
+    #
+    # The workaround implemented below is to use the `$project` aggregate
+    # operator along with `$cond`.  `$cond` allows us to check for the presence
+    # of an `_id` field, so we can `$project` different fields depending on
+    # whether this was an insert or an update.
+
+    # ID is a special case
+    pkk = :_id
+    pkv = "$_id"
+
+    projection = %{}
+
+    # If an existing document matches `find_query`, then `_id` will be present.
+    # If we specify an `_id` in the projection of an **existing** document then
+    # Mongo complains, so we must omit it in this case.  There's a special
+    # variable `$REMOVE` for this purpose which tells Mongo to omit that field
+    # from the projection.
+    projection =
+      projection
+      |> Map.put(pkk, %{"$cond": ["$#{pkk}", "$REMOVE", pkv]})
+
+    # set_fields are either set to the value from the query (in the event of an
+    # update) or the value in fields (in the event of an insert)
+    projection =
+      set_fields
+      |> Enum.reduce(projection, fn {k, v}, acc ->
+        Map.put(acc, k, %{"$cond": ["$#{pkk}", v, set_on_insert_fields[k]]})
+      end)
+
+    # All other fields are just plain "set" operation.  Because we don't want
+    # them to conflict with the set vs. set_on_insert operations above, we can
+    # use `Map.put_new` to ensure there are no duplicates.
+    projection =
+      set_on_insert_fields
+      |> value(pk, "projection")
+      |> Enum.reduce(projection, fn {k, v}, acc ->
+        Map.put_new(acc, k, v)
+      end)
+
+    [
+      %{
+        "$project": projection
+      }
+    ]
+  end
+
 
   defp command(:insert, document, pk) do
     document
