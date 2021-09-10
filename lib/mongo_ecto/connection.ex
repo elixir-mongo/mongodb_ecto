@@ -150,46 +150,52 @@ defmodule Mongo.Ecto.Connection do
   def find_one_and_update(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
     command = query.command
+    returning = query.returning
     opts = query.opts ++ opts
     query = query.query
 
-    query(repo, :find_one_and_update, [coll, query, command], opts)
+    case query(repo, :find_one_and_update, [coll, query, command], opts) |> IO.inspect(label: "find_one_and_update res`") do
+      {:ok,
+       %Mongo.FindAndModifyResult{matched_count: 0, updated_existing: false, upserted_id: nil}} ->
+        {:error, :stale}
 
-    # case query(repo, :find_one_and_update, [coll, query, command], opts) do
-    #   {:ok, %Mongo.UpdateResult{modified_count: 0, upserted_ids: upserted_ids }} when is_list(upserted_ids) ->
-    #     {:ok, Enum.count(upserted_ids)}
-
-    #   {:ok, %Mongo.UpdateResult{modified_count: m} = _result} ->
-    #     {:ok, m}
-
-    #   {:error, error} ->
-    #     check_constraint_errors(error)
-
-    # end
+      {:ok, result} ->
+        {:ok, returning_fields(result, returning, opts)}
+    end
   end
 
   def find_one_and_replace(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
     command = query.command
+    returning = query.returning
     opts = query.opts ++ opts
     filter = query.query
 
     if Keyword.get(opts, :delete_matching_documents_before_update_hack) do
-      Logger.warning(
-        """
-        In order to fulfil this query matching documents must first be deleted.  This could be dangerous and result in data loss!
+      Logger.warning("""
+      In order to fulfil this query matching documents must first be deleted.  This could be dangerous and result in data loss!
 
-        To work around this issue you should avoid `on_conflict: :replace_all`.
-        """
-      )
-      delete(repo, query, opts) |> IO.inspect(label: "delete res")
+      To work around this issue you should avoid `on_conflict: :replace_all`.
+      """)
+
+      delete(repo, query, opts)
     end
 
-    query(repo, :find_one_and_replace, [coll, filter, command], opts)
+    case query(repo, :find_one_and_replace, [coll, filter, command], opts) do
+      {:ok,
+       %Mongo.FindAndModifyResult{matched_count: 0, updated_existing: false, upserted_id: nil}} ->
+        {:error, :stale}
+
+      {:ok, result} ->
+        {:ok, returning_fields(result, returning, opts)}
+
+    end
   end
 
   @doc """
   Like update_one and update_many except more powerful
+
+  TRY REMOVING
   """
   def update(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
@@ -219,9 +225,31 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
 
     case query(repo, :insert_one, [coll, command], opts) do
-      {:ok, result} -> {:ok, result}
-      {:error, error} -> check_constraint_errors(error)
+      {:ok, result} -> {:ok, returning_fields(result, query.returning)}
+      {:error, error} -> check_constraint_errors(error, opts)
     end
+  end
+
+  # returning_fields/2 extracts the requested returning fields from a Mongo
+  # result struct
+  defp returning_fields(_result, []), do: []
+
+  defp returning_fields(%Mongo.InsertOneResult{inserted_id: inserted_id}, [:id]),
+    do: [id: inserted_id]
+
+  defp returning_fields(%Mongo.FindAndModifyResult{ upserted_id: upserted_id, value: value }, fields, opts) do
+    fields
+    |> Enum.map(fn
+        :id ->
+          case Keyword.get(opts, :return_document) do
+            :after ->
+              {:id, Map.get(value, "_id")}
+            _other ->
+              {:id, upserted_id}
+          end
+        field -> {field, Map.get(value, Atom.to_string(field))}
+
+      end)
   end
 
   def insert_all(repo, %WriteQuery{} = query, opts) do
@@ -238,8 +266,10 @@ defmodule Mongo.Ecto.Connection do
         case on_conflict do
           :raise ->
             raise(error)
+
           :nothing ->
             {0, nil}
+
           _ ->
             check_constraint_errors(error)
         end
@@ -395,10 +425,23 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
+
+
+
+  defp check_constraint_errors(error, opts) do
+    on_conflict = Keyword.get(opts, :on_conflict)
+
+
+    case on_conflict do
+      :nothing -> {:ok, []}
+
+    end
+  end
+
   # At some point in the past it looks like the MongoDB driver switched from
   # returning a single `%Mongo.Error{}` to a `%Mongo.WriteError{}` containing
   # one or more errors in its `write_errors` property.  It looks like
-  # `check_constraint_errors` was never really intended to handle the   JP 2021-08-25.
+  # `check_constraint_errors` was never really intended to handle that.   JP 2021-08-25.
   defp check_constraint_errors(%Mongo.WriteError{
          write_errors: [%{"code" => 11_000, "errmsg" => msg}]
        }) do

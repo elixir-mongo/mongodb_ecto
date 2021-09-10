@@ -23,6 +23,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
               query: %{},
               command: %{},
               database: nil,
+              returning: [],
               opts: []
   end
 
@@ -174,14 +175,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
   # `:raise` is the default behaviour when on_conflict is not specified. In this
   # case we assume that any conflict will be raised by the driver (e.g.
   # duplicate value on a uniquely indexed field)
-  def insert(schema_meta, fields, {:raise, [], []}, _returning, _opts),
-    do: plain_insert(schema_meta, fields)
+  def insert(schema_meta, fields, {:raise, [], []}, returning, opts),
+    do: plain_insert(schema_meta, fields, returning)
 
   # When a user specifies `on_conflict: :nothing` with no conflict targets then
   # we can treat this as a plain insert.  It's expected that exceptions from the
   # driver will be suppressed elsewhere as appropriate.
-  def insert(schema_meta, fields, {:nothing, [], []}, _returning, _opts),
-    do: plain_insert(schema_meta, fields)
+  def insert(schema_meta, fields, {:nothing, [], []}, returning, _opts),
+    do: plain_insert(schema_meta, fields, returning)
 
   # User specified `on_conflict: :nothing` with specified fields that must be
   # checked for conflicts.
@@ -189,7 +190,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
         %{source: coll, schema: schema, prefix: prefix},
         fields,
         {:nothing, [], conflict_targets},
-        _returning,
+        returning,
         _opts
       ) do
     check_conflict_targets!(schema, conflict_targets)
@@ -205,7 +206,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
     # Use `conflict_targets` to create a query that will match any existing documents
     query = query(fields, conflict_targets, pk)
-    command = command(:update, fields, pk)
+    command = command(:update, [], fields, pk)
 
     # * `upsert: true` creates an existing document if none already exists.
     # * `return_document: :after` causes the upserted document to be returned,
@@ -216,7 +217,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     #   elsewhere.
     opts = [
       upsert: true,
-      return_document: :after
+      # return_document: :after
     ]
 
     %WriteQuery{
@@ -225,6 +226,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
       query: query,
       command: command,
       database: prefix,
+      returning: returning,
       opts: opts
     }
   end
@@ -247,21 +249,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
         returning,
         opts
       ) do
-
     pk = primary_key(schema)
     query = query(fields, conflict_targets, pk)
 
     if pk in replace_fields do
-      replace(schema_meta, query, fields)
+      replace(schema_meta, query, fields, returning)
     else
-      IO.inspect(replace_fields, label: "replace_fields")
-      IO.inspect(opts, label: "opts")
-
       {set_fields, set_on_insert_fields} = upsert_fields(fields, replace_fields, conflict_targets)
-
-      IO.inspect(set_fields, label: "set_fields")
-      IO.inspect(set_on_insert_fields, label: "set_on_insert_fields")
-
 
       upsert(schema_meta, query, set_fields, set_on_insert_fields, returning, opts)
     end
@@ -276,10 +270,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
         %{source: coll, schema: schema, prefix: prefix},
         fields,
         {%Ecto.Query{} = query, values, conflict_targets},
-        _returning,
+        returning,
         _opts
       ) do
-
     check_conflict_targets!(schema, conflict_targets)
 
     pk = primary_key(schema)
@@ -299,7 +292,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     # stale by Ecto)
     upsert = query.wheres == []
 
-    %{ "$set": set_fields } =
+    %{"$set": set_fields} =
       command(:update, query, List.to_tuple(Keyword.values(fields) ++ values), from)
 
     # The behaviour we want is for different values to be set on the database
@@ -363,23 +356,24 @@ defmodule Mongo.Ecto.NormalizedQuery do
       database: prefix,
       query: find_query,
       command: update,
+      returning: returning,
       opts: opts
     }
   end
 
-  defp plain_insert(%{source: coll, schema: schema, prefix: prefix}, fields) do
+  defp plain_insert(%{source: coll, schema: schema, prefix: prefix}, fields, returning) do
     command = command(:insert, fields, primary_key(schema))
 
-    op = case fields do
-      [[_ | _] | _] -> :insert_all
-      _ -> :insert
-    end
+    op =
+      case fields do
+        [[_ | _] | _] -> :insert_all
+        _ -> :insert
+      end
 
-    %WriteQuery{op: op, coll: coll, command: command, database: prefix}
+    %WriteQuery{op: op, coll: coll, command: command, database: prefix, returning: returning}
   end
 
-  defp replace(%{source: coll, schema: schema, prefix: prefix}, query, fields) do
-
+  defp replace(%{source: coll, schema: schema, prefix: prefix}, query, fields, returning) do
     pk = primary_key(schema)
 
     opts = [
@@ -394,28 +388,24 @@ defmodule Mongo.Ecto.NormalizedQuery do
       database: prefix,
       query: query,
       command: fields |> value(pk, "replace"),
+      returning: returning,
       opts: opts
     }
   end
 
   # When both `conflict_targets and `set_on_insert` are empty we can consider this a plain insert.
-  defp upsert(schema_meta, [], set_fields, [], _returning, _opts),
-    do: plain_insert(schema_meta, set_fields)
+  defp upsert(schema_meta, [], set_fields, [], returning, _opts),
+    do: plain_insert(schema_meta, set_fields, returning)
 
   defp upsert(
          %{source: coll, schema: schema, prefix: prefix},
          query,
          set_fields,
          set_on_insert_fields,
-         _returning,
+         returning,
          _opts
        ) do
-
-    # In this case we are going to put the responsibility of a double query onto `connection.ex`
-
     pk = primary_key(schema)
-
-    # update = command(:update, Keyword.drop(set_fields, [pk]), set_on_insert_fields, pk)
 
     update = command(:update, set_fields, set_on_insert_fields, pk)
 
@@ -430,62 +420,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
       database: prefix,
       query: query,
       command: update,
+      returning: returning,
       opts: opts
     }
-
-    # should_replace? = set_fields |> Keyword.has_key?(pk)
-
-    # set_on_insert_fields =
-    #   case Keyword.get(set_fields, pk) do
-    #     nil -> set_on_insert_fields
-    #     v -> set_on_insert_fields |> Keyword.put(pk, v)
-    #   end
-
-    # if should_replace? do
-    #   replacement_doc = set_fields ++ set_on_insert_fields
-
-    #   replacement_doc =
-    #     replacement_doc
-    #     |> Enum.dedup()
-    #     |> value(pk, "insert_one for replace_all")
-    #     |> map_unless_empty()
-
-    #   {:multi,
-    #    [
-    #      {:delete_one, [coll, query]},
-    #      {:insert_one, [coll, replacement_doc]}
-    #    ]}
-    # else
-    #   q = %Query{
-    #     updates: [
-    #       %Query.QueryExpr{
-    #         expr: [
-    #           set: set_fields |> Keyword.drop([pk]),
-    #           set_on_insert: set_on_insert_fields
-    #         ]
-    #       }
-    #     ]
-    #   }
-
-    #   update = command(:update, q, set_fields ++ set_on_insert_fields, {coll, schema, pk})
-
-    #   opts = [
-    #     return_document: :after,
-    #     upsert: true
-    #   ]
-
-    #   %WriteQuery{
-    #     op: :find_one_and_update,
-    #     coll: coll,
-    #     database: prefix,
-    #     query: query,
-    #     command: update,
-    #     opts: opts
-    #   }
-    # end
   end
-
-
 
   def command(command, opts) do
     %CommandQuery{command: command, database: Keyword.get(opts, :database)}
@@ -733,12 +671,14 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> merge_keys(query, "update clause")
   end
 
+  defp command(:update, [], set_on_insert_fields, pk), do: set_on_insert(set_on_insert_fields, pk)
+
   defp command(:update, set_fields, set_on_insert_fields, pk) do
     # Set fields are the same as doing a plain update with `$set`
     set_command = command(:update, set_fields, pk)
 
     # These fields are only applied if the operation results in an insert.
-    set_on_insert_command = ["$setOnInsert": set_on_insert_fields |> value(pk, "update command (set on insert)") |> map_unless_empty()]
+    set_on_insert_command = set_on_insert(set_on_insert_fields, pk)
 
     set_command ++ set_on_insert_command
   end
@@ -751,6 +691,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp command(:update, values, pk) do
     ["$set": values |> value(pk, "update command") |> map_unless_empty]
+  end
+
+  defp set_on_insert(fields, pk) do
+    [
+      "$setOnInsert": fields |> value(pk, "update command (set on insert)") |> map_unless_empty()
+    ]
   end
 
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
