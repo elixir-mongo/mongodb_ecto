@@ -170,12 +170,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, command: command, database: prefix}
   end
 
-  ####### JP START
-
   # `:raise` is the default behaviour when on_conflict is not specified. In this
   # case we assume that any conflict will be raised by the driver (e.g.
   # duplicate value on a uniquely indexed field)
-  def insert(schema_meta, fields, {:raise, [], []}, returning, opts),
+  def insert(schema_meta, fields, {:raise, [], []}, returning, _opts),
     do: plain_insert(schema_meta, fields, returning)
 
   # When a user specifies `on_conflict: :nothing` with no conflict targets then
