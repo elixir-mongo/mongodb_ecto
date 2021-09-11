@@ -2195,7 +2195,6 @@ defmodule Ecto.Integration.RepoTest do
     end
 
     @tag :with_conflict_target
-    @tag :skip
     test "on conflict replace_all and conflict_target" do
       post_first = %Post{title: "first", public: true, uuid: Ecto.UUID.generate()}
       post_second = %Post{title: "second", public: false, uuid: Ecto.UUID.generate()}
@@ -2271,9 +2270,6 @@ defmodule Ecto.Integration.RepoTest do
     end
 
     @tag :with_conflict_target
-    # Fails because attempting to increment ID.
-    #  This will also require multiple DB calls.  2021-09-01 JP.
-    @tag :skip
     test "on conflict replace_all_except and conflict_target" do
       post_first = %Post{title: "first", public: true, uuid: Ecto.UUID.generate()}
       post_second = %Post{title: "second", public: false, uuid: Ecto.UUID.generate()}
@@ -2296,8 +2292,8 @@ defmodule Ecto.Integration.RepoTest do
 
       # Multiple record change value: note IDS are not replaced
       changes = [
-        %{id: post_first.id + 2, title: "first_updated", visits: 1, uuid: post_first.uuid},
-        %{id: post_second.id + 2, title: "second_updated", visits: 2, uuid: post_second.uuid}
+        %{id: increment(post_first.id, 2), title: "first_updated", visits: 1, uuid: post_first.uuid},
+        %{id: increment(post_second.id, 2), title: "second_updated", visits: 2, uuid: post_second.uuid}
       ]
 
       TestRepo.insert_all(Post, changes,

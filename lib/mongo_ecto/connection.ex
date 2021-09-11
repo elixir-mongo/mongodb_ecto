@@ -132,10 +132,6 @@ defmodule Mongo.Ecto.Connection do
       {:ok, %{modified_count: 1}} ->
         {:ok, []}
 
-      # TODO - maybe?!  What constitutes a successful upsert.
-      # {:ok, %{upserted_ids: [_|_]}} ->
-      #   {:ok, []}
-
       {:ok, _} ->
         {:error, :stale}
 
@@ -152,7 +148,7 @@ defmodule Mongo.Ecto.Connection do
     pk = query.pk
     query = query.query
 
-    case query(repo, :find_one_and_update, [coll, query, command], opts) |> IO.inspect(label: "find_one_and_update res`") do
+    case query(repo, :find_one_and_update, [coll, query, command], opts) do
       {:ok,
        %Mongo.FindAndModifyResult{matched_count: 0, updated_existing: false, upserted_id: nil}} ->
         {:error, :stale}
@@ -160,6 +156,18 @@ defmodule Mongo.Ecto.Connection do
       {:ok, result} ->
         {:ok, returning_fields(result, returning, pk, opts)}
     end
+  end
+
+  defp delete_matching_documents_before_update?(opts) do
+    Keyword.get(opts, :delete_matching_documents_before_update_hack, false)
+  end
+
+  defp warn_dangerous_multi_query do
+    Logger.warning("""
+      In order to fulfil this query matching documents must first be deleted.  This could be dangerous and result in data loss!
+
+      To work around this issue you should avoid `on_conflict: :replace_all`.
+      """)
   end
 
   def find_one_and_replace(repo, %WriteQuery{} = query, opts) do
@@ -170,12 +178,8 @@ defmodule Mongo.Ecto.Connection do
     pk = query.pk
     filter = query.query
 
-    if Keyword.get(opts, :delete_matching_documents_before_update_hack) do
-      Logger.warning("""
-      In order to fulfil this query matching documents must first be deleted.  This could be dangerous and result in data loss!
-
-      To work around this issue you should avoid `on_conflict: :replace_all`.
-      """)
+    if delete_matching_documents_before_update?(opts) do
+      warn_dangerous_multi_query()
 
       delete(repo, query, opts)
     end
@@ -191,30 +195,35 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
-  @doc """
-  Like update_one and update_many except more powerful
-
-  TRY REMOVING
-  """
   def update(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
     command = query.command
     opts = query.opts ++ opts
-    query = query.query
+
+
+    if delete_matching_documents_before_update?(opts) do
+      warn_dangerous_multi_query()
+
+      command =
+        command
+        |> Enum.map(fn update ->
+
+          update
+          |> Enum.filter(fn {k, _v} -> k in [:query, :q] end)
+          |> Keyword.put(:limit, 1)
+
+        end)
+
+      query(repo, :delete, [coll, command], opts)
+    end
 
     case query(repo, :update, [coll, command], opts) do
-      # {:ok, %Mongo.UpdateResult{modified_count: 0, matched_count: matched_count, upserted_ids: nil}} ->
-      #   {:ok, 0}
+      {:ok, %Mongo.UpdateResult{modified_count: 0, upserted_ids: [_ | _] = upserted_ids}} ->
+        {Enum.count(upserted_ids), nil}
 
-      {:ok, %Mongo.UpdateResult{modified_count: 0, upserted_ids: upserted_ids}}
-      when is_list(upserted_ids) ->
-        {:ok, Enum.count(upserted_ids)}
+        {:ok, %Mongo.UpdateResult{modified_count: modified_count}} ->
+          {modified_count, nil}
 
-      {:ok, %Mongo.UpdateResult{modified_count: m} = _result} ->
-        {:ok, m}
-
-      {:error, error} ->
-        check_constraint_errors(error)
     end
   end
 
@@ -281,13 +290,6 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
 
     query(repo, :command!, [command], opts)
-  end
-
-  # TODO remove!  connection should be able to figure out whether you need to make two commands for on_conflict: :replace_all
-  def query(adapter_meta, :multi, operations, opts) do
-    operations
-    |> Enum.map(fn {op, args} -> query(adapter_meta, op, args, opts) end)
-    |> Enum.at(-1)
   end
 
   def query(adapter_meta, operation, args, opts) do
