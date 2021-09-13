@@ -5,14 +5,14 @@ defmodule Mongo.Ecto do
   This document will present a general overview of using MongoDB with Ecto,
   including common pitfalls and extra functionalities.
 
-  Check the [Ecto documentation](http://hexdocs.pm/ecto) for an introduction
-  or [examples/simple](https://github.com/ankhers/mongodb_ecto/tree/master/examples/simple)
+  Check the [Ecto documentation](http://hexdocs.pm/ecto) for an introduction or
+  [examples/simple](https://github.com/ankhers/mongodb_ecto/tree/master/examples/simple)
   for a sample application using Ecto and MongoDB.
 
   ## Repositories
 
-  The first step to use MongoDB with Ecto is to define a repository
-  with `Mongo.Ecto` as an adapter. First define a module:
+  The first step to use MongoDB with Ecto is to define a repository with
+  `Mongo.Ecto` as an adapter. First define a module:
 
       defmodule Repo do
         use Ecto.Repo, otp_app: :my_app
@@ -28,9 +28,9 @@ defmodule Mongo.Ecto do
         password: "mongodb",
         hostname: "localhost"
 
-  Each repository in Ecto defines a `start_link/0` function that needs to
-  be invoked before using the repository. This function is generally from
-  your supervision tree:
+  Each repository in Ecto defines a `start_link/0` function that needs to be
+  invoked before using the repository. This function is generally from your
+  supervision tree:
 
       def start(_type, _args) do
         import Supervisor.Spec
@@ -65,15 +65,15 @@ defmodule Mongo.Ecto do
   Ecto defaults to using `:id` type for primary keys, that is translated to
   `:integer` for SQL databases, and is not handled by MongoDB. You need to
   specify the primary key to use the `:binary_id` type, that the adapter will
-  translate to ObjectID. Remember to place this declaration before the
-  `schema` call.
+  translate to ObjectID. Remember to place this declaration before the `schema`
+  call.
 
-  The name of the primary key is just a convenience, as MongoDB forces us to
-  use `_id`. Every other name will be recursively changed to `_id` in all calls
-  to the adapter. We propose to use `id` or `_id` as your primary key name
-  to limit eventual confusion, but you are free to use whatever you like.
-  Using the `autogenerate: true` option will tell the adapter to take care of
-  generating new ObjectIDs. Otherwise you need to do this yourself.
+  The name of the primary key is just a convenience, as MongoDB forces us to use
+  `_id`. Every other name will be recursively changed to `_id` in all calls to
+  the adapter. We propose to use `id` or `_id` as your primary key name to limit
+  eventual confusion, but you are free to use whatever you like. Using the
+  `autogenerate: true` option will tell the adapter to take care of generating
+  new ObjectIDs. Otherwise you need to do this yourself.
 
   Since setting `@primary_key` for every model can be too repetitive, we
   recommend you to define your own module that properly configures it:
@@ -88,11 +88,11 @@ defmodule Mongo.Ecto do
         end
       end
 
-  Now, instead of `use Ecto.Model`, you can `use MyApp.Model` in your
-  modules. All Ecto types, except `:decimal`, are supported by `Mongo.Ecto`.
+  Now, instead of `use Ecto.Model`, you can `use MyApp.Model` in your modules.
+  All Ecto types, except `:decimal`, are supported by `Mongo.Ecto`.
 
-  By defining a schema, Ecto automatically defines a struct with
-  the schema fields:
+  By defining a schema, Ecto automatically defines a struct with the schema
+  fields:
 
       iex> weather = %Weather{temp_lo: 30}
       iex> weather.temp_lo
@@ -105,8 +105,8 @@ defmodule Mongo.Ecto do
       %Weather{...}
 
   After persisting `weather` to the database, it will return a new copy of
-  `%Weather{}` with the primary key (the `id`) set. We can use this value
-  to read a struct back from the repository:
+  `%Weather{}` with the primary key (the `id`) set. We can use this value to
+  read a struct back from the repository:
 
       # Get the struct back
       iex> weather = Repo.get Weather, "507f191e810c19729de860ea"
@@ -123,8 +123,8 @@ defmodule Mongo.Ecto do
 
   ## Queries
 
-  `Mongo.Ecto` also supports writing queries in Elixir to interact with
-  your MongoDB. Let's see an example:
+  `Mongo.Ecto` also supports writing queries in Elixir to interact with your
+  MongoDB. Let's see an example:
 
       import Ecto.Query, only: [from: 2]
 
@@ -135,8 +135,8 @@ defmodule Mongo.Ecto do
       # Returns %Weather{} structs matching the query
       Repo.all(query)
 
-  Queries are defined and extended with the `from` macro. The supported
-  keywords in MongoDB are:
+  Queries are defined and extended with the `from` macro. The supported keywords
+  in MongoDB are:
 
     * `:where`
     * `:order_by`
@@ -145,17 +145,17 @@ defmodule Mongo.Ecto do
     * `:select`
     * `:preload`
 
-  When writing a query, you are inside Ecto's query syntax. In order to
-  access params values or invoke functions, you need to use the `^`
-  operator, which is overloaded by Ecto:
+  When writing a query, you are inside Ecto's query syntax. In order to access
+  params values or invoke functions, you need to use the `^` operator, which is
+  overloaded by Ecto:
 
       def min_prcp(min) do
         from w in Weather, where: w.prcp > ^min or is_nil(w.prcp)
       end
 
-  Besides `Repo.all/1`, which returns all entries, repositories also
-  provide `Repo.one/1`, which returns one entry or nil, and `Repo.one!/1`
-  which returns one entry or raises.
+  Besides `Repo.all/1`, which returns all entries, repositories also provide
+  `Repo.one/1`, which returns one entry or nil, and `Repo.one!/1` which returns
+  one entry or raises.
 
   There is also support for count function in queries that uses `MongoDB`'s
   `count` command. Please note that unlike in SQL databases you can only select
@@ -172,19 +172,37 @@ defmodule Mongo.Ecto do
       from p in Post, where: fragment(key:["$exists": true]), select: p
 
 
-  To ease of using in more advanced queries, there is `Mongo.Ecto.Helpers` module
-  you could import into modules dealing with queries.
-  Please see the documentation of the `Mongo.Ecto.Helpers` module for more
-  information and supported options.
+  To ease of using in more advanced queries, there is `Mongo.Ecto.Helpers`
+  module you could import into modules dealing with queries. Please see the
+  documentation of the `Mongo.Ecto.Helpers` module for more information and
+  supported options.
 
   ### Options for reader functions (`Repo.all/2`, `Repo.one/2`, etc)
 
-  Such functions also accept options when invoked which allow
-  you to use parameters specific to MongoDB `find` function:
+  Such functions also accept options when invoked which allow you to use
+  parameters specific to MongoDB `find` function:
 
     * `:slave_ok` - the read operation may run on secondary replica set member
     * `:partial` - partial data from a query against a sharded cluster in which
       some shards do not respond will be returned in stead of raising error
+
+  ### Upserts
+
+  MongoDB's upsert featureset is not as rich as that found in other databases,
+  and therefore not all features provided for by Ecto are supported.
+
+  Some upsert operations can be achieved with multiple database calls and are
+  therefore unsafe.  A warning is printed to the console in these cases.  Since
+  these operations involve multiple DB calls they **cannot be considered safe**
+  and cannot be recommended.  They're intended mostly to make the transition for
+  Ecto developers coming from another database as clean as possible.
+
+  Other operations are completely impossible without jumping through many
+  database calls and at the time of writing it wasn't deemed worth it to take
+  this much further.  In these cases an error is raised and it's up to you to
+  pick another strategy.  Of course PRs are always welcome!
+
+  https://hexdocs.pm/ecto/Ecto.Repo.html#c:insert/2-upserts
 
   ## Commands
 
@@ -228,16 +246,16 @@ defmodule Mongo.Ecto do
         end
       end
 
-  Keep in mind that Ecto associations are stored in different Mongo
-  collections and multiple queries may be required for retriving them.
+  Keep in mind that Ecto associations are stored in different Mongo collections
+  and multiple queries may be required for retriving them.
 
-  While `Mongo.Ecto` supports almost all association features in Ecto,
-  keep in mind that MongoDB does not support joins as used in SQL - it's
-  not possible to query your associations together with the main model.
+  While `Mongo.Ecto` supports almost all association features in Ecto, keep in
+  mind that MongoDB does not support joins as used in SQL - it's not possible to
+  query your associations together with the main model.
 
-  Some more elaborate association schemas may force Ecto to use joins in
-  some queries, that are not supported by MongoDB as well. One such call
-  is `Ecto.Model.assoc/2` function with a `has_many :through` association.
+  Some more elaborate association schemas may force Ecto to use joins in some
+  queries, that are not supported by MongoDB as well. One such call is
+  `Ecto.Model.assoc/2` function with a `has_many :through` association.
 
   You can find more information about defining associations and each respective
   association module in `Ecto.Schema` docs.
@@ -266,10 +284,10 @@ defmodule Mongo.Ecto do
 
   ## Indexes and Migrations
 
-  Although schema migrations make no sense for databases such as MongoDB
-  there is one field where they can be very beneficial - indexes. Because of
-  this Mongodb.Ecto supports Ecto's database migrations. You can generate a
-  migration with:
+  Although schema migrations make no sense for databases such as MongoDB there
+  is one field where they can be very beneficial - indexes. Because of this
+  Mongodb.Ecto supports Ecto's database migrations. You can generate a migration
+  with:
 
       $ mix ecto.gen.migration create_posts
 
@@ -323,8 +341,8 @@ defmodule Mongo.Ecto do
 
   ### Compile time options
 
-  Those options should be set in the config file and require
-  recompilation in order to make an effect.
+  Those options should be set in the config file and require recompilation in
+  order to make an effect.
 
     * `:adapter` - The adapter name, in this case, `Mongo.Ecto`
     * `:pool` - The connection pool module, defaults to `Mongo.Pool.Poolboy`
@@ -336,7 +354,8 @@ defmodule Mongo.Ecto do
     * `:port` - Server port (default: `27017`)
     * `:username` - Username
     * `:password` - User password
-    * `:mongo_url` - A MongoDB [URL](https://docs.mongodb.com/manual/reference/connection-string/)
+    * `:mongo_url` - A MongoDB
+      [URL](https://docs.mongodb.com/manual/reference/connection-string/)
     * `:connect_timeout` - The timeout for establishing new connections
        (default: 5000)
     * `:w` - MongoDB's write convern (default: 1). If set to 0, some of the
@@ -660,12 +679,26 @@ defmodule Mongo.Ecto do
   def insert(adapter_meta, schema_meta, fields, on_conflict, returning, opts) do
     normalized_query = NormalizedQuery.insert(schema_meta, fields, on_conflict, returning, opts)
 
+    # IO.inspect(normalized_query, label: "normalized_query")
+
     apply(Connection, normalized_query.op, [adapter_meta, normalized_query, opts])
   end
 
   @impl Ecto.Adapter.Schema
-  def insert_all(adapter_meta, schema_meta, _header, fields_list, on_conflict, returning, _placeholders, opts) do
-    normalized_query = NormalizedQuery.insert(schema_meta, fields_list, on_conflict, returning, opts)
+  def insert_all(
+        adapter_meta,
+        schema_meta,
+        _header,
+        fields_list,
+        on_conflict,
+        returning,
+        _placeholders,
+        opts
+      ) do
+    normalized_query =
+      NormalizedQuery.insert(schema_meta, fields_list, on_conflict, returning, opts)
+
+    # IO.inspect(normalized_query, label: "normalized_query")
 
     apply(Connection, normalized_query.op, [adapter_meta, normalized_query, opts])
   end

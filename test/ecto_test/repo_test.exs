@@ -1813,7 +1813,9 @@ defmodule Ecto.Integration.RepoTest do
       assert not_inserted.id == nil
     end
 
-    @tag :without_conflict_target
+    @tag :wont_support
+    # on_conflict with set not possible without multiple DB calls.  Propose to
+    # make this a hard failure with a raise. 2021-09-12 JP.
     test "on conflict keyword list" do
       on_conflict = [set: [title: "second"]]
       post = %Post{title: "first", uuid: Ecto.UUID.generate()}
@@ -1911,7 +1913,9 @@ defmodule Ecto.Integration.RepoTest do
       assert not_inserted.id == nil
     end
 
-    @tag :without_conflict_target
+    @tag :wont_support
+    # on_conflict with set not possible without multiple DB calls.  Propose to
+    # make this a hard failure with a raise. 2021-09-12 JP.
     test "on conflict query" do
       on_conflict = from Post, update: [set: [title: "second"]]
       post = %Post{title: "first", uuid: Ecto.UUID.generate()}
@@ -2171,8 +2175,18 @@ defmodule Ecto.Integration.RepoTest do
 
       # Multiple record change value: note IDS are also replaced
       changes = [
-        %{id: increment(post_first.id, 2), title: "first_updated", visits: 1, uuid: post_first.uuid},
-        %{id: increment(post_second.id, 2), title: "second_updated", visits: 2, uuid: post_second.uuid}
+        %{
+          id: increment(post_first.id, 2),
+          title: "first_updated",
+          visits: 1,
+          uuid: post_first.uuid
+        },
+        %{
+          id: increment(post_second.id, 2),
+          title: "second_updated",
+          visits: 2,
+          uuid: post_second.uuid
+        }
       ]
 
       TestRepo.insert_all(Post, changes, on_conflict: :replace_all)
@@ -2253,8 +2267,18 @@ defmodule Ecto.Integration.RepoTest do
 
       # Multiple record change value: note IDS are not replaced
       changes = [
-        %{id: post_first.id + 2, title: "first_updated", visits: 1, uuid: post_first.uuid},
-        %{id: post_second.id + 2, title: "second_updated", visits: 2, uuid: post_second.uuid}
+        %{
+          id: increment(post_first.id, 2),
+          title: "first_updated",
+          visits: 1,
+          uuid: post_first.uuid
+        },
+        %{
+          id: increment(post_second.id, 2),
+          title: "second_updated",
+          visits: 2,
+          uuid: post_second.uuid
+        }
       ]
 
       TestRepo.insert_all(Post, changes, on_conflict: {:replace_all_except, [:id]})
@@ -2292,8 +2316,18 @@ defmodule Ecto.Integration.RepoTest do
 
       # Multiple record change value: note IDS are not replaced
       changes = [
-        %{id: increment(post_first.id, 2), title: "first_updated", visits: 1, uuid: post_first.uuid},
-        %{id: increment(post_second.id, 2), title: "second_updated", visits: 2, uuid: post_second.uuid}
+        %{
+          id: increment(post_first.id, 2),
+          title: "first_updated",
+          visits: 1,
+          uuid: post_first.uuid
+        },
+        %{
+          id: increment(post_second.id, 2),
+          title: "second_updated",
+          visits: 2,
+          uuid: post_second.uuid
+        }
       ]
 
       TestRepo.insert_all(Post, changes,

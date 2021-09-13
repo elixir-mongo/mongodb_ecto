@@ -43,15 +43,13 @@ ExUnit.start(
     # For now:
     :json_extract_path,
     :select_not,
-
-    # TODO: Turn these back on
-    # :with_conflict_target,
-    :without_conflict_target
+    :wont_support
   ]
 )
 
 Application.put_env(:ecto, :primary_key_type, :binary_id)
 Application.put_env(:ecto, :async_integration_tests, false)
+Application.put_env(:mongodb_ecto, :allow_unsafe_upserts, true)
 
 # Code.require_file("../deps/ecto_sql/integration_test/support/repo.exs", __DIR__)
 

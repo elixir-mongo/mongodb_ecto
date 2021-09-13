@@ -158,18 +158,6 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
-  defp delete_matching_documents_before_update?(opts) do
-    Keyword.get(opts, :delete_matching_documents_before_update_hack, false)
-  end
-
-  defp warn_dangerous_multi_query do
-    Logger.warning("""
-      In order to fulfil this query matching documents must first be deleted.  This could be dangerous and result in data loss!
-
-      To work around this issue you should avoid `on_conflict: :replace_all`.
-      """)
-  end
-
   def find_one_and_replace(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
     command = query.command
@@ -178,12 +166,6 @@ defmodule Mongo.Ecto.Connection do
     pk = query.pk
     filter = query.query
 
-    if delete_matching_documents_before_update?(opts) do
-      warn_dangerous_multi_query()
-
-      delete(repo, query, opts)
-    end
-
     case query(repo, :find_one_and_replace, [coll, filter, command], opts) do
       {:ok,
        %Mongo.FindAndModifyResult{matched_count: 0, updated_existing: false, upserted_id: nil}} ->
@@ -191,7 +173,6 @@ defmodule Mongo.Ecto.Connection do
 
       {:ok, result} ->
         {:ok, returning_fields(result, returning, pk, opts)}
-
     end
   end
 
@@ -200,30 +181,12 @@ defmodule Mongo.Ecto.Connection do
     command = query.command
     opts = query.opts ++ opts
 
-
-    if delete_matching_documents_before_update?(opts) do
-      warn_dangerous_multi_query()
-
-      command =
-        command
-        |> Enum.map(fn update ->
-
-          update
-          |> Enum.filter(fn {k, _v} -> k in [:query, :q] end)
-          |> Keyword.put(:limit, 1)
-
-        end)
-
-      query(repo, :delete, [coll, command], opts)
-    end
-
     case query(repo, :update, [coll, command], opts) do
       {:ok, %Mongo.UpdateResult{modified_count: 0, upserted_ids: [_ | _] = upserted_ids}} ->
         {Enum.count(upserted_ids), nil}
 
-        {:ok, %Mongo.UpdateResult{modified_count: modified_count}} ->
-          {modified_count, nil}
-
+      {:ok, %Mongo.UpdateResult{modified_count: modified_count}} ->
+        {modified_count, nil}
     end
   end
 
@@ -233,8 +196,11 @@ defmodule Mongo.Ecto.Connection do
     opts = query.opts ++ opts
 
     case query(repo, :insert_one, [coll, command], opts) do
-      {:ok, result} -> {:ok, returning_fields(result, query.returning, query.pk)}
-      {:error, error} -> check_constraint_errors(repo, query, error, {:insert, [repo, query, opts]}, opts)
+      {:ok, result} ->
+        {:ok, returning_fields(result, query.returning, query.pk)}
+
+      {:error, error} ->
+        check_constraint_errors(repo, query, error, {:insert, [repo, query, opts]}, opts)
     end
   end
 
@@ -247,32 +213,39 @@ defmodule Mongo.Ecto.Connection do
   defp returning_fields(%Mongo.InsertOneResult{inserted_id: inserted_id}, [pk], pk, _opts),
     do: Keyword.put([], pk, inserted_id)
 
-  defp returning_fields(%Mongo.FindAndModifyResult{ upserted_id: upserted_id, value: value }, fields, pk, opts) do
+  defp returning_fields(
+         %Mongo.FindAndModifyResult{upserted_id: upserted_id, value: value},
+         fields,
+         pk,
+         opts
+       ) do
     fields
     |> Enum.map(fn
-        ^pk ->
-          case Keyword.get(opts, :return_document) do
-            :after ->
-              {pk, Map.get(value, "_id")}
-            _other ->
-              {pk, upserted_id}
-          end
-        field -> {field, Map.get(value, Atom.to_string(field))}
-      end)
+      ^pk ->
+        case Keyword.get(opts, :return_document) do
+          :after ->
+            {pk, Map.get(value, "_id")}
+
+          _other ->
+            {pk, upserted_id}
+        end
+
+      field ->
+        {field, Map.get(value, Atom.to_string(field))}
+    end)
   end
 
   def insert_all(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
     command = query.command
     opts = query.opts ++ opts
-    on_conflict = opts |> Keyword.get(:on_conflict)
 
     case query(repo, :insert_many, [coll, command], opts) do
       {:ok, %{inserted_ids: ids}} ->
         {Enum.count(ids), nil}
 
-      {:error, error} -> check_constraint_errors(repo, query, error, {:insert_all, [repo, query, opts]}, opts)
-
+      {:error, error} ->
+        check_constraint_errors(repo, query, error, {:insert_all, [repo, query, opts]}, opts)
     end
   end
 
@@ -425,41 +398,57 @@ defmodule Mongo.Ecto.Connection do
       :nothing ->
         conflict_targets = opts |> Keyword.get(:conflict_target, [])
 
-        %{ write_errors: [%{ "keyPattern" => key_pattern }]} = error
+        %{write_errors: [%{"keyPattern" => key_pattern}]} = error
 
         conflicting_keys = Map.keys(key_pattern)
 
         conflict_targets
         |> Enum.each(fn conflict_target ->
-
           if Atom.to_string(conflict_target) not in conflicting_keys do
             raise error
           end
-
         end)
 
         if query.op == :insert_all do
           {0, nil}
         else
           {:ok, []}
-
         end
 
       :replace_all ->
         # Here we have to do a song and dance to delete the offending documents and then reattempt the operation.
         # The recommended practice is to avoid :replace_all (and other on_conflict options that result in similar need)
 
-        error.write_errors
-        |> Enum.each(fn write_error ->
+        if allow_unsafe_upserts?(opts) do
+          error.write_errors
+          |> Enum.each(fn write_error ->
+            %{"keyValue" => filter} = write_error
 
-          %{ "keyValue" => filter } = write_error
+            query(repo, :delete_one, [query.coll, filter], opts)
+          end)
 
-          query(repo, :delete_one, [query.coll, filter], opts)
+          apply(__MODULE__, retry_function_name, retry_args)
+        else
+          raise """
+          `on_conflict: :replace_all` cannot be accomplished in MongoDB without multiple database calls, not least
+          because MongoDB does not allow the primary key (`_id`) to be replaced.
 
-        end)
+          To workaround this issue you may:
 
-        apply(__MODULE__, retry_function_name, retry_args)
+          * Use a different `on_conflict` strategy (this is the safest option)
+          * If you must use `:replace_all`, you may pass an additional `allow_unsafe_upserts: true` option.
+
+          Passing `allow_unsafe_upserts: true` will cause `mongodb_ecto` to issue multiple database calls in order
+          to resolve conflicts.  Since multiple independent calls are involve this cannot be considered safe and
+          should be avoided if possible.
+          """
+        end
     end
+  end
+
+  defp allow_unsafe_upserts?(opts) do
+    allow_unsafe_upserts_option = :allow_unsafe_upserts
+    Application.get_env(:mongodb_ecto, allow_unsafe_upserts_option, false) || Keyword.get(opts, allow_unsafe_upserts_option, false)
   end
 
   # At some point in the past it looks like the MongoDB driver switched from
