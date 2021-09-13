@@ -158,24 +158,6 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
-  def find_one_and_replace(repo, %WriteQuery{} = query, opts) do
-    coll = query.coll
-    command = query.command
-    returning = query.returning
-    opts = query.opts ++ opts
-    pk = query.pk
-    filter = query.query
-
-    case query(repo, :find_one_and_replace, [coll, filter, command], opts) do
-      {:ok,
-       %Mongo.FindAndModifyResult{matched_count: 0, updated_existing: false, upserted_id: nil}} ->
-        {:error, :stale}
-
-      {:ok, result} ->
-        {:ok, returning_fields(result, returning, pk, opts)}
-    end
-  end
-
   def update(repo, %WriteQuery{} = query, opts) do
     coll = query.coll
     command = query.command
