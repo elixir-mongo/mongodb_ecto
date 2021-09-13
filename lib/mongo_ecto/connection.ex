@@ -234,7 +234,7 @@ defmodule Mongo.Ecto.Connection do
 
     case query(repo, :insert_one, [coll, command], opts) do
       {:ok, result} -> {:ok, returning_fields(result, query.returning, query.pk)}
-      {:error, error} -> check_constraint_errors(error, opts)
+      {:error, error} -> check_constraint_errors(repo, query, error, {:insert, [repo, query, opts]}, opts)
     end
   end
 
@@ -271,17 +271,8 @@ defmodule Mongo.Ecto.Connection do
       {:ok, %{inserted_ids: ids}} ->
         {Enum.count(ids), nil}
 
-      {:error, error} ->
-        case on_conflict do
-          :raise ->
-            raise(error)
+      {:error, error} -> check_constraint_errors(repo, query, error, {:insert_all, [repo, query, opts]}, opts)
 
-          :nothing ->
-            {0, nil}
-
-          _ ->
-            check_constraint_errors(error)
-        end
     end
   end
 
@@ -427,16 +418,47 @@ defmodule Mongo.Ecto.Connection do
     end
   end
 
-
-
-
-  defp check_constraint_errors(error, opts) do
+  defp check_constraint_errors(repo, query, error, {retry_function_name, retry_args}, opts) do
     on_conflict = Keyword.get(opts, :on_conflict)
 
-
     case on_conflict do
-      :nothing -> {:ok, []}
+      :nothing ->
+        conflict_targets = opts |> Keyword.get(:conflict_target, [])
 
+        %{ write_errors: [%{ "keyPattern" => key_pattern }]} = error
+
+        conflicting_keys = Map.keys(key_pattern)
+
+        conflict_targets
+        |> Enum.each(fn conflict_target ->
+
+          if Atom.to_string(conflict_target) not in conflicting_keys do
+            raise error
+          end
+
+        end)
+
+        if query.op == :insert_all do
+          {0, nil}
+        else
+          {:ok, []}
+
+        end
+
+      :replace_all ->
+        # Here we have to do a song and dance to delete the offending documents and then reattempt the operation.
+        # The recommended practice is to avoid :replace_all (and other on_conflict options that result in similar need)
+
+        error.write_errors
+        |> Enum.each(fn write_error ->
+
+          %{ "keyValue" => filter } = write_error
+
+          query(repo, :delete_one, [query.coll, filter], opts)
+
+        end)
+
+        apply(__MODULE__, retry_function_name, retry_args)
     end
   end
 
