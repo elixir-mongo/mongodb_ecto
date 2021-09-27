@@ -31,7 +31,7 @@ defmodule Mongo.Ecto.Mixfile do
       {:ecto, "~> 3.6"},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:excoveralls, "~> 0.8", only: :test},
-      {:mongodb, github: "commoncurriculum/mongodb", branch: "ecto-3"},
+      {:mongodb, github: "avid-technology/mongodb", branch: "ecto-3"},
       {:telemetry, ">= 0.4.0"}
     ]
   end
