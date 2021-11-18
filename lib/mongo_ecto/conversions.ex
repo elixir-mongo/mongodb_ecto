@@ -26,7 +26,7 @@ defmodule Mongo.Ecto.Conversions do
     do: map(list, &inject_params(&1, params, pk))
 
   def inject_params(
-        %Ecto.Query.Tagged{tag: tag, type: type, value: {:^, _, [idx]} = value},
+        %Ecto.Query.Tagged{tag: _tag, type: _type, value: {:^, _, [idx]} = _value},
         params,
         pk
       ) do
@@ -93,7 +93,10 @@ defmodule Mongo.Ecto.Conversions do
   end
 
   defp key(pk, pk), do: :_id
-  defp key(key, _), do: key
+
+  defp key(key, _) do
+    key
+  end
 
   defp map(map, _fun) when is_map(map) and map_size(map) == 0 do
     {:ok, %{}}

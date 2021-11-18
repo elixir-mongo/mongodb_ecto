@@ -357,7 +357,8 @@ defmodule Mongo.Ecto do
 
   @behaviour Ecto.Adapter
   @behaviour Ecto.Adapter.Storage
-  @behaviour Ecto.Adapter.Migration
+  @behaviour Ecto.Adapter.Schema
+  @behaviour Ecto.Adapter.Queryable
 
   alias Mongo.Ecto.NormalizedQuery
   alias Mongo.Ecto.NormalizedQuery.ReadQuery
@@ -370,20 +371,8 @@ defmodule Mongo.Ecto do
   ## Adapter
 
   @doc false
-  defmacro __before_compile__(env) do
-    config = Module.get_attribute(env.module, :config)
-    pool = Keyword.get(config, :pool, DBConnection.Poolboy)
-    pool_name = pool_name(env.module, config)
-    norm_config = normalize_config(config)
-
-    quote do
-      @doc false
-      def __pool__, do: {unquote(pool_name), unquote(Macro.escape(norm_config))}
-
-      def in_transaction?, do: false
-
-      defoverridable __pool__: 0
-    end
+  @impl true
+  defmacro __before_compile__(_env) do
   end
 
   @pool_timeout 5_000
@@ -396,68 +385,85 @@ defmodule Mongo.Ecto do
     |> Keyword.put_new(:pool_timeout, @pool_timeout)
   end
 
-  defp pool_name(module, config) do
-    Keyword.get(config, :pool_name, default_pool_name(module, config))
+  defp pool_name(config) do
+    Keyword.get(config, :pool_name, default_pool_name(config))
   end
 
-  defp default_pool_name(repo, config) do
-    Module.concat(Keyword.get(config, :name, repo), Pool)
+  defp default_pool_name(config) do
+    Module.concat(Keyword.get(config, :name, config[:repo]), Pool)
   end
 
   @doc false
   def application, do: :mongodb_ecto
 
-  @doc false
-  def child_spec(repo, opts) do
-    # Check if the pool options should be overridden
-    {pool_name, pool_opts} =
-      case Keyword.fetch(opts, :pool) do
-        {:ok, pool} ->
-          {pool_name(repo, opts), opts}
+  @pool_opts [:timeout, :pool, :pool_size, :migration_lock] ++
+               [:queue_target, :queue_interval, :ownership_timeout]
 
-        _ ->
-          repo.__pool__
-      end
+  @impl true
+  def init(config) do
+    connection = Connection
 
-    # Rename the `:mongo_url` key so that the driver can parse it
-    opts = Enum.map(opts, fn
-      {:mongo_url, value} -> {:url, value}
-      {key, value} -> {key, value}
-    end)
+    unless Code.ensure_loaded?(connection) do
+      driver = :mongodb
 
-    opts = [name: pool_name] ++ Keyword.delete(opts, :pool) ++ pool_opts
+      raise """
+      could not find #{inspect(connection)}.
+      Please verify you have added #{inspect(driver)} as a dependency:
+          {#{inspect(driver)}, ">= 0.0.0"}
+      And remember to recompile Ecto afterwards by cleaning the current build:
+          mix deps.clean --build ecto
+      """
+    end
 
-    Mongo.child_spec(opts)
+    # otp_app = Module.get_attribute(env.module, :opt_app)
+    # config = Application.get_env(otp_app, env.module, [])
+    # pool = Keyword.get(config, :pool, DBConnection.Poolboy)
+    pool_name = pool_name(config)
+    norm_config = normalize_config(config)
+
+    log = Keyword.get(config, :log, :debug)
+    telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
+    telemetry = {config[:repo], log, telemetry_prefix ++ [:query]}
+
+    # config = adapter_config(config)
+    opts = Keyword.take(config, @pool_opts)
+    meta = %{telemetry: telemetry, opts: opts, pool: {pool_name, norm_config}}
+    {:ok, connection.child_spec(config), meta}
   end
 
-  @doc false
-  def ensure_all_started(repo, type) do
-    {_, opts} = repo.__pool__
-
-    with {:ok, pool} <- DBConnection.ensure_all_started(opts, type),
-         {:ok, mongo} <- Application.ensure_all_started(:mongodb, type),
-         do: {:ok, pool ++ mongo}
+  @impl true
+  def ensure_all_started(_repo, type) do
+    {:ok, _mongo} = Application.ensure_all_started(:mongodb, type)
   end
 
-  @doc false
+  @impl true
   def loaders(:time, type), do: [&load_time/1, type]
   def loaders(:date, type), do: [&load_date/1, type]
   def loaders(:utc_datetime, type), do: [&load_datetime/1, type]
+  def loaders(:utc_datetime_usec, type), do: [&load_datetime/1, type]
   def loaders(:naive_datetime, type), do: [&load_datetime/1, type]
+  def loaders(:naive_datetime_usec, type), do: [&load_datetime/1, type]
   def loaders(:binary_id, type), do: [&load_objectid/1, type]
   def loaders(:uuid, type), do: [&load_binary/1, type]
   def loaders(:binary, type), do: [&load_binary/1, type]
-  def loaders(_base, type), do: [type]
+  def loaders(:integer, type), do: [&load_integer/1, type]
 
-  defp load_time(time), do: Time.to_erl(time)
+  def loaders(_base, type) do
+    [type]
+  end
 
-  defp load_date(date), do: {:ok, date |> DateTime.to_date() |> Date.to_erl()}
+  defp load_time(time), do: time
+
+  defp load_date(date) do
+    {:ok, date |> DateTime.to_date()}
+  end
 
   defp load_datetime(datetime) do
-    naive = DateTime.to_naive(datetime)
-    {date, {h, m, s}} = NaiveDateTime.to_erl(naive)
-    {x, _} = naive.microsecond
-    {:ok, {date, {h, m, s, x}}}
+    {:ok, datetime}
+  end
+
+  defp load_integer(map) do
+    {:ok, map}
   end
 
   defp load_binary(%BSON.Binary{binary: binary}), do: {:ok, binary}
@@ -472,19 +478,22 @@ defmodule Mongo.Ecto do
     end
   end
 
-  defp load_objectid(_), do: :error
+  defp load_objectid(_arg), do: :error
 
-  @doc false
+  @impl true
   def dumpers(:time, type), do: [type, &dump_time/1]
   def dumpers(:date, type), do: [type, &dump_date/1]
   def dumpers(:utc_datetime, type), do: [type, &dump_utc_datetime/1]
+  def dumpers(:utc_datetime_usec, type), do: [type, &dump_utc_datetime/1]
   def dumpers(:naive_datetime, type), do: [type, &dump_naive_datetime/1]
+  def dumpers(:naive_datetime_usec, type), do: [type, &dump_naive_datetime/1]
   def dumpers(:binary_id, type), do: [type, &dump_objectid/1]
   def dumpers(:uuid, type), do: [type, &dump_binary(&1, :uuid)]
   def dumpers(:binary, type), do: [type, &dump_binary(&1, :generic)]
   def dumpers(_base, type), do: [type]
 
   defp dump_time({h, m, s, _}), do: Time.from_erl({h, m, s})
+  defp dump_time(%Time{} = time), do: time
   defp dump_time(_), do: :error
 
   defp dump_date({_, _, _} = date) do
@@ -496,7 +505,13 @@ defmodule Mongo.Ecto do
     {:ok, dt}
   end
 
-  defp dump_date(_), do: :error
+  defp dump_date(%Date{} = date) do
+    {:ok, date}
+  end
+
+  defp dump_date(_) do
+    :error
+  end
 
   defp dump_utc_datetime({{_, _, _} = date, {h, m, s, ms}}) do
     datetime =
@@ -507,7 +522,18 @@ defmodule Mongo.Ecto do
     {:ok, datetime}
   end
 
-  defp dump_utc_datetime(_), do: :error
+  defp dump_utc_datetime({{_, _, _} = date, {h, m, s}}) do
+    datetime =
+      {date, {h, m, s}}
+      |> NaiveDateTime.from_erl!({0, 6})
+      |> datetime_from_naive!("Etc/UTC")
+
+    {:ok, datetime}
+  end
+
+  defp dump_utc_datetime(datetime) do
+    {:ok, datetime}
+  end
 
   defp dump_naive_datetime({{_, _, _} = date, {h, m, s, ms}}) do
     datetime =
@@ -518,7 +544,21 @@ defmodule Mongo.Ecto do
     {:ok, datetime}
   end
 
-  defp dump_naive_datetime(_), do: :error
+  defp dump_naive_datetime(%NaiveDateTime{} = dt) do
+    datetime =
+      dt
+      |> datetime_from_naive!("Etc/UTC")
+
+    {:ok, datetime}
+  end
+
+  defp dump_naive_datetime(dt) do
+    datetime =
+      dt
+      |> datetime_from_naive!("Etc/UTC")
+
+    {:ok, datetime}
+  end
 
   # Copy from the Elixir 1.4.5. TODO: Replace with native methods, when we stick on ~> 1.4.
   # Source: https://github.com/elixir-lang/elixir/blob/v1.4/lib/elixir/lib/calendar.ex#L1477
@@ -579,51 +619,90 @@ defmodule Mongo.Ecto do
 
   defp dump_objectid(_), do: :error
 
-  @doc false
+  @impl true
   def autogenerate(:id), do: raise("MongoDB adapter does not support `:id` type as primary key")
   def autogenerate(:embed_id), do: BSON.ObjectId.encode!(Mongo.object_id())
   def autogenerate(:binary_id), do: Mongo.object_id()
 
-  @doc false
+  @impl true
   def prepare(function, query) do
     {:nocache, {function, query}}
   end
 
   @read_queries [ReadQuery, CountQuery, AggregateQuery]
 
-  @doc false
-  def execute(repo, _meta, {:nocache, {function, query}}, params, process, opts) do
+  @impl true
+  def execute(meta, _query_meta, {:nocache, {function, query}}, params, opts) do
+    struct = get_struct_from_query(query)
+
     case apply(NormalizedQuery, function, [query, params]) do
-      %{__struct__: read} = query when read in @read_queries ->
+      %AggregateQuery{} = query ->
         {rows, count} =
-          Connection.read(repo, query, opts)
-          |> Enum.map_reduce(0, &{process_document(&1, query, process), &2 + 1})
+          Connection.read(meta, query, opts)
+          |> Enum.map_reduce(0, &{[&1["value"]], &2 + 1})
+
+        {count, rows}
+
+      %CountQuery{} = query ->
+        {rows, count} =
+          Connection.read(meta, query, opts)
+          |> Enum.map_reduce(0, &{[&1["value"]], &2 + 1})
+
+        {count, rows}
+
+      %ReadQuery{} = query ->
+        {rows, count} =
+          Connection.read(meta, query, opts)
+          |> Enum.map_reduce(0, &{process_document(&1, query, struct), &2 + 1})
 
         {count, rows}
 
       %WriteQuery{} = write ->
-        result = apply(Connection, function, [repo, write, opts])
+        result = apply(Connection, function, [meta, write, opts])
         {result, nil}
     end
   end
 
+  def row_to_list(row, %{select: %{from: {_op, {_source, _tuple, _something, types}}}}) do
+    Enum.map(types, fn {field, _type} ->
+      case field do
+        :id -> row["_id"]
+        _ -> row[Atom.to_string(field)]
+      end
+    end)
+  end
+
+  def row_to_list(row, %{select: %{from: :none}}) do
+    [row]
+  end
+
   # This can be backed by a normal mongo stream, we just have to get it to play nicely with
   #  ecto's batch/preload functionality ( hence the map(&{nil, [&1]}) )
-  @doc false
-  def stream(repo, _meta, {:nocache, {function, query}}, params, process, opts) do
+  @impl true
+  def stream(adapter_meta, _query_meta, {:nocache, {function, query}}, params, opts) do
+    struct = get_struct_from_query(query)
+
     case apply(NormalizedQuery, function, [query, params]) do
       %{__struct__: read} = query when read in @read_queries ->
-        Connection.read(repo, query, opts)
-        |> Stream.map(&process_document(&1, query, process))
+        Connection.read(adapter_meta, query, opts)
+        |> Stream.map(&process_document(&1, query, struct))
 
       %WriteQuery{} = write ->
-        apply(Connection, function, [repo, write, opts])
+        apply(Connection, function, [adapter_meta, write, opts])
         [nil]
     end
     |> Stream.map(&{nil, [&1]})
   end
 
-  @doc false
+  defp get_struct_from_query(%Ecto.Query{from: %Ecto.Query.FromExpr{source: {_coll, nil}}}),
+    do: nil
+
+  defp get_struct_from_query(%Ecto.Query{from: %Ecto.Query.FromExpr{source: {_coll, struct}}}),
+    do: struct.__struct__()
+
+  defp get_struct_from_query(_), do: nil
+
+  @impl true
   def insert(_repo, meta, _params, _on_conflict, [_ | _] = returning, _opts) do
     raise ArgumentError,
           "MongoDB adapter does not support :read_after_writes in models. " <>
@@ -644,7 +723,8 @@ defmodule Mongo.Ecto do
     end
   end
 
-  def insert_all(repo, meta, _fields, params, _, _returning, opts) do
+  @impl true
+  def insert_all(repo, meta, _fields, params, _on_conflict, _returning, _placeholders, opts) do
     normalized = NormalizedQuery.insert(meta, params)
 
     case Connection.insert_all(repo, normalized, opts) do
@@ -656,175 +736,71 @@ defmodule Mongo.Ecto do
     end
   end
 
-  @doc false
+  @impl true
   def update(repo, meta, fields, filters, _returning, opts) do
     normalized = NormalizedQuery.update(meta, fields, filters)
 
     Connection.update(repo, normalized, opts)
   end
 
-  @doc false
+  @impl true
   def delete(repo, meta, filter, opts) do
     normalized = NormalizedQuery.delete(meta, filter)
 
     Connection.delete(repo, normalized, opts)
   end
 
-  defp process_document(document, %{fields: fields, pk: pk}, preprocess) do
-    document = Conversions.to_ecto_pk(document, pk)
+  defp process_document(document, %{fields: fields, pk: pk}, struct) do
+    document = Conversions.to_ecto_pk(document, pk || :_id)
 
     Enum.map(fields, fn
-      {:field, name, field} ->
-        preprocess.(field, Map.get(document, Atom.to_string(name)), nil)
+      {:field, name, _field} ->
+        # If we don't have the key but do a have a struct, we get the default.
+        # Otherwise, we get get the value from the doc
+        if Map.has_key?(document, Atom.to_string(name)) == false && struct != nil do
+          Map.get(struct, name)
+        else
+          Map.get(document, Atom.to_string(name))
+        end
 
-      {:value, value, field} ->
-        preprocess.(field, Conversions.to_ecto_pk(value, pk), nil)
+      {:value, value, _field} ->
+        Conversions.to_ecto_pk(value, pk)
 
-      field ->
-        preprocess.(field, document, nil)
+      _field ->
+        document
     end)
+  end
+
+  # TODO Not sure how to do this or if it's useful for Mongo
+  @impl true
+  def checkout(_, _, fun) do
+    fun.()
   end
 
   ## Storage
 
   # Noop for MongoDB, as any databases and collections are created as needed.
-  @doc false
+  @impl true
   def storage_up(_opts) do
     :ok
   end
 
-  @doc false
+  @impl true
   def storage_down(opts) do
     Connection.storage_down(opts)
   end
 
-  ## Migration
-
-  alias Ecto.Migration.Table
-  alias Ecto.Migration.Index
-
-  @doc false
-  def supports_ddl_transaction?, do: false
-
-  @doc false
-  def execute_ddl(_repo, string, _opts) when is_binary(string) do
-    raise ArgumentError, "MongoDB adapter does not support SQL statements in `execute`"
+  @impl true
+  def storage_status(opts) do
+    Connection.storage_status(opts)
   end
-
-  def execute_ddl(repo, command, opts) when is_list(command) do
-    command(repo, command, opts)
-    :ok
-  end
-
-  def execute_ddl(repo, {:create, %Table{options: nil, name: coll}, columns}, opts) do
-    warn_on_references!(columns)
-    command(repo, [create: coll], opts)
-    :ok
-  end
-
-  def execute_ddl(repo, {:create, %Table{options: options, name: coll}, columns}, opts)
-      when is_list(options) do
-    warn_on_references!(columns)
-    command(repo, [create: coll] ++ options, opts)
-    :ok
-  end
-
-  def execute_ddl(_repo, {:create, %Table{options: string}, _columns}, _opts)
-      when is_binary(string) do
-    raise ArgumentError, "MongoDB adapter does not support SQL statements as collection options"
-  end
-
-  def execute_ddl(repo, {:create, %Index{} = command}, opts) do
-    index = [
-      name: to_string(command.name),
-      unique: command.unique,
-      background: command.concurrently,
-      key: Enum.map(command.columns, &{&1, 1}),
-      ns: namespace(repo, command.table)
-    ]
-
-    query = %WriteQuery{coll: "system.indexes", command: index}
-
-    case Connection.insert(repo, query, opts) do
-      {:ok, _} -> :ok
-      {:invalid, [unique: index]} -> raise Connection.format_constraint_error(index)
-    end
-  end
-
-  def execute_ddl(repo, {:drop, %Index{name: name, table: coll}}, opts) do
-    command(repo, [dropIndexes: coll, index: to_string(name)], opts)
-    :ok
-  end
-
-  def execute_ddl(repo, {:drop, %Table{name: coll}}, opts) do
-    command(repo, [drop: coll], opts)
-    :ok
-  end
-
-  def execute_ddl(repo, {:rename, %Table{name: old}, %Table{name: new}}, opts) do
-    command = [renameCollection: namespace(repo, old), to: namespace(repo, new)]
-    command(repo, command, [database: "admin"] ++ opts)
-    :ok
-  end
-
-  def execute_ddl(repo, {:rename, %Table{name: coll}, old, new}, opts) do
-    query = %WriteQuery{
-      coll: to_string(coll),
-      command: ["$rename": [{to_string(old), to_string(new)}]],
-      opts: [multi: true]
-    }
-
-    Connection.update_all(repo, query, opts)
-    :ok
-  end
-
-  def execute_ddl(_repo, {:create_if_not_exists, %Table{options: nil}, columns}, _opts) do
-    # We treat this as a noop as the collection will be created by mongo
-    warn_on_references!(columns)
-    :ok
-  end
-
-  def execute_ddl(_repo, {:create_if_not_exists, %Table{}, _columns}, _opts) do
-    raise ArgumentError,
-          "MongoDB adapter supports options for collection only in the `create` function"
-  end
-
-  def execute_ddl(_repo, {:create_if_not_exists, %Index{}}, _opts) do
-    raise ArgumentError, "MongoDB adapter does not support `create_if_not_exists` for indexes"
-  end
-
-  def execute_ddl(_repo, {:drop_if_exists, _}, _opts) do
-    raise ArgumentError, "MongoDB adapter does not support `drop_if_exists`"
-  end
-
-  defp warn_on_references!(columns) do
-    has_references? =
-      Enum.any?(columns, fn
-        {_, _, %Ecto.Migration.Reference{}, _} -> true
-        _other -> false
-      end)
-
-    if has_references? do
-      IO.puts(
-        "[warning] MongoDB adapter does not support references, and will not enforce foreign_key constraints"
-      )
-    end
-  end
-
-  #
-  # Transaction callbacks
-  #
-
-  def in_transaction?(_repo), do: false
 
   ## Mongo specific calls
 
-  @migration Ecto.Migration.SchemaMigration.__schema__(:source)
-
   special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
-  migration_regex = %BSON.Regex{pattern: @migration, options: ""}
+  # migration_regex = %BSON.Regex{pattern: @migration, options: ""}
   @list_collections_query [
-    "$and": [[name: ["$not": special_regex]], [name: ["$not": migration_regex]]]
+    [name: ["$not": special_regex]]
   ]
 
   @doc """
@@ -843,15 +819,16 @@ defmodule Mongo.Ecto do
 
     collection_names =
       if major_version > 3 || (major_version == 3 && minor_version >= 4) do
-        all_collection_names =
+        _all_collection_names =
           repo
           |> command(%{listCollections: 1}, opts)
           |> get_in(["cursor", "firstBatch"])
-          |> Enum.filter(&(&1["type"] == "collection")) # exclude mongo views which were introduced in version 3.4
+          # exclude mongo views which were introduced in version 3.4
+          |> Enum.filter(&(&1["type"] == "collection"))
           |> Enum.map(&Map.fetch!(&1, "name"))
           |> Enum.reject(&String.contains?(&1, "system."))
 
-        all_collection_names -- [@migration]
+        # all_collection_names -- [@migration]
       else
         list_collections(version, repo, opts)
       end
@@ -881,7 +858,7 @@ defmodule Mongo.Ecto do
   def command(repo, command, opts \\ []) do
     normalized = NormalizedQuery.command(command, opts)
 
-    Connection.command(repo, normalized, opts)
+    Connection.command(Ecto.Adapter.lookup_meta(repo), normalized, opts)
   end
 
   @doc false
@@ -892,12 +869,12 @@ defmodule Mongo.Ecto do
   defp list_collections([major_version | _], repo, opts) when major_version >= 3 do
     colls = command(repo, %{listCollections: 1}, opts)["cursor"]["firstBatch"]
 
-    all_collections =
+    _all_collections =
       colls
       |> Enum.map(&Map.fetch!(&1, "name"))
       |> Enum.reject(&String.contains?(&1, "system."))
 
-    all_collections -- [@migration]
+    # all_collections -- [@migration]
   end
 
   defp list_collections(_, repo, opts) do
@@ -912,12 +889,9 @@ defmodule Mongo.Ecto do
   end
 
   defp truncate_collection(repo, collection, opts) do
+    meta = Ecto.Adapter.lookup_meta(repo)
     query = %WriteQuery{coll: collection, query: %{}}
-    Connection.delete_all(repo, query, opts)
-  end
-
-  defp namespace(repo, coll) do
-    "#{repo.config[:database]}.#{coll}"
+    Connection.delete_all(meta, query, opts)
   end
 
   defp db_version(repo) do

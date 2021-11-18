@@ -1,3 +1,4 @@
+# 0/4 pass
 # Alternative, in ecto_test.exs
 # Code.require_file "../../deps/ecto/integration_test/sql/stream.exs", __DIR__
 # Code.require_file "../deps/ecto/integration_test/sql/stream.exs", __DIR__
@@ -44,6 +45,7 @@ defmodule Mongo.Ecto.Integration.StreamTest do
     assert c2.id == cid2
   end
 
+  @tag :preload
   test "stream with preload" do
     p1 = TestRepo.insert!(%Post{title: "1"})
     p2 = TestRepo.insert!(%Post{title: "2"})

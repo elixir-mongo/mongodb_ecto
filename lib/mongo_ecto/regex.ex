@@ -60,4 +60,8 @@ defmodule Mongo.Ecto.Regex do
   """
   def load(%BSON.Regex{} = js), do: {:ok, Map.put(js, :__struct__, __MODULE__)}
   def load(_), do: :error
+
+  def embed_as(_), do: :dump
+
+  def equal?(a, b), do: a == b
 end

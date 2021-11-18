@@ -40,7 +40,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
   end
 
   alias Mongo.Ecto.Conversions
-  alias Ecto.Query.Tagged
   alias Ecto.Query
 
   defmacrop is_op(op) do
@@ -49,7 +48,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     end
   end
 
-  def all(%Query{} = original, params) do
+  def all(original, params) do
     check_query!(original, [:limit, :offset])
 
     from = from(original)
@@ -125,7 +124,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, command: command, database: original.prefix}
   end
 
-  def update(%{source: {prefix, coll}, schema: schema}, fields, filter) do
+  def update(%{source: coll, prefix: prefix, schema: schema}, fields, filter) do
     command = command(:update, fields, primary_key(schema))
     query = query(filter, primary_key(schema))
 
@@ -143,13 +142,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %WriteQuery{coll: coll, query: query, database: original.prefix}
   end
 
-  def delete(%{source: {prefix, coll}, schema: schema}, filter) do
+  def delete(%{source: coll, schema: schema, prefix: prefix}, filter) do
     query = query(filter, primary_key(schema))
 
     %WriteQuery{coll: coll, query: query, database: prefix}
   end
 
-  def insert(%{source: {prefix, coll}, schema: schema}, document) do
+  def insert(%{source: coll, schema: schema, prefix: prefix}, document) do
     command = command(:insert, document, primary_key(schema))
 
     %WriteQuery{coll: coll, command: command, database: prefix}
@@ -159,11 +158,11 @@ defmodule Mongo.Ecto.NormalizedQuery do
     %CommandQuery{command: command, database: Keyword.get(opts, :database, nil)}
   end
 
-  defp from(%Query{from: {coll, model}}) do
+  defp from(%Query{from: %{source: {coll, model}}}) do
     {coll, model, primary_key(model)}
   end
 
-  defp from(%Query{from: %Ecto.SubQuery{}}) do
+  defp from(%Query{from: %{source: %Ecto.SubQuery{}}}) do
     raise ArgumentError, "MongoDB does not support subqueries"
   end
 
@@ -172,8 +171,13 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp projection(%Query{select: nil}, _params, _from), do: {:find, %{}, []}
 
-  defp projection(%Query{select: %Query.SelectExpr{fields: fields}} = query, params, from),
-    do: projection(fields, params, from, query, %{}, [])
+  defp projection(
+         %Query{select: %Query.SelectExpr{fields: fields} = _select} = query,
+         params,
+         from
+       ) do
+    projection(fields, params, from, query, %{}, [])
+  end
 
   defp projection([], _params, _from, _query, pacc, facc), do: {:find, pacc, Enum.reverse(facc)}
 
@@ -340,8 +344,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
     ["$set": values |> value(pk, "update command") |> map_unless_empty]
   end
 
-  defp both_nil(nil, nil), do: true
-  defp both_nil(_, _), do: false
+  # Currently unused
+  # defp both_nil(nil, nil), do: true
+  # defp both_nil(_, _), do: false
 
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
 
