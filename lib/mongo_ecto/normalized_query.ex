@@ -557,12 +557,12 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp upsert_fields(fields, replace_fields, conflict_targets) do
     fields
     |> Keyword.split(replace_fields)
-    |> then(fn {set_fields, set_on_insert_fields} ->
-      {
-        set_fields |> Keyword.drop(conflict_targets),
-        set_on_insert_fields ++ Keyword.take(set_fields, conflict_targets)
-      }
-    end)
+    |> (fn {set_fields, set_on_insert_fields} ->
+          {
+            set_fields |> Keyword.drop(conflict_targets),
+            set_on_insert_fields ++ Keyword.take(set_fields, conflict_targets)
+          }
+        end).()
   end
 
   defp filtering_conflict_targets(%Ecto.Query{} = query, fields, conflict_targets) do
