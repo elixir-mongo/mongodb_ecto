@@ -1,7 +1,7 @@
 defmodule Mongo.Ecto.Mixfile do
   use Mix.Project
 
-  @version "0.2.1"
+  @version "1.0.0-beta.1"
 
   def project do
     [
@@ -31,7 +31,7 @@ defmodule Mongo.Ecto.Mixfile do
       {:ecto, "~> 3.6"},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:excoveralls, "~> 0.8", only: :test},
-      {:mongodb, github: "avid-technology/mongodb", branch: "ecto-3"},
+      {:mongodb, "~> 1.0.0-beta.1},
       {:telemetry, ">= 0.4.0"}
     ]
   end
@@ -44,16 +44,16 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp package do
     [
-      maintainers: ["Michał Muskała", "Justin Wood", "Scott Ames-Messinger"],
+      maintainers: ["Michał Muskała", "Justin Wood", "Scott Ames-Messinger", "Joe Pearson"],
       licenses: ["Apache 2.0"],
-      links: %{"GitHub" => "https://github.com/commoncurriculum/mongodb_ecto"},
+      links: %{"GitHub" => "https://github.com/elixir-mongo/mongodb_ecto"},
       files: ~w(mix.exs README.md CHANGELOG.md lib)
     ]
   end
 
   defp docs do
     [
-      source_url: "https://github.com/commoncurriuclum/mongodb_ecto",
+      source_url: "https://github.com/elixir-mongo/mongodb_ecto",
       source_ref: "v#{@version}",
       main: "readme",
       extras: ["README.md"]
