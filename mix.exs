@@ -31,7 +31,7 @@ defmodule Mongo.Ecto.Mixfile do
       {:ecto, "~> 3.6"},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:excoveralls, "~> 0.8", only: :test},
-      {:mongodb, "~> 1.0.0-beta.1},
+      {:mongodb, "~> 1.0.0-beta.1"},
       {:telemetry, ">= 0.4.0"}
     ]
   end
