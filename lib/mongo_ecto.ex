@@ -247,7 +247,7 @@ defmodule Mongo.Ecto do
       end
 
   Keep in mind that Ecto associations are stored in different Mongo collections
-  and multiple queries may be required for retriving them.
+  and multiple queries may be required for retrieving them.
 
   While `Mongo.Ecto` supports almost all association features in Ecto, keep in
   mind that MongoDB does not support joins as used in SQL - it's not possible to
@@ -331,7 +331,7 @@ defmodule Mongo.Ecto do
     * embedded documents either with `:map` type, or embedded models
     * partial updates using `change_map/2` and `change_array/2` from the
       `Mongo.Ecto.Helpers` module
-    * queries using javascript expresssion and regexes using respectively
+    * queries using javascript expression and regexes using respectively
       `javascript/2` and `regex/2` functions from `Mongo.Ecto.Helpers` module.
 
   ### MongoDB adapter options
@@ -821,7 +821,7 @@ defmodule Mongo.Ecto do
       (default: repo's database)
     * `:log` - should command queries be logged (default: true)
 
-  For list of available commands plese see: http://docs.mongodb.org/manual/reference/command/
+  For list of available commands please see: http://docs.mongodb.org/manual/reference/command/
   """
   @spec command(Ecto.Repo.t(), BSON.document(), Keyword.t()) :: BSON.document()
   def command(repo, command, opts \\ []) do
