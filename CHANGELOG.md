@@ -1,5 +1,10 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## Unreleased
 
 * Introduce support for Ecto 3 (work in progress)
@@ -7,15 +12,15 @@
 
 ### Possible breaking changes
 
-* Some upsert operations are only supported with MongoDBs 4.2 or newer.
+  * Some upsert operations are only supported with MongoDBs 4.2 or newer.
 
-## v0.1.4
+## v0.1.4 (2016-03-03)
 
-  Support MongoDB version 3.2
+  *  Support MongoDB version 3.2
 
-## v0.1.3
+## v0.1.3 (2016-01-15)
 
-  This version is limited to Ecto 1.0 because of known issues with 1.1
+  * This version is limited to Ecto 1.0 because of known issues with 1.1
 
   * Additions:
     * Implement `count(field, :distinct)`
@@ -25,7 +30,7 @@
     * Implement `Ecto.Adapter.stop/2` callback
     * Move encoding to adapter `load` and `dump` callbacks
 
-## v0.1.2
+## v0.1.2 (2015-10-18)
 
   * Breaking changes:
     * Raise on `limit` and `offset` in `update_all` and `delete_all` queries,
@@ -34,11 +39,11 @@
   * Bug fixes:
     * Allow interpolation in limit and offset
 
-## v0.1.1
+## v0.1.1 (2015-08-30)
 
   * Bug fixes:
     * Fix logging issues on find queries
 
-## v0.1.0
+## v0.1.0 (2015-08-25)
 
-First release
+  * First release

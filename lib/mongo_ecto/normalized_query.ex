@@ -255,7 +255,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
         #   which we need since we need to know the ID of the inserted or updated
         #   document.  Ecto expects updates **not** to return an ID but Mongo always
         #   does (seems like a rare moment where Mongo has slightly clearer support
-        #   than SQL).  It's expected that this discrepency is massaged out
+        #   than SQL).  It's expected that this discrepancy is massaged out
         #   elsewhere.
         opts = [
           upsert: true

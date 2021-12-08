@@ -1,7 +1,13 @@
 # Mongo.Ecto
 
+![CI](https://github.com/elixir-mongo/mongodb_ecto/actions/workflows/ci.yml/badge.svg)
 [![Hex.pm](https://img.shields.io/hexpm/v/mongodb_ecto.svg)](https://hex.pm/packages/mongodb_ecto)
-![CI](https://github.com/avid-technology/mongodb_ecto/actions/workflows/ci.yml/badge.svg)
+[![Module Version](https://img.shields.io/hexpm/v/mongodb_ecto.svg)](https://hex.pm/packages/mongodb_ecto)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/mongodb_ecto/)
+[![Total Download](https://img.shields.io/hexpm/dt/mongodb_ecto.svg)](https://hex.pm/packages/mongodb_ecto)
+[![License](https://img.shields.io/hexpm/l/mongodb_ecto.svg)](https://github.com/elixir-mongo/mongodb_ecto/blob/master/LICENSE)
+[![Last Updated](https://img.shields.io/github/last-commit/elixir-mongo/mongodb_ecto.svg)](https://github.com/elixir-mongo/mongodb_ecto/commits/master)
+
 
 `Mongo.Ecto` is a MongoDB adapter for Ecto.
 
@@ -49,14 +55,18 @@ end
 
 ## Usage
 
-Add Mongo.Ecto as a dependency in your `mix.exs` file.
+Add `:mongodb_ecto` as a dependency in your `mix.exs` file.
+
 ```elixir
 def deps do
-  [{:mongodb_ecto, "~> 0.1"}]
+  [
+    {:mongodb_ecto, "~> 0.2"}
+  ]
 end
 ```
 
-You should also update your applications to include both projects.
+You should also update your applications to include both projects:
+
 ```elixir
 def application do
   [applications: [:logger, :mongodb_ecto, :ecto]]
@@ -64,6 +74,7 @@ end
 ```
 
 To use the adapter in your repo:
+
 ```elixir
 defmodule MyApp.Repo do
   use Ecto.Repo,
@@ -123,15 +134,13 @@ $ cd mongodb_ecto
 $ mix test
 ```
 
-## License
+## Copyright and License
 
 Copyright 2015 Michał Muskała
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
+You may obtain a copy of the License at [https://www.apache.org/licenses/LICENSE-2.0](https://www.apache.org/licenses/LICENSE-2.0)
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
