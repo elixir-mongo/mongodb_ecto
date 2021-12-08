@@ -22,6 +22,9 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 mongodb_ecto-*.tar
 
+# Ignore files created by the Elixir Language Service (ElixirLS)
+/.elixir_ls/
+
 # Temporary files, for example, from tests.
 /tmp/
 
