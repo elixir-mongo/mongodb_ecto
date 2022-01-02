@@ -469,6 +469,7 @@ defmodule Mongo.Ecto.Connection do
     }
   end
 
+  @dialyzer {:no_improper_lists, format_query: 2, format_part: 2}
   defp format_query(%Query{action: :command}, [command]) do
     ["COMMAND " | inspect(command)]
   end
