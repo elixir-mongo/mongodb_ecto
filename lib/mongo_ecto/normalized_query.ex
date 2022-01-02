@@ -871,12 +871,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
     ]
   end
 
-  defp command(:replace, document, pk) do
-    document
-    |> value(pk, "replace command")
-    |> map_unless_empty()
-  end
-
   defp command(:insert, document, pk) do
     document
     |> value(pk, "insert command")
