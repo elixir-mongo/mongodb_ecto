@@ -768,9 +768,7 @@ defmodule Mongo.Ecto do
 
   special_regex = %BSON.Regex{pattern: "\\.system|\\$", options: ""}
   # migration_regex = %BSON.Regex{pattern: @migration, options: ""}
-  @list_collections_query [
-    [name: ["$not": special_regex]]
-  ]
+  @list_collections_query [name: ["$not": special_regex]]
 
   @doc """
   Drops all the collections in current database.
@@ -850,7 +848,7 @@ defmodule Mongo.Ecto do
     query = %ReadQuery{coll: "system.namespaces", query: @list_collections_query}
     opts = Keyword.put(opts, :log, false)
 
-    Connection.read(repo, query, opts)
+    Connection.read(Ecto.Adapter.lookup_meta(repo), query, opts)
     |> Enum.map(&Map.fetch!(&1, "name"))
     |> Enum.map(fn collection ->
       collection |> String.split(".", parts: 2) |> Enum.at(1)
