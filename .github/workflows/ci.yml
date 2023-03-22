@@ -3,6 +3,37 @@ on:
   - pull_request
 
 jobs:
+
+  codeQuality:
+    name: "Tests & Code Quality"
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        otpElixir: [
+          {otp: "24.3.4.10", elixir: "1.14.3"}
+        ]
+    steps:
+      - name: repo checkout
+        uses: actions/checkout@v2
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{ matrix.otpElixir.otp }}
+          elixir-version: ${{ matrix.otpElixir.elixir }}
+      - uses: actions/cache@v2
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-
+      - run: mix deps.get
+      - run: mix credo --strict
+        continue-on-error: true
+      - run: mix format --check-formatted
+        continue-on-error: true
+      - run: mix dialyzer
   test:
     runs-on: ubuntu-20.04
     strategy:
@@ -37,11 +68,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-
       - run: mix deps.get
-      - run: mix credo --strict
-        continue-on-error: true
-      - run: mix format --check-formatted
-        continue-on-error: true
       - run: mix test
         env:
           MONGODB_URI: ${{ steps.start-mongodb.outputs.cluster-uri }}
-      - run: mix dialyzer
