@@ -31,7 +31,7 @@ defmodule Mongo.Ecto.Mixfile do
       {:dialyxir, "~> 1.1.0", only: :dev, runtime: false},
       {:ecto, "~> 3.6"},
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false},
-      {:excoveralls, "~> 0.8", only: :test},
+      {:excoveralls, "~> 0.16", only: :test},
       {:mongodb, "~> 1.0.0"},
       {:telemetry, ">= 0.4.0"}
     ]
