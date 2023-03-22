@@ -61,7 +61,8 @@ Application.put_env(
   :ecto,
   TestRepo,
   adapter: Mongo.Ecto,
-  url: "ecto://localhost:27017/ecto_test",
+  url: System.get_env("MONGODB_URI") || "ecto://localhost:27017",
+  database: "ecto_test",
   pool_size: 1
 )
 
@@ -69,7 +70,8 @@ Application.put_env(
   :ecto,
   Ecto.Integration.PoolRepo,
   adapter: Mongo.Ecto,
-  url: "ecto://localhost:27017/ecto_test",
+  url: System.get_env("MONGODB_URI") || "ecto://localhost:27017",
+  database: "ecto_test",
   pool_size: 5
 )
 
