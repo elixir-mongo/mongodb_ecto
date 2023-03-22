@@ -32,7 +32,7 @@ defmodule Mongo.Ecto.Mixfile do
       {:ecto, "~> 3.6"},
       {:ex_doc, ">= 0.0.0", only: :docs, runtime: false},
       {:excoveralls, "~> 0.8", only: :test},
-      {:mongodb, "~> 1.0.0-beta.1"},
+      {:mongodb, "~> 1.0.0"},
       {:telemetry, ">= 0.4.0"}
     ]
   end
@@ -56,7 +56,7 @@ defmodule Mongo.Ecto.Mixfile do
     [
       extras: [
         "CHANGELOG.md": [],
-        "LICENSE": [title: "License"],
+        LICENSE: [title: "License"],
         "README.md": [title: "Overview"]
       ],
       main: "readme",
