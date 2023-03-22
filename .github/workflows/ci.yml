@@ -18,8 +18,6 @@ jobs:
     steps:
       - name: repo checkout
         uses: actions/checkout@v2
-        with:
-          submodules: recursive
       - id: start-mongodb
         name: start mongodb
         uses: mongodb-labs/drivers-evergreen-tools@master
@@ -45,5 +43,5 @@ jobs:
         continue-on-error: true
       - run: mix test
         env:
-          MONGODB_URI: ${{ steps.setup-mongodb.outputs.cluster-uri }}
+          MONGODB_URI: ${{ steps.start-mongodb.outputs.cluster-uri }}
       - run: mix dialyzer
