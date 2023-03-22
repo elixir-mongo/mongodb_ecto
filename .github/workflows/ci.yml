@@ -26,5 +26,5 @@ jobs:
         continue-on-error: true
       - run: mix format --check-formatted
         continue-on-error: true
-      - run: mix dialyzer
       - run: mix test
+      - run: mix dialyzer
