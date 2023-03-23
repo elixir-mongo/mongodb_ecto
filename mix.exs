@@ -2,13 +2,13 @@ defmodule Mongo.Ecto.Mixfile do
   use Mix.Project
 
   @source_url "https://github.com/elixir-mongo/mongodb_ecto"
-  @version "1.0.0-beta.2"
+  @version "1.0.0"
 
   def project do
     [
       app: :mongodb_ecto,
       version: @version,
-      elixir: "~> 1.4",
+      elixir: "~> 1.7",
       deps: deps(),
       dialyzer: dialyzer(),
       docs: docs(),
