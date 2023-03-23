@@ -24,21 +24,22 @@ ExUnit.start(
     :aggregate_filters,
     :coalesce,
     :concat,
+    :delete_with_has_many,
+    :distinct,
     :group_by,
     :insert_cell_wise_defaults,
     :insert_select,
     :like_match_blob,
-    :placeholders,
-    :preload,
     :on_replace_delete_if_exists,
     :on_replace_update,
+    :placeholders,
+    :preload,
+    :preload,
     :sub_query,
     :tagged_types,
     :union_with_literals,
     :unique_constraint,
-    :preload,
-    :distinct,
-    :delete_with_has_many,
+    :without_conflict_target,
 
     # For now:
     :json_extract_path,
@@ -60,7 +61,8 @@ Application.put_env(
   :ecto,
   TestRepo,
   adapter: Mongo.Ecto,
-  url: "ecto://localhost:27017/ecto_test",
+  mongo_url: System.get_env("MONGODB_URI") || "mongodb://localhost:27017",
+  database: "ecto_test",
   pool_size: 1
 )
 
@@ -68,7 +70,8 @@ Application.put_env(
   :ecto,
   Ecto.Integration.PoolRepo,
   adapter: Mongo.Ecto,
-  url: "ecto://localhost:27017/ecto_test",
+  mongo_url: System.get_env("MONGODB_URI") || "mongodb://localhost:27017",
+  database: "ecto_test",
   pool_size: 5
 )
 
