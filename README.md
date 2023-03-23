@@ -60,7 +60,7 @@ Add `:mongodb_ecto` as a dependency in your `mix.exs` file.
 ```elixir
 def deps do
   [
-    {:mongodb_ecto, "~> 0.2"}
+    {:mongodb_ecto, "~> 1.0.0"}
   ]
 end
 ```
@@ -121,8 +121,8 @@ Additionally special values are translated as follows:
 
 ## Supported Mongo versions
 
-The adapter and the driver are tested against most recent versions from 3
-branches: 2.4.x, 2.6.x, 3.0.x
+The adapter and the driver are tested against most recent versions from 2
+branches: 4.4 and 5.0
 
 ## Contributing
 

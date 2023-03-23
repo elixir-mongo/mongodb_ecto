@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Introduce GitHub actions, replacing Travis CI
 * Use MongoDB 1.0.0 to add support for Mongodb 4.4. and 5.0
 
+* NOTE: This might work with versions of Ecto less than 3.6.
+Refer to the ecto-3 branch if you need to find a commit that works with a non-officially supported version
+of Ecto.
+
 ### Possible breaking changes
 
   * Some upsert operations are only supported with MongoDBs 4.2 or newer.
