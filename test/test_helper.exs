@@ -125,7 +125,7 @@ defmodule Ecto.Integration.Case do
     Mongo.Ecto.truncate(TestRepo)
 
     # TODO - this can be removed / modified / updated once we have a proper solution in place for managing indexes.  JP 2021-08-24
-    {:ok, _} =
+    :ok =
       Mongo.Ecto.create_indexes(TestRepo, "posts", [
         [key: [uuid: 1], name: "uuid_1", unique: true]
       ])
