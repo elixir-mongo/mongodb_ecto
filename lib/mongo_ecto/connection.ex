@@ -129,7 +129,7 @@ defmodule Mongo.Ecto.Connection do
     query = query.query
 
     case query(repo, :update_one, [coll, query, command], opts) do
-      {:ok, %{modified_count: 1}} ->
+      {:ok, %{matched_count: 1}} ->
         {:ok, []}
 
       {:ok, _} ->
