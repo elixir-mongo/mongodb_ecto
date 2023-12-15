@@ -898,6 +898,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp offset_limit(%Query.QueryExpr{expr: expr}, params, pk, query, where),
     do: value(expr, params, pk, query, where)
 
+  defp offset_limit(%Query.LimitExpr{expr: expr}, params, pk, query, where),
+    do: value(expr, params, pk, query, where)
+
   defp primary_key(nil), do: nil
 
   defp primary_key(schema) do
