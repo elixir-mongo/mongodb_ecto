@@ -496,6 +496,8 @@ defmodule Mongo.Ecto do
       :error
   end
 
+  defp load_objectid(nil), do: {:ok, nil}
+
   defp load_objectid(_arg), do: :error
 
   @impl true
@@ -589,6 +591,7 @@ defmodule Mongo.Ecto do
     ArgumentError -> :error
   end
 
+  defp dump_objectid(nil), do: {:ok, nil}
   defp dump_objectid(_), do: :error
 
   @impl Ecto.Adapter.Schema
