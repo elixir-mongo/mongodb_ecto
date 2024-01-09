@@ -883,9 +883,6 @@ defmodule Ecto.Integration.RepoTest do
 
     query = from p in Post, where: is_nil(p.id)
     assert query |> TestRepo.exists?() == false
-
-    query = from p in Post, where: is_nil(p.id)
-    assert query |> TestRepo.exists?() == false
   end
 
   # FAILS

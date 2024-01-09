@@ -22,7 +22,7 @@ defmodule Mongo.Ecto.Mixfile do
   #
   # Type `mix help compile.app` for more information.
   def application do
-    [applications: [:ecto, :mongodb, :logger, :telemetry]]
+    [applications: [:ecto, :mongodb_driver, :logger, :telemetry]]
   end
 
   defp deps do
@@ -32,7 +32,7 @@ defmodule Mongo.Ecto.Mixfile do
       {:ecto, "~> 3.10"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:excoveralls, "~> 0.16", only: :test},
-      {:mongodb, "~> 1.0.0"},
+      {:mongodb_driver, "~> 1.0.0", github: "hundio/elixir-mongodb-driver"},
       {:telemetry, ">= 0.4.0"}
     ]
   end
