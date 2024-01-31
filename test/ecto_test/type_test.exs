@@ -383,7 +383,7 @@ defmodule Ecto.Integration.TypeTest do
   @tag :json_extract_path
   test "json_extract_path with primitive values" do
     order = %Order{
-      meta: %{
+      metadata: %{
         :id => 123,
         :time => ~T[09:00:00],
         "'single quoted'" => "bar",
@@ -393,30 +393,30 @@ defmodule Ecto.Integration.TypeTest do
 
     TestRepo.insert!(order)
 
-    assert TestRepo.one(from o in Order, select: o.meta["id"]) == 123
-    assert TestRepo.one(from o in Order, select: o.meta["bad"]) == nil
-    assert TestRepo.one(from o in Order, select: o.meta["bad"]["bad"]) == nil
+    assert TestRepo.one(from o in Order, select: o.metadata["id"]) == 123
+    assert TestRepo.one(from o in Order, select: o.metadata["bad"]) == nil
+    assert TestRepo.one(from o in Order, select: o.metadata["bad"]["bad"]) == nil
 
     field = "id"
-    assert TestRepo.one(from o in Order, select: o.meta[^field]) == 123
-    assert TestRepo.one(from o in Order, select: o.meta["time"]) == "09:00:00"
-    assert TestRepo.one(from o in Order, select: o.meta["'single quoted'"]) == "bar"
-    assert TestRepo.one(from o in Order, select: o.meta["';"]) == nil
-    assert TestRepo.one(from o in Order, select: o.meta["\"double quoted\""]) == "baz"
+    assert TestRepo.one(from o in Order, select: o.metadata[^field]) == 123
+    assert TestRepo.one(from o in Order, select: o.metadata["time"]) == "09:00:00"
+    assert TestRepo.one(from o in Order, select: o.metadata["'single quoted'"]) == "bar"
+    assert TestRepo.one(from o in Order, select: o.metadata["';"]) == nil
+    assert TestRepo.one(from o in Order, select: o.metadata["\"double quoted\""]) == "baz"
   end
 
   # TODO
   @tag :map_type
   @tag :json_extract_path
   test "json_extract_path with arrays and objects" do
-    order = %Order{meta: %{tags: [%{name: "red"}, %{name: "green"}]}}
+    order = %Order{metadata: %{tags: [%{name: "red"}, %{name: "green"}]}}
     TestRepo.insert!(order)
 
-    assert TestRepo.one(from o in Order, select: o.meta["tags"][0]["name"]) == "red"
-    assert TestRepo.one(from o in Order, select: o.meta["tags"][99]["name"]) == nil
+    assert TestRepo.one(from o in Order, select: o.metadata["tags"][0]["name"]) == "red"
+    assert TestRepo.one(from o in Order, select: o.metadata["tags"][99]["name"]) == nil
 
     index = 1
-    assert TestRepo.one(from o in Order, select: o.meta["tags"][^index]["name"]) == "green"
+    assert TestRepo.one(from o in Order, select: o.metadata["tags"][^index]["name"]) == "green"
   end
 
   # TODO
