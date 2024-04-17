@@ -474,6 +474,10 @@ defmodule Mongo.Ecto do
 
   defp load_time(time), do: time
 
+  defp load_date(nil) do
+    {:ok, nil}
+  end
+
   defp load_date(date) do
     {:ok, date |> DateTime.to_date()}
   end
