@@ -397,24 +397,6 @@ defmodule Mongo.Ecto do
   defmacro __before_compile__(_env) do
   end
 
-  @pool_timeout 5_000
-  @timeout 15_000
-
-  defp normalize_config(config) do
-    config
-    |> Keyword.delete(:name)
-    |> Keyword.put_new(:timeout, @timeout)
-    |> Keyword.put_new(:pool_timeout, @pool_timeout)
-  end
-
-  defp pool_name(config) do
-    Keyword.get(config, :pool_name, default_pool_name(config))
-  end
-
-  defp default_pool_name(config) do
-    Module.concat(Keyword.get(config, :name, config[:repo]), Pool)
-  end
-
   @doc false
   def application, do: :mongodb_ecto
 
@@ -426,7 +408,7 @@ defmodule Mongo.Ecto do
     connection = Connection
 
     unless Code.ensure_loaded?(connection) do
-      driver = :mongodb
+      driver = :mongodb_driver
 
       raise """
       Could not find #{inspect(connection)}.
@@ -439,21 +421,18 @@ defmodule Mongo.Ecto do
       """
     end
 
-    pool_name = pool_name(config)
-    norm_config = normalize_config(config)
-
     log = Keyword.get(config, :log, :debug)
     telemetry_prefix = Keyword.fetch!(config, :telemetry_prefix)
     telemetry = {config[:repo], log, telemetry_prefix ++ [:query]}
 
     opts = Keyword.take(config, @pool_opts)
-    meta = %{telemetry: telemetry, opts: opts, pool: {pool_name, norm_config}}
+    meta = %{telemetry: telemetry, opts: opts}
     {:ok, connection.child_spec(config), meta}
   end
 
   @impl true
   def ensure_all_started(_repo, type) do
-    {:ok, _mongo} = Application.ensure_all_started(:mongodb, type)
+    {:ok, _mongo} = Application.ensure_all_started(:mongodb_driver, type)
   end
 
   @impl true
@@ -530,7 +509,12 @@ defmodule Mongo.Ecto do
   end
 
   defp dump_date(%Date{} = date) do
-    {:ok, date}
+    dt =
+      {Date.to_erl(date), {0, 0, 0}}
+      |> NaiveDateTime.from_erl!()
+      |> DateTime.from_naive!("Etc/UTC")
+
+    {:ok, dt}
   end
 
   defp dump_date(_) do
@@ -795,7 +779,7 @@ defmodule Mongo.Ecto do
       if major_version > 3 || (major_version == 3 && minor_version >= 4) do
         _all_collection_names =
           repo
-          |> command(%{listCollections: 1}, opts)
+          |> command([listCollections: 1], opts)
           |> get_in(["cursor", "firstBatch"])
           # exclude mongo views which were introduced in version 3.4
           |> Enum.filter(&(&1["type"] == "collection"))
@@ -841,7 +825,7 @@ defmodule Mongo.Ecto do
   end
 
   defp list_collections([major_version | _], repo, opts) when major_version >= 3 do
-    colls = command(repo, %{listCollections: 1}, opts)["cursor"]["firstBatch"]
+    colls = command(repo, [listCollections: 1], opts)["cursor"]["firstBatch"]
 
     _all_collections =
       colls
@@ -869,7 +853,7 @@ defmodule Mongo.Ecto do
   end
 
   defp db_version(repo) do
-    command(repo, %{buildinfo: 1}, [])["versionArray"]
+    command(repo, [buildinfo: 1], [])["versionArray"]
   end
 
   @doc """

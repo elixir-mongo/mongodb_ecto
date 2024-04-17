@@ -25,7 +25,7 @@ defmodule Mongo.EctoTest do
 
       _ ->
         # test with Views
-        Mongo.Ecto.command(TestRepo, %{create: "view", viewOn: "posts", pipeline: []})
+        Mongo.Ecto.command(TestRepo, create: "view", viewOn: "posts", pipeline: [])
     end
 
     Mongo.Ecto.truncate(TestRepo)
