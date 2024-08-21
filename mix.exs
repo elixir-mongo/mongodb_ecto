@@ -32,7 +32,7 @@ defmodule Mongo.Ecto.Mixfile do
       {:ecto, "~> 3.10"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:excoveralls, "~> 0.16", only: :test},
-      {:mongodb_driver, "~> 1.0.0", github: "hundio/elixir-mongodb-driver"},
+      {:mongodb_driver, "~> 1.4.0"},
       {:telemetry, ">= 0.4.0"}
     ]
   end
