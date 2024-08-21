@@ -453,6 +453,10 @@ defmodule Mongo.Ecto do
 
   defp load_time(time), do: time
 
+  defp load_date(nil) do
+    {:ok, nil}
+  end
+
   defp load_date(date) do
     {:ok, date |> DateTime.to_date()}
   end
@@ -474,6 +478,8 @@ defmodule Mongo.Ecto do
     ArgumentError ->
       :error
   end
+
+  defp load_objectid(nil), do: {:ok, nil}
 
   defp load_objectid(_arg), do: :error
 
@@ -573,6 +579,7 @@ defmodule Mongo.Ecto do
     ArgumentError -> :error
   end
 
+  defp dump_objectid(nil), do: {:ok, nil}
   defp dump_objectid(_), do: :error
 
   @impl Ecto.Adapter.Schema
