@@ -24,7 +24,7 @@ jobs:
             _build
           key: ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-
+            ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-${{ hashFiles('**/mix.lock') }}
       - run: mix deps.get
       - run: mix credo --strict
         continue-on-error: true
@@ -64,7 +64,7 @@ jobs:
             _build
           key: ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-
+            ${{ runner.os }}-${{matrix.otpElixir.otp}}-${{matrix.otpElixir.elixir}}-mix-${{ hashFiles('**/mix.lock') }}
       - run: mix deps.get
       - run: mix test
         env:
