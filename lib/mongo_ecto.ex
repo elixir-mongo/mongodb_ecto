@@ -536,6 +536,8 @@ defmodule Mongo.Ecto do
     {:ok, date}
   end
 
+  defp dump_date(nil), do: {:ok, nil}
+
   defp dump_date(_) do
     :error
   end
