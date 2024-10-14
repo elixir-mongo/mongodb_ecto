@@ -3,16 +3,13 @@ on:
   - pull_request
 
 jobs:
-
   codeQuality:
     name: "Tests & Code Quality"
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
       matrix:
-        otpElixir: [
-          {otp: "24.3.4.10", elixir: "1.14.3"}
-        ]
+        otpElixir: [{ otp: "24.3.4.10", elixir: "1.14.3" }]
     steps:
       - name: repo checkout
         uses: actions/checkout@v2
@@ -39,12 +36,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mongodb: ["4.4", "5.0"]
-        otpElixir: [
-          {otp: "22.3.4.26", elixir: "1.12.3"},
-          {otp: "23.3.4.18", elixir: "1.13.4"},
-          {otp: "24.3.4.10", elixir: "1.14.3"}
-        ]
+        mongodb: ["5.0", "6.0", "7.0"]
+        otpElixir:
+          [
+            { otp: "22.3.4.26", elixir: "1.12.3" },
+            { otp: "23.3.4.18", elixir: "1.13.4" },
+            { otp: "24.3.4.10", elixir: "1.14.3" },
+          ]
         topology: [replica_set, server]
     steps:
       - name: repo checkout
