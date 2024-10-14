@@ -726,7 +726,7 @@ defmodule Mongo.Ecto do
   end
 
   @impl true
-  def delete(repo, meta, filter, opts) do
+  def delete(repo, meta, filter, _remaining, opts) do
     normalized = NormalizedQuery.delete(meta, filter)
 
     Connection.delete(repo, normalized, opts)
@@ -757,6 +757,11 @@ defmodule Mongo.Ecto do
   @impl true
   def checkout(_, _, fun) do
     fun.()
+  end
+
+  @impl true
+  def checked_out?(_) do
+    false
   end
 
   ## Storage
