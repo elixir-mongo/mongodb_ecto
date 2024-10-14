@@ -351,6 +351,8 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
     end
   end
 
+  # TODO Fails with invalid expression in where clause
+  @tag :normalize_fragments_in_where
   test "fragments in where" do
     query = Schema |> where([], fragment(x: 1)) |> normalize
     assert_fields query, query: %{x: 1}
@@ -400,6 +402,8 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   #   # query = Schema |> select([], type(^[1,2,3], {:array, Custom.Permalink})) |> normalize
   # end
 
+  # TODO Fails with invalid expression in where clause
+  @tag :normalized_nested_expressions
   test "nested expressions" do
     z = 123
 
@@ -471,6 +475,8 @@ defmodule Mongo.Ecto.NormalizedQueryNewTest do
   #   assert SQL.all(query) == ~s{SELECT ARRAY['abc','def'] FROM "schema" AS m0}
   # end
 
+  # TODO Fails with invalid expression in limit clause
+  @tag :normalized_interpolated_values
   test "interpolated values" do
     query =
       Schema

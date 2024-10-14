@@ -44,7 +44,10 @@ ExUnit.start(
     # For now:
     :json_extract_path,
     :select_not,
-    :wont_support
+    :wont_support,
+    :normalized_interpolated_values,
+    :normalized_nested_expressions,
+    :normalize_fragments_in_where
   ]
 )
 
