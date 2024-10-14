@@ -226,8 +226,8 @@ defmodule Ecto.Integration.TypeTest do
   end
 
   test "uses default value" do
-    {_, opts} = Ecto.Repo.Registry.lookup(TestRepo)
-    Mongo.insert_one(opts.pid, "posts", %{title: "My Post"})
+    %{pid: pid} = Ecto.Repo.Registry.lookup(TestRepo)
+    Mongo.insert_one(pid, "posts", %{title: "My Post"})
 
     post = TestRepo.all(Post) |> List.first()
     assert post.public == true
