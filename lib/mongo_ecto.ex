@@ -491,6 +491,9 @@ defmodule Mongo.Ecto do
   end
 
   defp load_binary(%BSON.Binary{binary: binary}), do: {:ok, binary}
+
+  defp load_binary(nil), do: {:ok, nil}
+
   defp load_binary(_), do: :error
 
   defp load_objectid(%BSON.ObjectId{} = objectid) do
@@ -532,6 +535,8 @@ defmodule Mongo.Ecto do
   defp dump_date(%Date{} = date) do
     {:ok, date}
   end
+
+  defp dump_date(nil), do: {:ok, nil}
 
   defp dump_date(_) do
     :error
@@ -587,6 +592,7 @@ defmodule Mongo.Ecto do
   defp dump_binary(binary, subtype) when is_binary(binary),
     do: {:ok, %BSON.Binary{binary: binary, subtype: subtype}}
 
+  defp dump_binary(nil, _), do: {:ok, nil}
   defp dump_binary(_, _), do: :error
 
   defp dump_objectid(<<objectid::binary-size(24)>>) do
@@ -720,7 +726,7 @@ defmodule Mongo.Ecto do
   end
 
   @impl true
-  def delete(repo, meta, filter, opts) do
+  def delete(repo, meta, filter, _remaining, opts) do
     normalized = NormalizedQuery.delete(meta, filter)
 
     Connection.delete(repo, normalized, opts)
@@ -751,6 +757,11 @@ defmodule Mongo.Ecto do
   @impl true
   def checkout(_, _, fun) do
     fun.()
+  end
+
+  @impl true
+  def checked_out?(_) do
+    false
   end
 
   ## Storage
