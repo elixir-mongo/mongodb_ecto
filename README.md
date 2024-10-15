@@ -8,13 +8,13 @@
 [![License](https://img.shields.io/hexpm/l/mongodb_ecto.svg)](https://github.com/elixir-mongo/mongodb_ecto/blob/master/LICENSE)
 [![Last Updated](https://img.shields.io/github/last-commit/elixir-mongo/mongodb_ecto.svg)](https://github.com/elixir-mongo/mongodb_ecto/commits/master)
 
-
 `Mongo.Ecto` is a MongoDB adapter for Ecto.
 
 For detailed information read the documentation for the `Mongo.Ecto` module,
 or check out examples below.
 
 ## Example
+
 ```elixir
 # In your config/config.exs file
 config :my_app, Repo,
@@ -87,23 +87,23 @@ For additional information on usage please see the documentation for [Ecto](http
 
 ## Data Type Mapping
 
-|   BSON                |Ecto|
-|   ----------          |------|
-|   double              |`:float`|
-|   string              |`:string`|
-|   object              |`:map`|
-|   array               |`{:array, subtype}`|
-|   binary data         |`:binary`|
-|   binary data (uuid)  |`Ecto.UUID`|
-|   object id           |`:binary_id`|
-|   boolean             |`:boolean`|
-|   date                |`Ecto.DateTime`|
-|   regular expression  |`Mongo.Ecto.Regex`|
-|   JavaScript          |`Mongo.Ecto.JavaScript`|
-|   symbol              |(see below)|
-|   32-bit integer      |`:integer`|
-|   timestamp           |`BSON.Timestamp`|
-|   64-bit integer      |`:integer`|
+| BSON               | Ecto                    |
+| ------------------ | ----------------------- |
+| double             | `:float`                |
+| string             | `:string`               |
+| object             | `:map`                  |
+| array              | `{:array, subtype}`     |
+| binary data        | `:binary`               |
+| binary data (uuid) | `Ecto.UUID`             |
+| object id          | `:binary_id`            |
+| boolean            | `:boolean`              |
+| date               | `Ecto.DateTime`         |
+| regular expression | `Mongo.Ecto.Regex`      |
+| JavaScript         | `Mongo.Ecto.JavaScript` |
+| symbol             | (see below)             |
+| 32-bit integer     | `:integer`              |
+| timestamp          | `BSON.Timestamp`        |
+| 64-bit integer     | `:integer`              |
 
 Symbols are deprecated by the
 [BSON specification](http://bsonspec.org/spec.html). They will be converted
@@ -112,17 +112,15 @@ the database.
 
 Additionally special values are translated as follows:
 
-|	BSON        |       Ecto|
-|	----------  |       ------|
-|    null     |           `nil`|
-|    min key  |           `:BSON_min`|
-|    max key  |           `:BSON_max`|
-
+| BSON    | Ecto        |
+| ------- | ----------- |
+| null    | `nil`       |
+| min key | `:BSON_min` |
+| max key | `:BSON_max` |
 
 ## Supported Mongo versions
 
-The adapter and the driver are tested against most recent versions from 2
-branches: 4.4 and 5.0
+The adapter and the driver are tested against most recent versions from 5.0, 6.0, and 7.0.
 
 ## Contributing
 

@@ -30,7 +30,7 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def storage_down(opts) do
-    {:ok, _apps} = Application.ensure_all_started(:mongodb)
+    {:ok, _apps} = Application.ensure_all_started(:mongodb_driver)
     {:ok, conn} = Mongo.start_link(opts)
 
     try do
@@ -42,10 +42,10 @@ defmodule Mongo.Ecto.Connection do
   end
 
   def storage_status(opts) do
-    {:ok, _apps} = Application.ensure_all_started(:mongodb)
+    {:ok, _apps} = Application.ensure_all_started(:mongodb_driver)
     {:ok, conn} = Mongo.start_link(opts)
 
-    case Mongo.command(conn, %{ping: true}) do
+    case Mongo.command(conn, ping: true) do
       {:ok, %{"ok" => 1.0}} -> :up
       _ -> :down
     end
@@ -129,7 +129,7 @@ defmodule Mongo.Ecto.Connection do
     query = query.query
 
     case query(repo, :update_one, [coll, query, command], opts) do
-      {:ok, %{modified_count: 1}} ->
+      {:ok, %{matched_count: 1}} ->
         {:ok, []}
 
       {:ok, _} ->
@@ -470,90 +470,106 @@ defmodule Mongo.Ecto.Connection do
   end
 
   @dialyzer {:no_improper_lists, format_query: 2, format_part: 2}
-  defp format_query(%Query{action: :command}, [command]) do
-    ["COMMAND " | inspect(command)]
+  defp format_query(%Query{action: {:command, command}}, []) do
+    ["COMMAND ", inspect(command)]
   end
 
-  defp format_query(%Query{action: :find, extra: coll}, [query, projection]) do
+  defp format_query(%Query{action: :find}, [query, projection]) do
     [
       "FIND",
-      format_part("coll", coll),
+      # format_part("coll", coll),
       format_part("query", query),
       format_part("projection", projection)
     ]
   end
 
-  defp format_query(%Query{action: :insert_one, extra: coll}, [doc]) do
-    ["INSERT", format_part("coll", coll), format_part("document", doc)]
-  end
-
-  defp format_query(%Query{action: :insert_many, extra: coll}, docs) do
+  defp format_query(%Query{action: :insert_one}, [doc]) do
     [
       "INSERT",
-      format_part("coll", coll),
+      # format_part("coll", coll),
+      format_part("document", doc)
+    ]
+  end
+
+  defp format_query(%Query{action: :insert_many}, docs) do
+    [
+      "INSERT",
+      # format_part("coll", coll),
       format_part("documents", docs),
       format_part("many", true)
     ]
   end
 
-  defp format_query(%Query{action: :update_one, extra: coll}, [filter, update]) do
+  defp format_query(%Query{action: :update_one}, [filter, update]) do
     [
       "UPDATE",
-      format_part("coll", coll),
+      # format_part("coll", coll),
       format_part("filter", filter),
       format_part("update", update)
     ]
   end
 
-  defp format_query(%Query{action: :update_many, extra: coll}, [filter, update]) do
+  defp format_query(%Query{action: :update_many}, [filter, update]) do
     [
       "UPDATE",
-      format_part("coll", coll),
+      # format_part("coll", coll),
       format_part("filter", filter),
       format_part("update", update),
       format_part("many", true)
     ]
   end
 
-  defp format_query(%Query{action: :delete_one, extra: coll}, [filter]) do
-    ["DELETE", format_part("coll", coll), format_part("filter", filter)]
-  end
-
-  defp format_query(%Query{action: :delete_many, extra: coll}, [filter]) do
+  defp format_query(%Query{action: :delete_one}, [filter]) do
     [
       "DELETE",
-      format_part("coll", coll),
+      # format_part("coll", coll),
+      format_part("filter", filter)
+    ]
+  end
+
+  defp format_query(%Query{action: :delete_many}, [filter]) do
+    [
+      "DELETE",
+      # format_part("coll", coll),
       format_part("filter", filter),
       format_part("many", true)
     ]
   end
 
-  defp format_query(%Query{action: :replace_one, extra: coll}, [filter, doc]) do
+  defp format_query(%Query{action: :replace_one}, [filter, doc]) do
     [
       "REPLACE",
-      format_part("coll", coll),
+      # format_part("coll", coll),
       format_part("filter", filter),
       format_part("document", doc)
     ]
   end
 
-  defp format_query(%Query{action: :get_more, extra: coll}, [cursor]) do
-    ["GET_MORE", format_part("coll", coll), format_part("cursor_id", cursor)]
+  defp format_query(%Query{action: :get_more}, [cursor]) do
+    [
+      "GET_MORE",
+      # format_part("coll", coll),
+      format_part("cursor_id", cursor)
+    ]
   end
 
-  defp format_query(%Query{action: :get_more, extra: coll}, []) do
-    ["GET_MORE", format_part("coll", coll), format_part("cursor_id", "")]
+  defp format_query(%Query{action: :get_more}, []) do
+    [
+      "GET_MORE",
+      # format_part("coll", coll),
+      format_part("cursor_id", "")
+    ]
   end
 
-  defp format_query(%Query{action: :kill_cursors, extra: _coll}, [cursors]) do
+  defp format_query(%Query{action: :kill_cursors}, [cursors]) do
     ["KILL_CURSORS", format_part("cursor_ids", cursors)]
   end
 
-  defp format_query(%Query{action: :kill_cursors, extra: _coll}, []) do
+  defp format_query(%Query{action: :kill_cursors}, []) do
     ["KILL_CURSORS", format_part("cursor_ids", "")]
   end
 
-  defp format_query(%Query{action: :wire_version, extra: _coll}, []) do
+  defp format_query(%Query{action: :wire_version}, []) do
     ["WIRE_VERSION", format_part("cursor_ids", "")]
   end
 
@@ -561,7 +577,7 @@ defmodule Mongo.Ecto.Connection do
     [" ", name, "=" | inspect(value)]
   end
 
-  defp log_color(%Query{action: :command}), do: :white
+  defp log_color(%Query{action: {:command, _}}), do: :white
   defp log_color(%Query{action: :find}), do: :cyan
   defp log_color(%Query{action: :insert_one}), do: :green
   defp log_color(%Query{action: :insert_many}), do: :green
