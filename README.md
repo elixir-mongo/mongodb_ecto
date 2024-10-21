@@ -122,6 +122,33 @@ Additionally special values are translated as follows:
 
 The adapter and the driver are tested against most recent versions from 5.0, 6.0, and 7.0.
 
+## Migrating to 2.0.0
+
+Release 2.0.0 changes the underlying driver from [`mongodb`](https://github.com/elixir-mongo/mongodb) to [`mongodb_driver`](https://github.com/zookzook/elixir-mongodb-driver) 1.4.0. Calls to the Ecto adapter itself should not require any changes. Some config options are no longer used and can be simply deleted: `pool`, `pool_overflow`, `pool_timeout`.
+
+If you make direct calls to the `Mongo` driver, you will need to update some of them to account for the `mongodb` -> `mongodb_driver` upgrade. These include:
+1. `Mongo` functions no longer accept a `pool` option or `MyApp.Repo.Pool` module argument. Instead, a pool PID is expected:
+    ```elixir
+    # Old driver call
+    Mongo.find(MyApp.Repo.Pool, "my_coll", %{"id": id}, projection: %{"field": 1}, pool: db_pool())
+
+    # New driver call
+    Mongo.find(MyApp.Repo.pool(), "my_coll", %{"id": id}, projection: %{"field": 1})
+
+    # repo.ex
+    # Provided the following function is defined in MyApp.Repo:
+    defmodule MyApp.Repo do
+      use Ecto.Repo, otp_app: :my_app, adapter: Mongo.Ecto
+
+      def pool() do
+        Ecto.Adapter.lookup_meta(__MODULE__).pid
+      end
+    end
+    ```
+2. [`Mongo.command`](https://hexdocs.pm/mongodb_driver/1.4.1/Mongo.html#command/3) requires a keyword list instead of a document. E.g., instead of `Mongo.command(MyApp.Repo.pool(), %{listCollections: 1}, opts)`, do `Mongo.command(MyApp.Repo.pool(), [listCollections: 1], opts)`.
+3. `Mongo.ReadPreferences.defaults` -> `Mongo.ReadPreference.merge_defaults`
+4. When passing a `hint` to `Mongo.find_one` (etc.), if the index does not exist, an error is now returned.
+
 ## Contributing
 
 To contribute you need to compile `Mongo.Ecto` from source and test it:

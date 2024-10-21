@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2.0.0
 
-* Change underlying driver from [`mongodb`](https://github.com/elixir-mongo/mongodb) to [`mongodb_driver`](https://github.com/zookzook/elixir-mongodb-driver)
-* Remove module config options `pool`, `pool_overflow`, and `pool_timeout`
+* Change underlying driver from [`mongodb`](https://github.com/elixir-mongo/mongodb) to [`mongodb_driver`](https://github.com/zookzook/elixir-mongodb-driver) 1.4.0
+* Remove config options `pool`, `pool_overflow`, and `pool_timeout`
 * Add support for MongoDB 6.0 and 7.0
 * Add support for loading & dumping nil binaries and dumping nil dates
 
 ### Possible breaking changes
 
-Calls to `Mongo.Ecto` itself should not require any changes. However, if you make direct calls to the `Mongo` driver, you will need to update some of them to account for the `mongodb` -> `mongodb_driver` upgrade.
+Calls to the Ecto adapter itself should not require any changes. However, if you make direct calls to the `Mongo` driver, you will need to update some of them to account for the `mongodb` -> `mongodb_driver` upgrade. See [Migrating to 2.0.0](./README.md#migrating-to-200) in the Readme.
 
 ## 1.1.2
 * Add support for loading nil dates
