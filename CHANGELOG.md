@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Possible breaking changes
 
-Calls to the Ecto adapter itself should not require any changes. However, if you make direct calls to the `Mongo` driver, you will need to update some of them to account for the `mongodb` -> `mongodb_driver` upgrade. See [Migrating to 2.0.0](./README.md#migrating-to-200) in the Readme.
+Calls to the Ecto adapter itself should not require any changes. However, if you make direct calls to the `Mongo` driver, you will need to update some of them to account for the `mongodb` -> `mongodb_driver` upgrade. See [Migrating to 2.0](./README.md#migrating-to-20) in the Readme.
 
 ## 1.1.2
 * Add support for loading nil dates
