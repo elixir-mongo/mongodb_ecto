@@ -772,6 +772,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
     |> Enum.flat_map(fn
       %Query.QueryExpr{expr: expr} ->
         Enum.map(expr, &order_by_expr(&1, pk, query))
+
       %Query.ByExpr{expr: expr} ->
         Enum.map(expr, &order_by_expr(&1, pk, query))
     end)
@@ -786,6 +787,7 @@ defmodule Mongo.Ecto.NormalizedQuery do
           value = value |> value(params, pk, query, "update clause")
           {update_op(key, query), value}
         end)
+
       %Query.ByExpr{expr: expr} ->
         Enum.map(expr, fn {key, value} ->
           value = value |> value(params, pk, query, "update clause")
@@ -899,6 +901,9 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
 
   defp offset_limit(%Query.QueryExpr{expr: expr}, params, pk, query, where),
+    do: value(expr, params, pk, query, where)
+
+  defp offset_limit(%Query.ByExpr{expr: expr}, params, pk, query, where),
     do: value(expr, params, pk, query, where)
 
   defp offset_limit(%Query.LimitExpr{expr: expr}, params, pk, query, where),
