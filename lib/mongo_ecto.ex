@@ -52,7 +52,7 @@ defmodule Mongo.Ecto do
       defmodule Weather do
         use Ecto.Model
 
-        # see the note below for explanation of that line
+        # see the note below for explanation of this line
         @primary_key {:id, :binary_id, autogenerate: true}
 
         # weather is the MongoDB collection name

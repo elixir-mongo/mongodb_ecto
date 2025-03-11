@@ -40,7 +40,10 @@ end
 defmodule Weather do
   use Ecto.Schema
 
+  # see Mongo.Ecto module docs for explanation of this line
   @primary_key {:id, :binary_id, autogenerate: true}
+
+  # weather is the MongoDB collection name
   schema "weather" do
     field :city     # Defaults to type :string
     field :temp_lo, :integer
@@ -104,18 +107,6 @@ For additional information on usage please see the documentation for [Ecto](http
 | 32-bit integer     | `:integer`              |
 | timestamp          | `BSON.Timestamp`        |
 | 64-bit integer     | `:integer`              |
-
-Primary keys on Ecto schemas are named `:id` and represented as strings, whereas in the actual MongoDB collection, they are named `_id` and stored as object ids. Schema definitions for MongoDB collections should start with `@primary_key {:id, :binary_id, autogenerate: true}` like in the above example. To create an `:id` for an Ecto struct, use `BSON.ObjectId.encode!(Mongo.object_id())`, e.g.:
-
-```elixir
-weather = %Weather{
-  id: BSON.ObjectId.encode!(Mongo.object_id()),
-  city: "New York City",
-  temp_lo: 32,
-  temp_hi: 50,
-  prcp: 0.0
-}
-```
 
 Symbols are deprecated by the
 [BSON specification](http://bsonspec.org/spec.html). They will be converted
