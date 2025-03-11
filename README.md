@@ -19,12 +19,17 @@ or check out examples below.
 # In your config/config.exs file
 config :my_app, Repo,
   adapter: Mongo.Ecto,
+  # Example key-value configuration:
   database: "ecto_simple",
   username: "mongodb",
   password: "mongodb",
   hostname: "localhost"
-  # Or you can use a connection string (mongodb:// or mongodb+srv://), e.g.:
-  # mongo_url: "mongodb://mongodb:mongodb@localhost:27017/ecto_simple"
+  # OR you can configure with a connection string (mongodb:// or mongodb+srv://):
+  mongo_url: "mongodb://mongodb:mongodb@localhost:27017/ecto_simple"
+
+config :my_app,
+  # Add Repo to this list so you can run commands like `mix ecto.create`.
+  ecto_repos: [Repo]
 
 # In your application code
 defmodule Repo do

@@ -28,6 +28,10 @@ defmodule Mongo.Ecto do
         password: "mongodb",
         hostname: "localhost"
 
+      config :my_app,
+        # Add Repo to this list so you can run commands like `mix ecto.create`.
+        ecto_repos: [Repo]
+
   For more connection options, see mongodb-driver's [Mongo.start_link](https://hexdocs.pm/mongodb_driver/1.5.2/Mongo.html#start_link/1). Note that to use a connection string (mongodb:// or mongodb+srv://), you must set `mongo_url: ` instead of `url: `.
 
   Each repository in Ecto defines a `start_link/0` function that needs to be
