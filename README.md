@@ -73,14 +73,6 @@ def deps do
 end
 ```
 
-You should also update your applications to include both projects:
-
-```elixir
-def application do
-  [applications: [:logger, :mongodb_ecto, :ecto]]
-end
-```
-
 To use the adapter in your repo:
 
 ```elixir
