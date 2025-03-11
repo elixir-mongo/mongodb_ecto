@@ -21,16 +21,24 @@ config :my_app, Repo,
   adapter: Mongo.Ecto,
   database: "ecto_simple",
   username: "mongodb",
-  password: "mongosb",
+  password: "mongodb",
   hostname: "localhost"
+  # Or you can use a connection string (mongodb:// or mongodb+srv://), e.g.:
+  # mongo_url: "mongodb://mongodb:mongodb@localhost:27017/ecto_simple"
 
 # In your application code
 defmodule Repo do
-  use Ecto.Repo, otp_app: :my_app
+  use Ecto.Repo,
+    otp_app: :my_app,
+    adapter: Mongo.Ecto
+
+  def pool() do
+    Ecto.Adapter.lookup_meta(__MODULE__).pid
+  end
 end
 
 defmodule Weather do
-  use Ecto.Model
+  use Ecto.Schema
 
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "weather" do
@@ -105,6 +113,18 @@ For additional information on usage please see the documentation for [Ecto](http
 | timestamp          | `BSON.Timestamp`        |
 | 64-bit integer     | `:integer`              |
 
+Primary keys on Ecto schemas are named `:id` and represented as strings, whereas in the actual MongoDB collection, they are named `_id` and stored as object ids. Schema definitions for MongoDB collections should start with `@primary_key {:id, :binary_id, autogenerate: true}` like in the above example. To create an `:id` for an Ecto struct, use `BSON.ObjectId.encode!(Mongo.object_id())`, e.g.:
+
+```elixir
+weather = %Weather{
+  id: BSON.ObjectId.encode!(Mongo.object_id()),
+  city: "New York City",
+  temp_lo: 32,
+  temp_hi: 50,
+  prcp: 0.0
+}
+```
+
 Symbols are deprecated by the
 [BSON specification](http://bsonspec.org/spec.html). They will be converted
 to simple strings on reads. There is no possibility of persisting them to
@@ -126,25 +146,28 @@ The adapter and the driver are tested against most recent versions from 5.0, 6.0
 
 Release 2.0 changes the underlying driver from [`mongodb`](https://github.com/elixir-mongo/mongodb) to [`mongodb_driver`](https://github.com/zookzook/elixir-mongodb-driver) 1.4.0. Calls to the Ecto adapter itself should not require any changes. Some config options are no longer used and can be simply deleted: `pool`, `pool_overflow`, `pool_timeout`.
 
-If you make direct calls to the `Mongo` driver, you will need to update some of them to account for the `mongodb` -> `mongodb_driver` upgrade. Also, remember to replace `:mongodb` with `{:mongodb_driver, "~> 1.4.0"}` in your `mix.exs`. The known updates are:
+If you make direct calls to the `Mongo` driver, you will need to update some of them to account for the `mongodb` -> `mongodb_driver` upgrade. Also, remember to replace `:mongodb` with `{:mongodb_driver, "~> 1.4"}` in your `mix.exs`. The known updates are:
+
 1. `Mongo` functions no longer accept a `pool` option or `MyApp.Repo.Pool` module argument. Instead, a pool PID is expected:
-    ```elixir
-    # Old driver call
-    Mongo.find(MyApp.Repo.Pool, "my_coll", %{"id": id}, projection: %{"field": 1}, pool: db_pool())
 
-    # New driver call
-    Mongo.find(MyApp.Repo.pool(), "my_coll", %{"id": id}, projection: %{"field": 1})
+   ```elixir
+   # Old driver call
+   Mongo.find(MyApp.Repo.Pool, "my_coll", %{"id": id}, projection: %{"field": 1}, pool: db_pool())
 
-    # repo.ex
-    # Provided the following function is defined in MyApp.Repo:
-    defmodule MyApp.Repo do
-      use Ecto.Repo, otp_app: :my_app, adapter: Mongo.Ecto
+   # New driver call
+   Mongo.find(MyApp.Repo.pool(), "my_coll", %{"id": id}, projection: %{"field": 1})
 
-      def pool() do
-        Ecto.Adapter.lookup_meta(__MODULE__).pid
-      end
-    end
-    ```
+   # repo.ex
+   # Provided the following function is defined in MyApp.Repo:
+   defmodule MyApp.Repo do
+     use Ecto.Repo, otp_app: :my_app, adapter: Mongo.Ecto
+
+     def pool() do
+       Ecto.Adapter.lookup_meta(__MODULE__).pid
+     end
+   end
+   ```
+
 2. [`Mongo.command`](https://hexdocs.pm/mongodb_driver/1.4.1/Mongo.html#command/3) requires a keyword list instead of a document. E.g., instead of `Mongo.command(MyApp.Repo.pool(), %{listCollections: 1}, opts)`, do `Mongo.command(MyApp.Repo.pool(), [listCollections: 1], opts)`.
 3. `Mongo.ReadPreferences.defaults` is renamed to `Mongo.ReadPreference.merge_defaults`.
 4. When passing a `hint` to `Mongo.find_one` etc., if the hinted index does not exist, an error is now returned.
