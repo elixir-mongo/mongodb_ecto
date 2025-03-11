@@ -91,7 +91,7 @@ defmodule MyApp.Repo do
 end
 ```
 
-For additional information on usage please see the documentation for [Ecto](http://hexdocs.pm/ecto).
+For additional information on usage please see the documentation for the [Mongo.Ecto module](https://hexdocs.pm/mongodb_ecto/Mongo.Ecto.html) and for [Ecto](http://hexdocs.pm/ecto).
 
 ## Data Type Mapping
 
