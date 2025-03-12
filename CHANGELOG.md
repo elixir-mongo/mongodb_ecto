@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remove config options `pool`, `pool_overflow`, and `pool_timeout`
 - Add support for MongoDB 6.0 and 7.0
 - Add support for loading & dumping nil binaries and dumping nil dates
+- Improve README setup instructions
 
 ### Possible breaking changes
 
