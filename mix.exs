@@ -22,7 +22,7 @@ defmodule Mongo.Ecto.Mixfile do
   #
   # Type `mix help compile.app` for more information.
   def application do
-    [applications: [:ecto, :mongodb_driver, :logger, :telemetry]]
+    [extra_applications: [:logger]]
   end
 
   defp deps do
