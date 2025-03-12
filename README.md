@@ -76,7 +76,7 @@ Add `:mongodb_ecto` as a dependency in your `mix.exs` file.
 ```elixir
 def deps do
   [
-    {:mongodb_ecto, "~> 1.0.0"}
+    {:mongodb_ecto, "~> 2.0.0"}
   ]
 end
 ```
@@ -132,7 +132,7 @@ The adapter and the driver are tested against most recent versions from 5.0, 6.0
 
 ## Migrating to 2.0
 
-Release 2.0 changes the underlying driver from [`mongodb`](https://github.com/elixir-mongo/mongodb) to [`mongodb_driver`](https://github.com/zookzook/elixir-mongodb-driver) 1.4.0. Calls to the Ecto adapter itself should not require any changes. Some config options are no longer used and can be simply deleted: `pool`, `pool_overflow`, `pool_timeout`.
+Release 2.0 changes the underlying driver from [`mongodb`](https://github.com/elixir-mongo/mongodb) to [`mongodb_driver`](https://github.com/zookzook/elixir-mongodb-driver) 1.4. Calls to the Ecto adapter itself should not require any changes. Some config options are no longer used and can be simply deleted: `pool`, `pool_overflow`, `pool_timeout`.
 
 If you make direct calls to the `Mongo` driver, you will need to update some of them to account for the `mongodb` -> `mongodb_driver` upgrade. Also, remember to replace `:mongodb` with `{:mongodb_driver, "~> 1.4"}` in your `mix.exs`. The known updates are:
 
