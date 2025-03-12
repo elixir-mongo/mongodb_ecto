@@ -76,7 +76,7 @@ Add `:mongodb_ecto` as a dependency in your `mix.exs` file.
 ```elixir
 def deps do
   [
-    {:mongodb_ecto, "~> 2.0.0"}
+    {:mongodb_ecto, "~> 2.1.0"}
   ]
 end
 ```
