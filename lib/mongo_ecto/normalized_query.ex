@@ -769,30 +769,19 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp order(%Query{order_bys: order_bys} = query, {_coll, _model, pk}) do
     order_bys
-    |> Enum.flat_map(fn
-      %Query.QueryExpr{expr: expr} ->
-        Enum.map(expr, &order_by_expr(&1, pk, query))
-
-      %Query.ByExpr{expr: expr} ->
-        Enum.map(expr, &order_by_expr(&1, pk, query))
+    |> Enum.flat_map(fn %Query.QueryExpr{expr: expr} ->
+      Enum.map(expr, &order_by_expr(&1, pk, query))
     end)
     |> map_unless_empty
   end
 
   defp command(:update, %Query{updates: updates} = query, params, {_coll, _model, pk}) do
     updates
-    |> Enum.flat_map(fn
-      %Query.QueryExpr{expr: expr} ->
-        Enum.map(expr, fn {key, value} ->
-          value = value |> value(params, pk, query, "update clause")
-          {update_op(key, query), value}
-        end)
-
-      %Query.ByExpr{expr: expr} ->
-        Enum.map(expr, fn {key, value} ->
-          value = value |> value(params, pk, query, "update clause")
-          {update_op(key, query), value}
-        end)
+    |> Enum.flat_map(fn %Query.QueryExpr{expr: expr} ->
+      Enum.map(expr, fn {key, value} ->
+        value = value |> value(params, pk, query, "update clause")
+        {update_op(key, query), value}
+      end)
     end)
     |> merge_keys(query, "update clause")
   end
@@ -901,9 +890,6 @@ defmodule Mongo.Ecto.NormalizedQuery do
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
 
   defp offset_limit(%Query.QueryExpr{expr: expr}, params, pk, query, where),
-    do: value(expr, params, pk, query, where)
-
-  defp offset_limit(%Query.ByExpr{expr: expr}, params, pk, query, where),
     do: value(expr, params, pk, query, where)
 
   defp offset_limit(%Query.LimitExpr{expr: expr}, params, pk, query, where),
