@@ -2,7 +2,7 @@ defmodule Mongo.Ecto.Mixfile do
   use Mix.Project
 
   @source_url "https://github.com/elixir-mongo/mongodb_ecto"
-  @version "2.1.0"
+  @version "2.1.1"
 
   def project do
     [
@@ -13,7 +13,7 @@ defmodule Mongo.Ecto.Mixfile do
       dialyzer: dialyzer(),
       docs: docs(),
       package: package(),
-      preferred_cli_env: [docs: :docs],
+      preferred_cli_env: [docs: :dev],
       test_coverage: [tool: ExCoveralls]
     ]
   end
@@ -30,7 +30,7 @@ defmodule Mongo.Ecto.Mixfile do
       {:credo, "~> 1.5.6", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.1.0", only: :dev, runtime: false},
       {:ecto, "~> 3.12"},
-      {:ex_doc, ">= 0.0.0", only: :docs, runtime: false},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:excoveralls, "~> 0.16", only: :test},
       {:mongodb_driver, "~> 1.4"},
       {:telemetry, ">= 0.4.0"}
