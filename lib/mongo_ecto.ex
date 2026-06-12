@@ -384,6 +384,8 @@ defmodule Mongo.Ecto do
   @behaviour Ecto.Adapter.Storage
   @behaviour Ecto.Adapter.Schema
   @behaviour Ecto.Adapter.Queryable
+  @behaviour Ecto.Adapter.Migration
+  @behaviour Ecto.Adapter.Transaction
 
   alias Mongo.Ecto.Connection
   alias Mongo.Ecto.Conversions
@@ -918,5 +920,41 @@ defmodule Mongo.Ecto do
   def drop_indexes(repo, collection, indexes, opts \\ []) do
     Ecto.Adapter.lookup_meta(repo)
     |> Connection.query(:drop_index, [collection, indexes], opts)
+  end
+
+  ## Migration
+
+  @impl Ecto.Adapter.Migration
+  defdelegate execute_ddl(adapter_meta, command, opts), to: Mongo.Ecto.Migration
+
+  @impl Ecto.Adapter.Migration
+  defdelegate supports_ddl_transaction?(), to: Mongo.Ecto.Migration
+
+  @impl Ecto.Adapter.Migration
+  defdelegate lock_for_migrations(meta, opts, fun), to: Mongo.Ecto.Migration
+
+  ## Transaction
+
+  @impl Ecto.Adapter.Transaction
+  def transaction(adapter_meta, opts, fun) do
+    %{pid: topology_pid} = adapter_meta
+
+    Mongo.transaction(topology_pid, fn ->
+      try do
+        {:ok, fun.()}
+      catch
+        :throw, {:ecto_rollback, value} -> {:error, value}
+      end
+    end, opts)
+  end
+
+  @impl Ecto.Adapter.Transaction
+  def in_transaction?(_adapter_meta) do
+    Process.get(:session) != nil
+  end
+
+  @impl Ecto.Adapter.Transaction
+  def rollback(_adapter_meta, value) do
+    throw {:ecto_rollback, value}
   end
 end

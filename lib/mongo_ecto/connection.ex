@@ -31,6 +31,11 @@ defmodule Mongo.Ecto.Connection do
 
   def storage_down(opts) do
     {:ok, _apps} = Application.ensure_all_started(:mongodb_driver)
+    # Rename the `:mongo_url` key so that the driver can parse it
+    opts = Enum.map(opts, fn
+      {:mongo_url, value} -> {:url, value}
+      {key, value} -> {key, value}
+    end)
     {:ok, conn} = Mongo.start_link(opts)
 
     try do
@@ -43,6 +48,11 @@ defmodule Mongo.Ecto.Connection do
 
   def storage_status(opts) do
     {:ok, _apps} = Application.ensure_all_started(:mongodb_driver)
+    # Rename the `:mongo_url` key so that the driver can parse it
+    opts = Enum.map(opts, fn
+      {:mongo_url, value} -> {:url, value}
+      {key, value} -> {key, value}
+    end)
     {:ok, conn} = Mongo.start_link(opts)
 
     case Mongo.command(conn, ping: true) do
@@ -425,6 +435,9 @@ defmodule Mongo.Ecto.Connection do
           should be avoided if possible.
           """
         end
+
+      _ ->
+        check_constraint_errors(error)
     end
   end
 
