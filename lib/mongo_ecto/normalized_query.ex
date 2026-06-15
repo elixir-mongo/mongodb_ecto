@@ -917,7 +917,15 @@ defmodule Mongo.Ecto.NormalizedQuery do
         nil
 
       [pk] ->
-        pk
+        # Only map pk to _id when the field type is :binary_id.
+        # Integer primary keys like SchemaMigration's :version are stored as
+        # regular fields so that string-source queries (which have no schema and
+        # therefore no pk information) can still find them.
+        case schema.__schema__(:type, pk) do
+          :binary_id -> pk
+          :id -> pk
+          _ -> nil
+        end
 
       keys ->
         raise ArgumentError,
