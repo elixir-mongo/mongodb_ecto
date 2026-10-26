@@ -241,15 +241,20 @@ defmodule Mongo.Ecto.Connection do
   def query(adapter_meta, operation, args, opts) do
     %{pid: pool, telemetry: telemetry, opts: default_opts} = adapter_meta
 
-    args = [pool] ++ args ++ [with_log(telemetry, args, opts ++ default_opts)]
+    # Ecto puts every cast parameter in :cast_params, which nothing here reads. The
+    # driver copies its options into other processes on each call, so leave it out
+    # and keep the log callback from capturing the arguments (the documents).
+    opts = Keyword.delete(opts ++ default_opts, :cast_params)
+
+    args = [pool] ++ args ++ [with_log(telemetry, opts)]
     apply(Mongo, operation, args)
   end
 
-  defp with_log(telemetry, params, opts) do
-    [log: &log(telemetry, params, &1, opts)] ++ opts
+  defp with_log(telemetry, opts) do
+    [log: &log(telemetry, &1, opts)] ++ opts
   end
 
-  defp log({repo, log, event_name}, _params, entry, opts) do
+  defp log({repo, log, event_name}, entry, opts) do
     %{
       connection_time: query_time,
       decode_time: decode_time,
