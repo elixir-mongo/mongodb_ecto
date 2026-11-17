@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otpElixir: [{ otp: "27.2", elixir: "1.17.3" }]
+        otpElixir: [{ otp: "27.3", elixir: "1.17.3" }]
     steps:
       - name: repo checkout
         uses: actions/checkout@v4
@@ -36,12 +36,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mongodb: ["5.0", "6.0", "7.0"]
+        mongodb: ["6.0", "7.0", "8.0"]
         otpElixir:
           [
             { otp: "25.3", elixir: "1.15.8" },
             { otp: "26.2", elixir: "1.16.3" },
-            { otp: "27.2", elixir: "1.17.3" },
+            { otp: "27.3", elixir: "1.17.3" },
           ]
         topology: [replica_set, server]
     steps:
