@@ -5,19 +5,19 @@ on:
 jobs:
   codeQuality:
     name: "Tests & Code Quality"
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        otpElixir: [{ otp: "24.3.4.10", elixir: "1.14.3" }]
+        otpElixir: [{ otp: "27.2", elixir: "1.17.3" }]
     steps:
       - name: repo checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
         with:
           otp-version: ${{ matrix.otpElixir.otp }}
           elixir-version: ${{ matrix.otpElixir.elixir }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             deps
@@ -32,21 +32,21 @@ jobs:
         continue-on-error: true
       - run: mix dialyzer
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         mongodb: ["5.0", "6.0", "7.0"]
         otpElixir:
           [
-            { otp: "22.3.4.26", elixir: "1.12.3" },
-            { otp: "23.3.4.18", elixir: "1.13.4" },
-            { otp: "24.3.4.10", elixir: "1.14.3" },
+            { otp: "25.3", elixir: "1.15.8" },
+            { otp: "26.2", elixir: "1.16.3" },
+            { otp: "27.2", elixir: "1.17.3" },
           ]
         topology: [replica_set, server]
     steps:
       - name: repo checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - id: start-mongodb
         name: start mongodb
         uses: mongodb-labs/drivers-evergreen-tools@master
@@ -57,7 +57,7 @@ jobs:
         with:
           otp-version: ${{ matrix.otpElixir.otp }}
           elixir-version: ${{ matrix.otpElixir.elixir }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             deps
