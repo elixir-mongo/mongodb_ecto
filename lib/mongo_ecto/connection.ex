@@ -430,7 +430,9 @@ defmodule Mongo.Ecto.Connection do
 
   defp allow_unsafe_upserts?(opts) do
     allow_unsafe_upserts_option = :allow_unsafe_upserts
-    Application.get_env(:mongodb_ecto, allow_unsafe_upserts_option, false) || Keyword.get(opts, allow_unsafe_upserts_option, false)
+
+    Application.get_env(:mongodb_ecto, allow_unsafe_upserts_option, false) ||
+      Keyword.get(opts, allow_unsafe_upserts_option, false)
   end
 
   # At some point in the past it looks like the MongoDB driver switched from

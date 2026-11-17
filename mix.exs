@@ -27,8 +27,8 @@ defmodule Mongo.Ecto.Mixfile do
 
   defp deps do
     [
-      {:credo, "~> 1.5.6", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.1.0", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: :dev, runtime: false},
       {:ecto, "~> 3.12"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:excoveralls, "~> 0.16", only: :test},
