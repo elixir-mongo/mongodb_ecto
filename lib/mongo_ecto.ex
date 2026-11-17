@@ -377,6 +377,9 @@ defmodule Mongo.Ecto do
     * `:pool_size` - The number of connections to keep in the pool (default: 10)
     * `:max_overflow` - The maximum overflow of connections (default: 0)
 
+  Like `Ecto.Adapters.SQL`, the adapter starts the pool with `label:` set to the
+  repo's `:name`, which defaults to the repo module.
+
   For other adapters, please see their documentation.
   """
 
@@ -433,7 +436,8 @@ defmodule Mongo.Ecto do
 
     opts = Keyword.take(config, @pool_opts)
     meta = %{telemetry: telemetry, opts: opts}
-    {:ok, connection.child_spec(config), meta}
+    label = Keyword.get(config, :name, config[:repo])
+    {:ok, connection.child_spec([label: label] ++ config), meta}
   end
 
   @impl true
