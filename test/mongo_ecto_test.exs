@@ -12,6 +12,18 @@ defmodule Mongo.EctoTest do
   import Ecto.Query, only: [from: 2]
   import Mongo.Ecto.Helpers
 
+  test "the pool is labeled with the repo name" do
+    config = [repo: TestRepo, telemetry_prefix: [:test]]
+
+    assert {:ok, %{start: {Mongo, :start_link, [opts]}}, _meta} = Mongo.Ecto.init(config)
+    assert opts[:label] == TestRepo
+
+    assert {:ok, %{start: {Mongo, :start_link, [opts]}}, _meta} =
+             Mongo.Ecto.init([name: :dynamic_repo] ++ config)
+
+    assert opts[:label] == :dynamic_repo
+  end
+
   test "command/3" do
     assert %{"ok" => 1.0} = Mongo.Ecto.command(TestRepo, ping: 1)
   end
