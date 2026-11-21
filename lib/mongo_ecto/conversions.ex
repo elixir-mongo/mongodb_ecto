@@ -74,13 +74,25 @@ defmodule Mongo.Ecto.Conversions do
 
   defp document(doc, pk) do
     map(doc, fn {key, value} ->
-      pair(key, value, pk, &from_ecto_pk(&1, pk))
+      # Recurse with `nil` so the parent schema's primary key isn't
+      # accidentally rewritten when it appears inside a nested document
+      # (e.g. an `embeds_one` whose embedded schema has its own `:id`
+      # field). Without this guard, an embed like
+      #
+      #   %{jurisdiction: %{id: "MD", title: "Maryland"}}
+      #
+      # gets serialized as `jurisdiction._id`, which breaks queries that
+      # filter on `jurisdiction.id`. The pk → _id remap is only meaningful
+      # at the top of the document.
+      pair(key, value, pk, &from_ecto_pk(&1, nil))
     end)
   end
 
   defp document(doc, params, pk) do
     map(doc, fn {key, value} ->
-      pair(key, value, pk, &inject_params(&1, params, pk))
+      # Same rationale as `document/2`: scope the pk → _id rename to the
+      # outer document. See the comment in `document/2`.
+      pair(key, value, pk, &inject_params(&1, params, nil))
     end)
   end
 
