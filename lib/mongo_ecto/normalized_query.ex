@@ -900,6 +900,28 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp offset_limit(nil, _params, _pk, _query, _where), do: nil
 
+  defp offset_limit(
+         %Query.QueryExpr{expr: {:^, l, [idx]}},
+         params,
+         pk,
+         %Query{wheres: wheres} = query,
+         "limit clause" = where
+       ) do
+    where_params_offset = where_params_offset(wheres)
+    value({:^, l, [where_params_offset + 1]}, params, pk, query, where)
+  end
+
+  defp offset_limit(
+         %Query.QueryExpr{expr: {:^, l, [idx]}},
+         params,
+         pk,
+         %Query{wheres: wheres} = query,
+         "offset clause" = where
+       ) do
+    where_params_offset = where_params_offset(wheres)
+    value({:^, l, [where_params_offset + 2]}, params, pk, query, where)
+  end
+
   defp offset_limit(%Query.QueryExpr{expr: expr}, params, pk, query, where),
     do: value(expr, params, pk, query, where)
 
@@ -1027,9 +1049,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {field(left, pk, query, place), ["$in": []]}
   end
 
-  defp pair({:in, _, [left, {:^, _, [ix, len]}]}, params, pk, query, place) do
+  defp pair({:in, _, [left, _]} = expr, params, pk, query, place) do
     args =
-      ix..(ix + len - 1)
+      expr
+      |> where_params_range()
       |> Enum.map(&elem(params, &1))
       |> Enum.map(&value(&1, params, pk, query, place))
 
@@ -1044,9 +1067,10 @@ defmodule Mongo.Ecto.NormalizedQuery do
     {field(left, pk, query, place), [{binary_op(op), value(right, params, pk, query, place)}]}
   end
 
-  defp pair({:not, _, [{:in, _, [left, {:^, _, [ix, len]}]}]}, params, pk, query, place) do
+  defp pair({:not, _, [{:in, _, [left, _]}]} = expr, params, pk, query, place) do
     args =
-      ix..(ix + len - 1)
+      expr
+      |> where_params_range()
       |> Enum.map(&elem(params, &1))
       |> Enum.map(&value(&1, params, pk, query, place))
 
@@ -1105,5 +1129,26 @@ defmodule Mongo.Ecto.NormalizedQuery do
 
   defp error(place) do
     raise ArgumentError, "Invalid expression for MongoDB adapter in #{place}"
+  end
+
+  defp where_params_offset(wheres) do
+    wheres
+    |> Enum.map(fn %Query.BooleanExpr{expr: expr} ->
+      _from..to = where_params_range(expr)
+      to
+    end)
+    |> Enum.max(& &1)
+  end
+
+  defp where_params_range({_, _, [_, {:^, _, [0, 0]}]}), do: 0..0
+  defp where_params_range({_, _, [_, {:^, _, [idx, len]}]}), do: idx..(idx + len - 1)
+  defp where_params_range({_, _, [_, {:^, _, [idx]}]}), do: idx..idx
+  defp where_params_range({:not, _, [expr]}), do: where_params_range(expr)
+
+  defp where_params_range({_, _, exprs}) do
+    ranges = Enum.map(exprs, &where_params_range(&1)) |> Enum.filter(& &1)
+    from.._to = Enum.at(ranges, 0)
+    _from..to = Enum.at(ranges, -1)
+    from..to
   end
 end
